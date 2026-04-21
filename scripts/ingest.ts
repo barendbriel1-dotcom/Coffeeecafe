@@ -10,11 +10,15 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("Missing Supabase credentials in .env");
   process.exit(1);
+}
+
+if (!process.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn("WARNING: VITE_SUPABASE_SERVICE_ROLE_KEY is missing. Row Level Security (RLS) might block inserts. Please add it to your .env file.");
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
