@@ -4,12 +4,13 @@ import * as xlsx from "xlsx";
 import { createClient } from "@supabase/supabase-js";
 import { fileURLToPath } from "url";
 
-// Load local .env file manually if using tsx (Vite usually handles it, but this is a bare script)
 import * as dotenv from "dotenv";
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("Missing Supabase credentials in .env");
@@ -18,8 +19,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const inventoryDir = path.resolve(__dirname, "../Campus Inventory");
 
 async function getOrCreateDepartment(name: string): Promise<string> {
@@ -77,7 +76,8 @@ async function ingestFile(fileName: string) {
   }
 
   console.log(`\nProcessing ${fileName}...`);
-  const workbook = xlsx.readFile(filePath);
+  const buf = fs.readFileSync(filePath);
+  const workbook = xlsx.read(buf, { type: "buffer" });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   
