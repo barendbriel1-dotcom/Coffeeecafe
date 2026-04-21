@@ -98,7 +98,7 @@ export default function Login() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Neo"
-                  className="bg-background/50 border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
+                  className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                   maxLength={80}
                   required
                 />
@@ -112,7 +112,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="user@encounter.church"
-                className="bg-background/50 border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
+                className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                 maxLength={255}
                 required
                 autoComplete="email"
@@ -127,7 +127,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="bg-background/50 border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono pr-10"
+                  className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono pr-10"
                   maxLength={100}
                   required
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}

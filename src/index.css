@@ -92,6 +92,16 @@
     letter-spacing: 0.04em;
   }
   ::selection { background: hsl(var(--primary) / 0.3); color: hsl(var(--primary)); }
+
+  /* Fix browser autofill styling for Matrix theme */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px hsl(120 20% 8%) inset !important;
+    -webkit-text-fill-color: hsl(120 100% 50%) !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
 
 @layer utilities {
