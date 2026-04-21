@@ -18,7 +18,7 @@ interface Asset {
   department_id: string; item_type_id: string;
   current_holder: string | null; current_location_id: string | null;
 }
-interface Dept { id: string; code: string; name: string; }
+interface Dept { id: string; code: string; name: string; is_storage?: boolean; }
 interface ItemType { id: string; code: string; name: string; }
 interface Holder { id: string; display_name: string; }
 
