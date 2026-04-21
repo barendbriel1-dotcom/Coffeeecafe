@@ -16,7 +16,7 @@ export default function MatrixRain({ className = "" }: { className?: string }) {
     let columns = Math.floor(width / fontSize);
     let drops: number[] = Array(columns).fill(1).map(() => Math.random() * -50);
 
-    const chars = "01アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン01";
+    const chars = "01";
 
     const handleResize = () => {
       width = canvas.width = window.innerWidth;
