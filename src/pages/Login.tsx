@@ -10,8 +10,8 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react";
 const authSchema = z.object({
-  email: z.string().trim().email("Invalid access ID").max(255),
-  password: z.string().min(6, "Min 6 chars").max(100),
+  email: z.string().trim().toLowerCase().email("Invalid access ID").max(255),
+  password: z.string().min(1, "Required").max(100),
   displayName: z.string().trim().min(1, "Required").max(80).optional(),
 });
 
@@ -45,13 +45,13 @@ export default function Login() {
       }
 
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         if (error) throw error;
         toast.success("ACCESS GRANTED");
         navigate(from, { replace: true });
       } else {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: email.toLowerCase(),
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/`,
@@ -61,7 +61,7 @@ export default function Login() {
         if (error) throw error;
         toast.success("OPERATIVE REGISTERED — signing in…");
         // try sign-in immediately (auto-confirm is enabled)
-        await supabase.auth.signInWithPassword({ email, password });
+        await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         navigate(from, { replace: true });
       }
     } catch (err: any) {
@@ -100,7 +100,6 @@ export default function Login() {
                   placeholder="Neo"
                   className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                   maxLength={80}
-                  required
                 />
               </div>
             )}
@@ -114,7 +113,6 @@ export default function Login() {
                 placeholder="user@encounter.church"
                 className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                 maxLength={255}
-                required
                 autoComplete="email"
               />
             </div>
@@ -129,7 +127,6 @@ export default function Login() {
                   placeholder="••••••••"
                   className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono pr-10"
                   maxLength={100}
-                  required
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 />
                 <button
