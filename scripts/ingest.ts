@@ -30,7 +30,7 @@ async function getOrCreateDepartment(name: string): Promise<string> {
 
   if (existing?.id) return existing.id;
 
-  const code = name.substring(0, 3).toUpperCase();
+  const code = name.substring(0, 1).toUpperCase();
   const { data: inserted, error: insertError } = await supabase
     .from("departments")
     .insert({ name, code, is_storage: false })
@@ -50,7 +50,7 @@ async function getOrCreateItemType(name: string): Promise<string> {
 
   if (existing?.id) return existing.id;
 
-  const code = name.substring(0, 3).toUpperCase();
+  const code = name.substring(0, 1).toUpperCase();
   const { data: inserted, error: insertError } = await supabase
     .from("item_types")
     .insert({ name, code })
