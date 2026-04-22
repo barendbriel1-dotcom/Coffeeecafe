@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 interface Asset {
   id: string; code: string; name: string; status: string;
   description: string | null; serial_number: string | null;
-  department_id: string; item_type_id: string;
+  department_id: string; item_type_id: string; division_id: string | null;
   current_holder: string | null; current_location_id: string | null;
   image_url: string | null;
 }
@@ -66,9 +66,10 @@ export default function AssetDetail() {
         .from("assets")
         .select(`
           *,
-          department:departments!assets_department_id_fkey(name),
+          base_location:locations!assets_department_id_fkey(name),
           item_type:item_types!assets_item_type_id_fkey(name),
-          location:departments!assets_current_location_id_fkey(name)
+          current_location:locations!assets_current_location_id_fkey(name),
+          division:divisions(name)
         `)
         .eq("id", id)
         .single();
@@ -197,15 +198,15 @@ export default function AssetDetail() {
             <div className="grid grid-cols-1 gap-4 w-full text-left font-mono text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground uppercase tracking-widest">Division</span>
-                <span className="text-foreground">{(asset as any).item_type?.name}</span>
+                <span className="text-foreground">{(asset as any).division?.name || "—"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground uppercase tracking-widest">Base Loc</span>
-                <span className="text-foreground">{(asset as any).department?.name}</span>
+                <span className="text-foreground">{(asset as any).base_location?.name || "—"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground uppercase tracking-widest">Current Loc</span>
-                <span className="text-foreground">{(asset as any).location?.name || "—"}</span>
+                <span className="text-foreground">{(asset as any).current_location?.name || "—"}</span>
               </div>
             </div>
 
@@ -264,19 +265,26 @@ export default function AssetDetail() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Primary Division</div>
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Equipment Category</div>
                   <div className="font-mono text-foreground flex items-center gap-2">
                     <div className="size-1.5 bg-primary rounded-full" />
                     {(asset as any).item_type?.name}
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Assigned Division</div>
+                  <div className="font-mono text-foreground flex items-center gap-2">
+                    <div className="size-1.5 bg-primary/60 rounded-full" />
+                    {(asset as any).division?.name || "UNASSIGNED"}
+                  </div>
+                </div>
               </div>
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Base Department</div>
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Base Location</div>
                   <div className="font-mono text-foreground flex items-center gap-2">
                     <MapPin size={14} className="text-primary/40" />
-                    {(asset as any).department?.name}
+                    {(asset as any).base_location?.name || "—"}
                   </div>
                 </div>
                 <div className="space-y-1">

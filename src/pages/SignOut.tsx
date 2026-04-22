@@ -13,21 +13,23 @@ import { toast } from "sonner";
 import { Search, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Asset { id: string; code: string; name: string; status: string; department_id: string; item_type_id: string; }
+interface Asset { id: string; code: string; name: string; status: string; department_id: string; item_type_id: string; division_id: string | null; }
 interface Profile { id: string; display_name: string; }
-interface Dept { id: string; name: string; code: string; }
+interface Loc { id: string; name: string; code: string; }
 interface ItemType { id: string; name: string; code: string; }
+interface Div { id: string; name: string; }
 
 export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const { user, isStaff } = useAuth();
   const [available, setAvailable] = useState<Asset[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [depts, setDepts] = useState<Dept[]>([]);
+  const [locs, setLocs] = useState<Loc[]>([]);
   const [items, setItems] = useState<ItemType[]>([]);
+  const [divs, setDivs] = useState<Div[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   
   const [toUser, setToUser] = useState("");
-  const [toDept, setToDept] = useState("");
+  const [toLoc, setToLoc] = useState("");
   const [packageName, setPackageName] = useState("");
   const [notes, setNotes] = useState("");
   const [expectedReturn, setExpectedReturn] = useState("");
@@ -35,8 +37,8 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
   // Search & Filter State
   const [q, setQ] = useState("");
-  const [filterDept, setFilterDept] = useState("all");
-  const [filterItem, setFilterItem] = useState("all");
+  const [filterLoc, setFilterLoc] = useState("all");
+  const [filterDiv, setFilterDiv] = useState("all");
 
   // Multi-code search
   const [multiSearch, setMultiSearch] = useState("");
@@ -65,16 +67,18 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   };
 
   const load = async () => {
-    const [{ data: a }, { data: p }, { data: d }, { data: i }] = await Promise.all([
-      supabase.from("assets").select("id, code, name, status, department_id, item_type_id").eq("status", "available").order("code"),
+    const [{ data: a }, { data: p }, { data: l }, { data: i }, { data: dv }] = await Promise.all([
+      supabase.from("assets").select("id, code, name, status, department_id, item_type_id, division_id").eq("status", "available").order("code"),
       supabase.from("profiles").select("id, display_name").order("display_name"),
-      supabase.from("departments").select("id, code, name").order("name"),
+      supabase.from("locations").select("id, code, name").order("name"),
       supabase.from("item_types").select("id, code, name").order("name"),
+      supabase.from("divisions").select("id, name").order("name"),
     ]);
     setAvailable(a ?? []);
     setProfiles(p ?? []);
-    setDepts(d ?? []);
+    setLocs(l ?? []);
     setItems(i ?? []);
+    setDivs(dv ?? []);
   };
   useEffect(() => { load(); }, []);
 
@@ -92,7 +96,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     if (!isStaff) { toast.error("Insufficient privileges"); return; }
     if (selected.size === 0) { toast.error("Select at least one asset"); return; }
     if (!toUser) { toast.error("Choose a recipient"); return; }
-    if (!toDept) { toast.error("Choose a To Department / Location"); return; }
+    if (!toLoc) { toast.error("Choose a Destination Location"); return; }
     setBusy(true);
     try {
       const { data: signout, error } = await supabase
@@ -100,7 +104,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
         .insert({
           signed_out_by: user!.id,
           signed_out_to: toUser,
-          to_department_id: toDept || null,
+          to_department_id: toLoc || null,
           package_name: bulk ? (packageName || "Bulk package") : null,
           notes: notes || null,
           expected_return: expectedReturn ? new Date(expectedReturn).toISOString() : null,
@@ -117,7 +121,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       const { error: updErr } = await supabase.from("assets").update({
         status: "signed_out",
         current_holder: toUser,
-        current_location_id: toDept || null,
+        current_location_id: toLoc || null,
       }).in("id", ids);
       if (updErr) throw updErr;
 
@@ -127,7 +131,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       })));
 
       toast.success(`Signed out ${ids.length} asset(s)`);
-      setSelected(new Set()); setToUser(""); setToDept(""); setPackageName(""); setNotes(""); setExpectedReturn("");
+      setSelected(new Set()); setToUser(""); setToLoc(""); setPackageName(""); setNotes(""); setExpectedReturn("");
       load();
     } catch (e: any) {
       toast.error(e?.message ?? "Failed");
@@ -136,10 +140,11 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
   const filteredAssets = available.filter(a => {
     const matchesQ = !q || a.code.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
-    const matchesDept = filterDept === "all" || a.department_id === filterDept;
-    const matchesItem = filterItem === "all" || a.item_type_id === filterItem;
-    return matchesQ && matchesDept && matchesItem;
+    const matchesLoc = filterLoc === "all" || a.department_id === filterLoc;
+    const matchesDiv = filterDiv === "all" || a.division_id === filterDiv;
+    return matchesQ && matchesLoc && matchesDiv;
   });
+
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -194,13 +199,13 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase tracking-widest text-primary/60">Destination / Location</Label>
-              <Select value={toDept} onValueChange={setToDept}>
+              <Label className="text-[10px] uppercase tracking-widest text-primary/60">Destination Location</Label>
+              <Select value={toLoc} onValueChange={setToLoc}>
                 <SelectTrigger className="bg-primary/5 border-primary/20 font-mono">
                   <SelectValue placeholder="Required" />
                 </SelectTrigger>
                 <SelectContent className="font-mono">
-                  {depts.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                  {locs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -292,22 +297,22 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2 w-full md:w-auto">
-                  <Select value={filterDept} onValueChange={setFilterDept}>
+                  <Select value={filterLoc} onValueChange={setFilterLoc}>
                     <SelectTrigger className="font-mono bg-primary/5 border-primary/20 text-xs h-10 min-w-[140px]">
                       <SelectValue placeholder="Location" />
                     </SelectTrigger>
                     <SelectContent className="font-mono">
                       <SelectItem value="all">All Locations</SelectItem>
-                      {depts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                      {locs.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={filterItem} onValueChange={setFilterItem}>
+                  <Select value={filterDiv} onValueChange={setFilterDiv}>
                     <SelectTrigger className="font-mono bg-primary/5 border-primary/20 text-xs h-10 min-w-[140px]">
                       <SelectValue placeholder="Division" />
                     </SelectTrigger>
                     <SelectContent className="font-mono">
                       <SelectItem value="all">All Divisions</SelectItem>
-                      {items.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                      {divs.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
