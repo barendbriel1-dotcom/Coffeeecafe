@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Assets from "./pages/Assets";
+import AssetDetail from "./pages/AssetDetail";
 import SignOut from "./pages/SignOut";
 import Handover from "./pages/Handover";
 import Requests from "./pages/Requests";
@@ -33,6 +34,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/assets" element={<Assets />} />
+              <Route path="/assets/:id" element={<AssetDetail />} />
               <Route path="/signout" element={<ProtectedRoute requireRole="staff"><SignOut /></ProtectedRoute>} />
               <Route path="/signout/bulk" element={<ProtectedRoute requireRole="staff"><SignOut bulk /></ProtectedRoute>} />
               <Route path="/signin" element={<ProtectedRoute requireRole="admin"><SignIn /></ProtectedRoute>} />

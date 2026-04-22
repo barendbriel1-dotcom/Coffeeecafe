@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Plus, Search, Trash2, Upload, Download, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Trash2, Upload, Download, FileSpreadsheet, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 interface Asset {
   id: string; code: string; name: string; status: string;
@@ -465,9 +466,18 @@ export default function Assets() {
                 const itemType = items.find((i) => i.id === a.item_type_id);
                 const dept = depts.find((d) => d.id === (a.current_location_id ?? a.department_id));
                 return (
-                  <tr key={a.id} className="hover:bg-primary/5 transition-colors">
-                    <td className="px-4 py-3 text-primary glow-soft truncate max-w-[220px]">{a.name}</td>
-                    <td className="px-4 py-3 text-foreground/80">{a.code}</td>
+                  <tr key={a.id} className="hover:bg-primary/5 transition-colors group">
+                    <td className="px-4 py-3 text-primary glow-soft truncate max-w-[220px]">
+                      <Link to={`/assets/${a.id}`} className="hover:underline flex items-center gap-2">
+                        {a.name}
+                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-50 transition-opacity" />
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-foreground/80">
+                      <Link to={`/assets/${a.id}`} className="hover:text-primary transition-colors">
+                        {a.code}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{itemType?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={cn("uppercase text-[10px] tracking-widest", statusColor[a.status])}>
