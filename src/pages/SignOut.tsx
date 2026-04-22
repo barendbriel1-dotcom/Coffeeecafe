@@ -117,7 +117,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   return (
     <div className="space-y-4 animate-fade-in">
       <h1 className="font-display text-2xl text-primary glow">
-        // {bulk ? "Bulk Package Sign-Out" : "Sign Out Asset"}
+        // {bulk ? "Bulk SignOut Page" : "SignOut Page"}
       </h1>
       <p className="text-sm text-muted-foreground">
         {bulk

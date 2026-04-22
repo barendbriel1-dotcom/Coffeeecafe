@@ -50,8 +50,8 @@ export default function AppLayout() {
   const nav = [
     { to: "/", label: "Dashboard", icon: LayoutGrid, show: true },
     { to: "/assets", label: "Assets", icon: Package, show: true },
-    { to: "/signout", label: "Sign Out", icon: LogOut, show: isStaff },
-    { to: "/signout/bulk", label: "Bulk Sign Out", icon: Layers, show: isStaff },
+    { to: "/signout", label: "SignOut Page", icon: LogOut, show: isStaff },
+    { to: "/signout/bulk", label: "Bulk SignOut Page", icon: Layers, show: isStaff },
     { to: "/signin", label: "Sign In", icon: LogIn, show: isAdmin },
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true },
     { to: "/requests", label: "Requests", icon: Inbox, show: true },
