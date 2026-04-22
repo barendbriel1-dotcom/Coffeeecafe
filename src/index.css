@@ -7,7 +7,7 @@
 /* MATRIX DESIGN SYSTEM — all values in HSL */
 @layer base {
   :root {
-    /* Matrix monochrome green palette (dark by default) */
+    /* Matrix monochrome green palette (dark by default) - Dimmed */
     --background: 0 0% 3%;
     --foreground: 120 100% 75%;
 
@@ -17,7 +17,7 @@
     --popover: 120 30% 4%;
     --popover-foreground: 120 100% 75%;
 
-    --primary: 120 100% 50%;            /* #00FF41-ish */
+    --primary: 120 100% 35%;            /* Dimmer green */
     --primary-foreground: 0 0% 0%;
 
     --secondary: 120 40% 10%;
@@ -26,33 +26,33 @@
     --muted: 120 20% 8%;
     --muted-foreground: 120 30% 55%;
 
-    --accent: 120 100% 35%;
+    --accent: 120 100% 30%;
     --accent-foreground: 0 0% 0%;
 
-    --destructive: 0 100% 50%;
+    --destructive: 0 100% 45%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 120 60% 15%;
     --input: 120 60% 12%;
-    --ring: 120 100% 50%;
+    --ring: 120 100% 35%;
 
     --radius: 0.25rem;
 
     --sidebar-background: 0 0% 4%;
     --sidebar-foreground: 120 100% 75%;
-    --sidebar-primary: 120 100% 50%;
+    --sidebar-primary: 120 100% 35%;
     --sidebar-primary-foreground: 0 0% 0%;
     --sidebar-accent: 120 40% 10%;
     --sidebar-accent-foreground: 120 100% 75%;
     --sidebar-border: 120 60% 15%;
-    --sidebar-ring: 120 100% 50%;
+    --sidebar-ring: 120 100% 35%;
 
     /* Custom Matrix tokens */
-    --matrix-glow: 120 100% 50%;
-    --matrix-dim: 120 60% 25%;
-    --shadow-glow: 0 0 12px hsl(120 100% 50% / 0.55), 0 0 24px hsl(120 100% 50% / 0.25);
-    --shadow-glow-soft: 0 0 6px hsl(120 100% 50% / 0.35);
-    --gradient-scanline: linear-gradient(to bottom, transparent 50%, hsl(120 100% 50% / 0.04) 50%);
+    --matrix-glow: 120 100% 35%;
+    --matrix-dim: 120 60% 20%;
+    --shadow-glow: 0 0 8px hsl(120 100% 35% / 0.4), 0 0 16px hsl(120 100% 35% / 0.15);
+    --shadow-glow-soft: 0 0 4px hsl(120 100% 35% / 0.2);
+    --gradient-scanline: linear-gradient(to bottom, transparent 50%, hsl(120 100% 35% / 0.04) 50%);
   }
 
   .dark { /* same — app is dark only */
@@ -62,19 +62,19 @@
     --card-foreground: 120 100% 75%;
     --popover: 120 30% 4%;
     --popover-foreground: 120 100% 75%;
-    --primary: 120 100% 50%;
+    --primary: 120 100% 35%;
     --primary-foreground: 0 0% 0%;
     --secondary: 120 40% 10%;
     --secondary-foreground: 120 100% 75%;
     --muted: 120 20% 8%;
     --muted-foreground: 120 30% 55%;
-    --accent: 120 100% 35%;
+    --accent: 120 100% 30%;
     --accent-foreground: 0 0% 0%;
-    --destructive: 0 100% 50%;
+    --destructive: 0 100% 45%;
     --destructive-foreground: 0 0% 100%;
     --border: 120 60% 15%;
     --input: 120 60% 12%;
-    --ring: 120 100% 50%;
+    --ring: 120 100% 35%;
   }
 }
 
@@ -131,3 +131,8 @@
 }
 .animate-flicker { animation: flicker 3s infinite; }
 .cursor-blink::after { content: '_'; @apply text-primary; animation: blink 1s steps(1) infinite; }
+
+/* Forces the webkit calendar icon to be green */
+.calendar-icon-green::-webkit-calendar-picker-indicator {
+  filter: invert(50%) sepia(100%) saturate(500%) hue-rotate(80deg) brightness(1.2);
+}

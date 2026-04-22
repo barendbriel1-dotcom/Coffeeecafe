@@ -1,8 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
 import MatrixRain from "./MatrixRain";
 import { Button } from "./ui/button";
+import DecypherLoader from "./DecypherLoader";
 
 export function ProtectedRoute({
   children,
@@ -13,12 +14,14 @@ export function ProtectedRoute({
 }) {
   const { session, loading, roles, isAdmin, isApproved, signOut } = useAuth();
   const location = useLocation();
+  const [showLoader, setShowLoader] = useState(true);
 
-  if (loading) {
+  if (loading || showLoader) {
     return (
-      <div className="flex min-h-screen items-center justify-center font-display text-primary">
-        <span className="cursor-blink glow">DECRYPTING SESSION</span>
-      </div>
+      <DecypherLoader 
+        isReady={!loading} 
+        onComplete={() => setShowLoader(false)} 
+      />
     );
   }
 
