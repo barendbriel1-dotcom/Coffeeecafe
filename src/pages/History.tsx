@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Search, Download, Calendar, Filter } from "lucide-react";
@@ -128,25 +129,31 @@ export default function History() {
               {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
-            <Input 
-              type="date" 
-              value={dateFrom} 
-              onChange={(e) => setDateFrom(e.target.value)} 
-              className="pl-9 font-mono text-sm"
-              style={{ colorScheme: 'dark' }}
-            />
+          <div className="flex flex-col gap-1.5">
+            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">Start</Label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+              <Input 
+                type="date" 
+                value={dateFrom} 
+                onChange={(e) => setDateFrom(e.target.value)} 
+                className="pl-9 font-mono text-sm"
+                style={{ colorScheme: 'dark' }}
+              />
+            </div>
           </div>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
-            <Input 
-              type="date" 
-              value={dateTo} 
-              onChange={(e) => setDateTo(e.target.value)} 
-              className="pl-9 font-mono text-sm"
-              style={{ colorScheme: 'dark' }}
-            />
+          <div className="flex flex-col gap-1.5">
+            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">End</Label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+              <Input 
+                type="date" 
+                value={dateTo} 
+                onChange={(e) => setDateTo(e.target.value)} 
+                className="pl-9 font-mono text-sm"
+                style={{ colorScheme: 'dark' }}
+              />
+            </div>
           </div>
         </div>
       </Card>
