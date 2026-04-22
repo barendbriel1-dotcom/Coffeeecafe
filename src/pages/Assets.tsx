@@ -461,7 +461,7 @@ export default function Assets() {
         <Select value={divFilter} onValueChange={setDivFilter}>
           <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Divisions</SelectItem>
+            <SelectItem value="all">Division</SelectItem>
             {divs.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
           </SelectContent>
         </Select>
