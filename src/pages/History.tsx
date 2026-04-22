@@ -37,16 +37,22 @@ export default function History() {
       supabase
         .from("asset_history")
         .select(`
-          id, action, created_at, notes,
-          asset:assets(code, name),
-          performer:profiles!asset_history_performed_by_fkey(display_name),
-          to_user:profiles!asset_history_to_user_fkey(display_name)
+          id, action, created_at, notes, performed_by, to_user,
+          asset:assets(code, name)
         `)
         .order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, display_name").order("display_name")
     ]);
 
-    setHistory((hist as any) ?? []);
+    const profileMap = Object.fromEntries((p ?? []).map(u => [u.id, u.display_name]));
+    
+    const formatted = (hist as any ?? []).map((h: any) => ({
+      ...h,
+      performer_name: profileMap[h.performed_by] || h.performed_by || "System",
+      to_user_name: profileMap[h.to_user] || h.to_user
+    }));
+
+    setHistory(formatted);
     setUsers((p ?? []).map(u => ({ id: u.id, name: u.display_name })));
     setLoading(false);
   };
@@ -59,8 +65,8 @@ export default function History() {
       h.asset.name.toLowerCase().includes(q.toLowerCase());
     
     const matchesUser = userFilter === "all" || 
-      h.performer?.display_name === userFilter || 
-      h.to_user?.display_name === userFilter;
+      (h as any).performer_name === userFilter || 
+      (h as any).to_user_name === userFilter;
 
     const date = new Date(h.created_at);
     const matchesFrom = !dateFrom || date >= new Date(dateFrom);
@@ -78,8 +84,8 @@ export default function History() {
       h.asset.code,
       h.asset.name,
       h.action.toUpperCase(),
-      h.performer?.display_name ?? "System",
-      h.to_user?.display_name ?? "—",
+      (h as any).performer_name || "System",
+      (h as any).to_user_name || "—",
       h.notes ?? ""
     ]);
 
@@ -202,8 +208,8 @@ export default function History() {
                         {h.action.replace("_", " ")}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-foreground/80">{h.performer?.display_name ?? "System"}</td>
-                    <td className="px-4 py-3 text-foreground/80">{h.to_user?.display_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-foreground/80">{(h as any).performer_name}</td>
+                    <td className="px-4 py-3 text-foreground/80">{(h as any).to_user_name || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs italic truncate max-w-[200px]" title={h.notes ?? ""}>
                       {h.notes ?? "—"}
                     </td>

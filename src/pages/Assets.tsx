@@ -307,15 +307,23 @@ export default function Assets() {
                     const toKeep = all.slice(0, 10).map(a => a.id);
                     const toDelete = all.filter(a => !toKeep.includes(a.id)).map(a => a.id);
                     
-                    // 1. Clean up transaction tables first to avoid FK constraints
-                    await supabase.from("signout_items").delete().in("asset_id", toDelete);
-                    await supabase.from("handover_items").delete().in("asset_id", toDelete);
-                    await supabase.from("asset_requests").delete().in("asset_id", toDelete);
+                    // Chunk deletion to avoid limits and ensure FK safety
+                    const chunkSize = 50;
+                    for (let i = 0; i < toDelete.length; i += chunkSize) {
+                      const chunk = toDelete.slice(i, i + chunkSize);
+                      await supabase.from("signout_items").delete().in("asset_id", chunk);
+                      await supabase.from("handover_items").delete().in("asset_id", chunk);
+                      await supabase.from("asset_requests").delete().in("asset_id", chunk);
+                      await supabase.from("asset_history").delete().in("asset_id", chunk);
+                    }
                     
-                    // 2. Delete the assets (asset_history has CASCADE so it will clean itself)
-                    const { error } = await supabase.from("assets").delete().in("id", toDelete);
+                    // Final asset deletion
+                    for (let i = 0; i < toDelete.length; i += chunkSize) {
+                      const chunk = toDelete.slice(i, i + chunkSize);
+                      const { error } = await supabase.from("assets").delete().in("id", chunk);
+                      if (error) throw error;
+                    }
                     
-                    if (error) throw error;
                     toast.success("Inventory cleaned. 10 items remaining.");
                     load();
                   } else {
