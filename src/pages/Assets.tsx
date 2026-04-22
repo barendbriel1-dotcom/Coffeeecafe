@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Plus, Search, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Asset {
   id: string; code: string; name: string; status: string;
@@ -98,11 +99,20 @@ export default function Assets() {
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl text-primary glow">// Asset Registry</h1>
+        <div>
+          <h1 className="font-display text-2xl text-primary glow">
+            <span className="text-primary/60">$</span> ASSET REGISTRY
+          </h1>
+          <p className="font-mono text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+            // {filtered.length} record{filtered.length === 1 ? "" : "s"}
+          </p>
+        </div>
         {isAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90"><Plus size={16} className="mr-1" /> New Asset</Button>
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wider">
+                <Plus size={16} className="mr-1" /> New Asset
+              </Button>
             </DialogTrigger>
             <DialogContent className="bg-card border-primary/40">
               <DialogHeader><DialogTitle className="font-display text-primary">Register Asset</DialogTitle></DialogHeader>
@@ -153,28 +163,54 @@ export default function Assets() {
         </Select>
       </div>
 
-      <div className="grid gap-2">
-        {filtered.length === 0 && (
-          <Card className="bg-card/30 border-primary/20 p-6 text-center text-muted-foreground font-mono">// no records</Card>
-        )}
-        {filtered.map((a) => (
-          <Card key={a.id} className="bg-card/40 border-primary/20 p-3 flex items-center gap-3 hover:border-primary/60 transition">
-            <div className="font-display text-lg text-primary glow-soft min-w-[60px]">{a.code}</div>
-            <div className="flex-1 min-w-0">
-              <div className="font-mono text-sm truncate">{a.name}</div>
-              <div className="text-xs text-muted-foreground truncate">
-                {a.serial_number && <>SN: {a.serial_number} · </>}
-                {a.current_holder && <>Held by {holders[a.current_holder] ?? "?"}</>}
-              </div>
-            </div>
-            <Badge variant="outline" className={statusColor[a.status]}>{a.status.replace("_", " ")}</Badge>
-            {isAdmin && (
-              <Button size="sm" variant="ghost" onClick={() => remove(a.id)} className="text-destructive hover:bg-destructive/10">
-                <Trash2 size={14} />
-              </Button>
-            )}
-          </Card>
-        ))}
+      {/* Table */}
+      <div className="rounded border border-primary/30 bg-card/30 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full font-mono text-sm">
+            <thead>
+              <tr className="border-b border-primary/30 text-left text-[11px] uppercase tracking-widest text-muted-foreground">
+                <th className="px-4 py-3 font-normal">Name</th>
+                <th className="px-4 py-3 font-normal">Tag</th>
+                <th className="px-4 py-3 font-normal">Category</th>
+                <th className="px-4 py-3 font-normal">Status</th>
+                <th className="px-4 py-3 font-normal">Location</th>
+                {isAdmin && <th className="px-4 py-3 font-normal w-10" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-primary/10">
+              {filtered.length === 0 && (
+                <tr><td colSpan={isAdmin ? 6 : 5} className="px-4 py-12 text-center text-muted-foreground/70">// no records found</td></tr>
+              )}
+              {filtered.map((a) => {
+                const itemType = items.find((i) => i.id === a.item_type_id);
+                const dept = depts.find((d) => d.id === (a.current_location_id ?? a.department_id));
+                return (
+                  <tr key={a.id} className="hover:bg-primary/5 transition-colors">
+                    <td className="px-4 py-3 text-primary glow-soft truncate max-w-[220px]">{a.name}</td>
+                    <td className="px-4 py-3 text-foreground/80">{a.code}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{itemType?.name ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className={cn("uppercase text-[10px] tracking-widest", statusColor[a.status])}>
+                        {a.status.replace("_", " ")}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground truncate max-w-[200px]">
+                      {dept?.name ?? "—"}
+                      {a.current_holder && <span className="text-foreground/60"> · {holders[a.current_holder] ?? "?"}</span>}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <Button size="sm" variant="ghost" onClick={() => remove(a.id)} className="text-destructive hover:bg-destructive/10 h-7 w-7 p-0">
+                          <Trash2 size={14} />
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
