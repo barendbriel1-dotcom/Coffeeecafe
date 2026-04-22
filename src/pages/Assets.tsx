@@ -236,39 +236,133 @@ export default function Assets() {
           </p>
         </div>
         {isAdmin && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wider">
-                <Plus size={16} className="mr-1" /> New Asset
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card border-primary/40">
-              <DialogHeader><DialogTitle className="font-display text-primary">Register Asset</DialogTitle></DialogHeader>
-              <div className="space-y-3">
-                <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} /></div>
-                <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} /></div>
-                <div><Label>Serial Number</Label><Input value={serial} onChange={(e) => setSerial(e.target.value)} maxLength={80} /></div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Department</Label>
-                    <Select value={deptId} onValueChange={setDeptId}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{depts.map((d) => <SelectItem key={d.id} value={d.id}>{d.code} — {d.name}</SelectItem>)}</SelectContent>
-                    </Select>
+          <div className="flex gap-2">
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wider">
+                  <Plus size={16} className="mr-1" /> New Asset
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-primary/40">
+                <DialogHeader><DialogTitle className="font-display text-primary">Register Asset</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} /></div>
+                  <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} /></div>
+                  <div><Label>Serial Number</Label><Input value={serial} onChange={(e) => setSerial(e.target.value)} maxLength={80} /></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label>Department</Label>
+                      <Select value={deptId} onValueChange={setDeptId}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>{depts.map((d) => <SelectItem key={d.id} value={d.id}>{d.code} — {d.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Item Type</Label>
+                      <Select value={itemId} onValueChange={setItemId}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.code} — {i.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div>
-                    <Label>Item Type</Label>
-                    <Select value={itemId} onValueChange={setItemId}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.code} — {i.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                  <p className="text-xs text-muted-foreground">Code auto-generated: <span className="text-primary font-mono">{(depts.find(d=>d.id===deptId)?.code ?? "?")}{(items.find(i=>i.id===itemId)?.code ?? "?")}##</span></p>
+                  <Button onClick={create} className="w-full bg-primary text-primary-foreground">Register</Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Code auto-generated: <span className="text-primary font-mono">{(depts.find(d=>d.id===deptId)?.code ?? "?")}{(items.find(i=>i.id===itemId)?.code ?? "?")}##</span></p>
-                <Button onClick={create} className="w-full bg-primary text-primary-foreground">Register</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setCsvText(""); }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10 font-mono uppercase tracking-wider">
+                  <Upload size={16} className="mr-1" /> Import CSV
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card border-primary/40 max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle className="font-display text-primary flex items-center gap-2">
+                    <FileSpreadsheet size={18} /> Bulk Import Assets
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="rounded border border-primary/20 bg-background/40 p-3 font-mono text-xs space-y-2">
+                    <div className="text-primary uppercase tracking-widest">// expected columns</div>
+                    <div className="text-muted-foreground">
+                      <span className="text-primary">name</span>, <span className="text-primary">department_code</span>, <span className="text-primary">item_type_code</span>, description, serial_number
+                    </div>
+                    <div className="text-muted-foreground/70">
+                      Codes refer to the single-letter codes in your departments &amp; item types. Asset codes are auto-generated.
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={downloadTemplate} className="border-primary/40 font-mono text-xs">
+                      <Download size={14} className="mr-1" /> Download template
+                    </Button>
+                    <label className="inline-flex">
+                      <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsvFile(f); e.target.value = ""; }}
+                      />
+                      <span className="inline-flex items-center cursor-pointer rounded border border-primary/40 px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-primary hover:bg-primary/10">
+                        <Upload size={14} className="mr-1" /> Choose file
+                      </span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <Label className="font-mono text-xs uppercase tracking-wider">CSV content</Label>
+                    <Textarea
+                      value={csvText}
+                      onChange={(e) => setCsvText(e.target.value)}
+                      placeholder={csvSample}
+                      rows={6}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  {previewRows.length > 0 && (
+                    <div className="rounded border border-primary/20">
+                      <div className="border-b border-primary/20 px-3 py-2 font-mono text-[11px] uppercase tracking-widest text-primary">
+                        &gt; Preview · {previewRows.length} row{previewRows.length === 1 ? "" : "s"}
+                      </div>
+                      <div className="max-h-48 overflow-auto">
+                        <table className="w-full font-mono text-xs">
+                          <thead className="bg-primary/5 text-muted-foreground uppercase text-[10px]">
+                            <tr>
+                              <th className="px-2 py-1 text-left">Name</th>
+                              <th className="px-2 py-1 text-left">Dept</th>
+                              <th className="px-2 py-1 text-left">Type</th>
+                              <th className="px-2 py-1 text-left">Serial</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewRows.slice(0, 50).map((r, idx) => (
+                              <tr key={idx} className="border-t border-primary/10">
+                                <td className="px-2 py-1 text-primary truncate max-w-[200px]">{r.name}</td>
+                                <td className="px-2 py-1 text-foreground/80">{r.department_code}</td>
+                                <td className="px-2 py-1 text-foreground/80">{r.item_type_code}</td>
+                                <td className="px-2 py-1 text-muted-foreground">{r.serial_number}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={runImport}
+                    disabled={importing || previewRows.length === 0}
+                    className="w-full bg-primary text-primary-foreground font-mono uppercase tracking-wider"
+                  >
+                    {importing ? "Importing…" : `Import ${previewRows.length || ""} asset${previewRows.length === 1 ? "" : "s"}`}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
       </div>
 
