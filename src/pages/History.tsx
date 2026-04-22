@@ -109,48 +109,54 @@ export default function History() {
         </Button>
       </div>
 
-      <Card className="bg-card/40 border-primary/30 p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
-            <Input 
-              value={q} 
-              onChange={(e) => setQ(e.target.value)} 
-              placeholder="Asset Code / Name..." 
-              className="pl-9 font-mono text-sm"
-            />
-          </div>
-          <Select value={userFilter} onValueChange={setUserFilter}>
-            <SelectTrigger className="font-mono text-sm">
-              <SelectValue placeholder="Filter by User" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Users</SelectItem>
-              {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+      <Card className="bg-card/40 border-primary/30 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div className="flex flex-col gap-1.5">
-            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">Start</Label>
+            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+              <Input 
+                value={q} 
+                onChange={(e) => setQ(e.target.value)} 
+                placeholder="Asset Code / Name..." 
+                className="pl-9 font-mono text-sm bg-primary/5 border-primary/20 focus:border-primary/50 transition-all"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">Operative</Label>
+            <Select value={userFilter} onValueChange={setUserFilter}>
+              <SelectTrigger className="font-mono text-sm bg-primary/5 border-primary/20 focus:border-primary/50 transition-all">
+                <SelectValue placeholder="All Users" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Users</SelectItem>
+                {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">Start Date</Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
               <Input 
                 type="date" 
                 value={dateFrom} 
                 onChange={(e) => setDateFrom(e.target.value)} 
-                className="pl-9 font-mono text-sm"
+                className="pl-9 font-mono text-sm bg-primary/5 border-primary/20 focus:border-primary/50 transition-all"
                 style={{ colorScheme: 'dark' }}
               />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">End</Label>
+            <Label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground ml-1">End Date</Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
               <Input 
                 type="date" 
                 value={dateTo} 
                 onChange={(e) => setDateTo(e.target.value)} 
-                className="pl-9 font-mono text-sm"
+                className="pl-9 font-mono text-sm bg-primary/5 border-primary/20 focus:border-primary/50 transition-all"
                 style={{ colorScheme: 'dark' }}
               />
             </div>
