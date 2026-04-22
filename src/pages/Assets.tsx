@@ -478,11 +478,10 @@ export default function Assets() {
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">Status</SelectItem>
             <SelectItem value="available">Available</SelectItem>
             <SelectItem value="signed_out">Sign Out</SelectItem>
             <SelectItem value="maintenance">Maintenance</SelectItem>
-            <SelectItem value="lost">Lost</SelectItem>
             <SelectItem value="retired">Damaged</SelectItem>
           </SelectContent>
         </Select>
