@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
-import { Package, PackageCheck, AlertTriangle, LogOut, Activity, ChevronRight } from "lucide-react";
+import { Package, PackageCheck, AlertTriangle, History, Activity, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Stats {
@@ -60,7 +60,7 @@ export default function Dashboard() {
     { label: "Total Assets", value: stats.total, icon: Package, accent: "primary", to: "/assets" },
     { label: "Available", value: stats.available, icon: PackageCheck, accent: "cyan", to: "/assets?status=available" },
     { label: "Signed Out", value: stats.signedOut, icon: AlertTriangle, accent: "red", to: "/assets?status=signed_out" },
-    { label: "Active Sign-Outs", value: stats.activeSignouts, icon: LogOut, accent: "amber", to: "/signout" },
+    { label: "History", value: stats.activeSignouts, icon: History, accent: "amber", to: "/history" },
   ] as const;
 
   return (
