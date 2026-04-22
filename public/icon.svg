@@ -1,0 +1,6 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="64" fill="#080808"/>
+  <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="380" fill="#00FF41" style="filter: drop-shadow(0 0 15px rgba(0, 255, 65, 0.6));">A</text>
+  <path d="M100 80h312M100 160h312M100 240h312M100 320h312M100 400h312" stroke="#00FF41" stroke-width="2" stroke-opacity="0.1"/>
+  <path d="M140 60v400M220 60v400M300 60v400M380 60v400" stroke="#00FF41" stroke-width="2" stroke-opacity="0.1"/>
+</svg>
