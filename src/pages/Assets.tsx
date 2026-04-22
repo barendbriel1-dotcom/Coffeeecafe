@@ -300,12 +300,21 @@ export default function Assets() {
             <Button 
               variant="outline" 
               onClick={async () => {
-                if (!confirm("This will delete ALL items except for 10 for testing. Continue?")) return;
+                if (!confirm("This will delete ALL items except for 10 for testing. This will also clear all history and sign-out records. Continue?")) return;
                 try {
                   const { data: all } = await supabase.from("assets").select("id");
                   if (all && all.length > 10) {
                     const toKeep = all.slice(0, 10).map(a => a.id);
-                    const { error } = await supabase.from("assets").delete().not("id", "in", `(${toKeep.join(",")})`);
+                    const toDelete = all.filter(a => !toKeep.includes(a.id)).map(a => a.id);
+                    
+                    // 1. Clean up transaction tables first to avoid FK constraints
+                    await supabase.from("signout_items").delete().in("asset_id", toDelete);
+                    await supabase.from("handover_items").delete().in("asset_id", toDelete);
+                    await supabase.from("asset_requests").delete().in("asset_id", toDelete);
+                    
+                    // 2. Delete the assets (asset_history has CASCADE so it will clean itself)
+                    const { error } = await supabase.from("assets").delete().in("id", toDelete);
+                    
                     if (error) throw error;
                     toast.success("Inventory cleaned. 10 items remaining.");
                     load();
@@ -313,7 +322,8 @@ export default function Assets() {
                     toast.info("10 or fewer items already.");
                   }
                 } catch (e: any) {
-                  toast.error(e.message);
+                  console.error(e);
+                  toast.error("Cleanup failed: " + e.message);
                 }
               }}
               className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 font-mono uppercase tracking-wider text-[10px]"
