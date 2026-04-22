@@ -110,7 +110,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@encounter.church"
+                placeholder="user@encounterchurch.co.za"
                 className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                 maxLength={255}
                 autoComplete="email"
