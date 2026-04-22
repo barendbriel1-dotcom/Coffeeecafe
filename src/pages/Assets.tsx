@@ -91,8 +91,8 @@ export default function Assets() {
   };
 
   // ----- CSV BULK IMPORT -----
-  const csvHeader = "name,department_code,item_type_code,description,serial_number";
-  const csvSample = `${csvHeader}\nMacBook Pro 14",T,L,Engineering laptop,SN12345\niPad Pro 12.9",T,T,,SN67890`;
+  const csvHeader = "Asset Code,Division,Description,Serial Number,Location";
+  const csvSample = `${csvHeader}\nAJ001,Aircon,Jet Air 12000btu Split unit,SN12345,Centurion`;
 
   const downloadTemplate = () => {
     const blob = new Blob([csvSample], { type: "text/csv" });
@@ -113,7 +113,6 @@ export default function Assets() {
     setCsvText(text);
   };
 
-  // Tiny CSV parser supporting quoted fields with commas
   const parseCsv = (text: string): string[][] => {
     const rows: string[][] = [];
     let row: string[] = [];
@@ -141,7 +140,8 @@ export default function Assets() {
     if (!csvText.trim()) return [] as Record<string, string>[];
     const rows = parseCsv(csvText);
     if (rows.length === 0) return [];
-    const header = rows[0].map((h) => h.trim().toLowerCase());
+    // Normalize headers to lowercase with underscores
+    const header = rows[0].map((h) => h.trim().toLowerCase().replace(/ /g, "_"));
     return rows.slice(1).map((r) => {
       const obj: Record<string, string> = {};
       header.forEach((h, idx) => { obj[h] = (r[idx] ?? "").trim(); });
@@ -149,36 +149,89 @@ export default function Assets() {
     });
   })();
 
+  const getAvailableCode = (preferred: string, existingCodes: Set<string>) => {
+    let char = preferred.charAt(0).toUpperCase();
+    if (!existingCodes.has(char)) return char;
+    for (let i = 65; i <= 90; i++) {
+      if (!existingCodes.has(String.fromCharCode(i))) return String.fromCharCode(i);
+    }
+    for (let i = 48; i <= 57; i++) {
+      if (!existingCodes.has(String.fromCharCode(i))) return String.fromCharCode(i);
+    }
+    return 'X';
+  };
+
   const runImport = async () => {
     if (previewRows.length === 0) { toast.error("No rows to import"); return; }
     setImporting(true);
-    const deptByCode = new Map(depts.map((d) => [d.code.toUpperCase(), d]));
-    const itemByCode = new Map(items.map((i) => [i.code.toUpperCase(), i]));
-    const storageId = depts.find((d) => d.is_storage)?.id;
+
+    let currentDepts = [...depts];
+    let currentItems = [...items];
+
+    // 1. Auto-create missing departments
+    const csvLocations = Array.from(new Set(previewRows.map(r => r.location).filter(Boolean)));
+    const deptCodes = new Set(currentDepts.map(d => d.code.toUpperCase()));
+    for (const loc of csvLocations) {
+      if (!currentDepts.find(d => d.name.toLowerCase() === loc.toLowerCase())) {
+        const newCode = getAvailableCode(loc, deptCodes);
+        const { data: newDep } = await supabase.from("departments").insert({ name: loc, code: newCode, is_storage: false }).select().single();
+        if (newDep) {
+          currentDepts.push(newDep);
+          deptCodes.add(newCode);
+        }
+      }
+    }
+
+    // 2. Auto-create missing item types
+    const csvDivisions = Array.from(new Set(previewRows.map(r => r.division).filter(Boolean)));
+    const itemCodes = new Set(currentItems.map(i => i.code.toUpperCase()));
+    for (const div of csvDivisions) {
+      if (!currentItems.find(i => i.name.toLowerCase() === div.toLowerCase())) {
+        const newCode = getAvailableCode(div, itemCodes);
+        const { data: newItem } = await supabase.from("item_types").insert({ name: div, code: newCode }).select().single();
+        if (newItem) {
+          currentItems.push(newItem);
+          itemCodes.add(newCode);
+        }
+      }
+    }
+
+    setDepts(currentDepts);
+    setItems(currentItems);
+
+    const deptByName = new Map(currentDepts.map((d) => [d.name.toLowerCase(), d]));
+    const itemByName = new Map(currentItems.map((i) => [i.name.toLowerCase(), i]));
+    const storageId = currentDepts.find((d) => d.is_storage)?.id;
 
     const errors: string[] = [];
     const valid: any[] = [];
     previewRows.forEach((row, idx) => {
-      const lineNo = idx + 2; // header is line 1
-      const name = row.name?.trim();
-      const dCode = (row.department_code ?? "").trim().toUpperCase();
-      const iCode = (row.item_type_code ?? "").trim().toUpperCase();
-      if (!name || !dCode || !iCode) {
-        errors.push(`Line ${lineNo}: missing name / department_code / item_type_code`);
+      const lineNo = idx + 2; 
+      const desc = row.description || "Unknown Asset";
+      const name = desc; 
+      const loc = (row.location ?? "").toLowerCase();
+      const div = (row.division ?? "").toLowerCase();
+      const serial = row.serial_number ?? "";
+      const assetCode = row.asset_code ?? "";
+
+      if (!loc || !div) {
+        errors.push(`Line ${lineNo}: missing Location or Division`);
         return;
       }
-      const dept = deptByCode.get(dCode);
-      const item = itemByCode.get(iCode);
-      if (!dept) { errors.push(`Line ${lineNo}: unknown department_code "${dCode}"`); return; }
-      if (!item) { errors.push(`Line ${lineNo}: unknown item_type_code "${iCode}"`); return; }
+
+      const dept = deptByName.get(loc);
+      const item = itemByName.get(div);
+      if (!dept) { errors.push(`Line ${lineNo}: failed to resolve location "${row.location}"`); return; }
+      if (!item) { errors.push(`Line ${lineNo}: failed to resolve division "${row.division}"`); return; }
+
       valid.push({
         name: name.slice(0, 120),
-        description: (row.description || "").slice(0, 500) || null,
-        serial_number: (row.serial_number || "").slice(0, 80) || null,
+        description: desc.slice(0, 500) || null,
+        serial_number: serial.slice(0, 80) || null,
         department_id: dept.id,
         item_type_id: item.id,
         current_location_id: storageId ?? dept.id,
-        code: "", // generated by trigger
+        code: assetCode || "", // If empty, DB trigger will auto-generate
       });
     });
 
@@ -274,7 +327,7 @@ export default function Assets() {
             <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setCsvText(""); }}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10 font-mono uppercase tracking-wider">
-                  <Upload size={16} className="mr-1" /> Import CSV
+                  <Upload size={16} className="mr-1" /> CSV Import
                 </Button>
               </DialogTrigger>
               <DialogContent className="bg-card border-primary/40 max-w-2xl">
@@ -287,10 +340,10 @@ export default function Assets() {
                   <div className="rounded border border-primary/20 bg-background/40 p-3 font-mono text-xs space-y-2">
                     <div className="text-primary uppercase tracking-widest">// expected columns</div>
                     <div className="text-muted-foreground">
-                      <span className="text-primary">name</span>, <span className="text-primary">department_code</span>, <span className="text-primary">item_type_code</span>, description, serial_number
+                      <span className="text-primary">Asset Code</span>, <span className="text-primary">Division</span>, <span className="text-primary">Description</span>, Serial Number, <span className="text-primary">Location</span>
                     </div>
                     <div className="text-muted-foreground/70">
-                      Codes refer to the single-letter codes in your departments &amp; item types. Asset codes are auto-generated.
+                      If locations or divisions do not exist in the system yet, they will be automatically created. Asset Code is optional.
                     </div>
                   </div>
 
@@ -331,18 +384,20 @@ export default function Assets() {
                         <table className="w-full font-mono text-xs">
                           <thead className="bg-primary/5 text-muted-foreground uppercase text-[10px]">
                             <tr>
-                              <th className="px-2 py-1 text-left">Name</th>
-                              <th className="px-2 py-1 text-left">Dept</th>
-                              <th className="px-2 py-1 text-left">Type</th>
+                              <th className="px-2 py-1 text-left">Code</th>
+                              <th className="px-2 py-1 text-left">Description</th>
+                              <th className="px-2 py-1 text-left">Loc</th>
+                              <th className="px-2 py-1 text-left">Div</th>
                               <th className="px-2 py-1 text-left">Serial</th>
                             </tr>
                           </thead>
                           <tbody>
                             {previewRows.slice(0, 50).map((r, idx) => (
                               <tr key={idx} className="border-t border-primary/10">
-                                <td className="px-2 py-1 text-primary truncate max-w-[200px]">{r.name}</td>
-                                <td className="px-2 py-1 text-foreground/80">{r.department_code}</td>
-                                <td className="px-2 py-1 text-foreground/80">{r.item_type_code}</td>
+                                <td className="px-2 py-1 text-primary truncate max-w-[100px]">{r.asset_code}</td>
+                                <td className="px-2 py-1 text-foreground/80 truncate max-w-[200px]">{r.description}</td>
+                                <td className="px-2 py-1 text-foreground/80">{r.location}</td>
+                                <td className="px-2 py-1 text-foreground/80">{r.division}</td>
                                 <td className="px-2 py-1 text-muted-foreground">{r.serial_number}</td>
                               </tr>
                             ))}
