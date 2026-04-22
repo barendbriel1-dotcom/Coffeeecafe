@@ -297,6 +297,30 @@ export default function Assets() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                if (!confirm("This will delete ALL items except for 10 for testing. Continue?")) return;
+                try {
+                  const { data: all } = await supabase.from("assets").select("id");
+                  if (all && all.length > 10) {
+                    const toKeep = all.slice(0, 10).map(a => a.id);
+                    const { error } = await supabase.from("assets").delete().not("id", "in", `(${toKeep.join(",")})`);
+                    if (error) throw error;
+                    toast.success("Inventory cleaned. 10 items remaining.");
+                    load();
+                  } else {
+                    toast.info("10 or fewer items already.");
+                  }
+                } catch (e: any) {
+                  toast.error(e.message);
+                }
+              }}
+              className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 font-mono uppercase tracking-wider text-[10px]"
+            >
+              Testing Cleanup
+            </Button>
+
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wider">
