@@ -13,6 +13,7 @@ import SignOut from "./pages/SignOut";
 import Handover from "./pages/Handover";
 import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
+import Users from "./pages/Users";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
+              <Route path="/users" element={<ProtectedRoute requireRole="admin"><Users /></ProtectedRoute>} />
               <Route path="/install" element={<Install />} />
             </Route>
             <Route path="*" element={<NotFound />} />

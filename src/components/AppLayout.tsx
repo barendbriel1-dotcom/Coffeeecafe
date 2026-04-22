@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   Inbox,
   Shield,
+  Users as UsersIcon,
   LogOut,
   Menu,
   X,
@@ -34,6 +35,7 @@ export default function AppLayout() {
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true },
     { to: "/requests", label: "Requests", icon: Inbox, show: true },
     { to: "/admin", label: "Admin", icon: Shield, show: isAdmin },
+    { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin },
   ].filter((n) => n.show);
 
   return (
