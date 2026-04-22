@@ -96,8 +96,8 @@ export default function Assets() {
   };
 
   // ----- CSV BULK IMPORT -----
-  const csvHeader = "Asset Code,Division,Description,Serial Number,Location";
-  const csvSample = `${csvHeader}\nAJ001,Aircon,Jet Air 12000btu Split unit,SN12345,Centurion`;
+  const csvHeader = "Asset Code,Division,Description,Serial Number,Location,Image URL";
+  const csvSample = `${csvHeader}\nAJ001,Aircon,Jet Air 12000btu Split unit,SN12345,Centurion,/assets/photos/sample.jpg`;
 
   const downloadTemplate = () => {
     const blob = new Blob([csvSample], { type: "text/csv" });
@@ -218,6 +218,7 @@ export default function Assets() {
       const div = (row.division ?? "").toLowerCase();
       const serial = row.serial_number ?? "";
       const assetCode = row.asset_code ?? "";
+      const imageUrl = row.image_url || null;
 
       if (!loc || !div) {
         errors.push(`Line ${lineNo}: missing Location or Division`);
@@ -237,6 +238,7 @@ export default function Assets() {
         item_type_id: item.id,
         current_location_id: storageId ?? dept.id,
         code: assetCode || "", // If empty, DB trigger will auto-generate
+        image_url: imageUrl
       });
     });
 
