@@ -53,7 +53,8 @@ export default function AppLayout() {
     { to: "/signout/bulk", label: "Bulk Sign Out", icon: Layers, show: isStaff },
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true },
     { to: "/requests", label: "Requests", icon: Inbox, show: true },
-    { to: "/admin", label: "History", icon: History, show: isAdmin },
+    { to: "/history", label: "History", icon: History, show: true },
+    { to: "/admin", label: "Admin", icon: Shield, show: isAdmin },
     { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin },
   ].filter((n) => n.show);
 

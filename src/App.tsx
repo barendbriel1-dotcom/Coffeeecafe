@@ -15,6 +15,7 @@ import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
 import Users from "./pages/Users";
 import Install from "./pages/Install";
+import History from "./pages/History";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/signout/bulk" element={<ProtectedRoute requireRole="staff"><SignOut bulk /></ProtectedRoute>} />
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
+              <Route path="/history" element={<History />} />
               <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute requireRole="admin"><Users /></ProtectedRoute>} />
               <Route path="/install" element={<Install />} />
