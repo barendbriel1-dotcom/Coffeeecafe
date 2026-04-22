@@ -178,43 +178,34 @@ export default function Assets() {
     if (previewRows.length === 0) { toast.error("No rows to import"); return; }
     setImporting(true);
 
-    let currentDepts = [...depts];
+    let currentLocs = [...locs];
+    let currentDivs = [...divs];
     let currentItems = [...items];
 
-    // 1. Auto-create missing departments
+    // 1. Resolve Locations
     const csvLocations = Array.from(new Set(previewRows.map(r => r.location).filter(Boolean)));
-    const deptCodes = new Set(currentDepts.map(d => d.code.toUpperCase()));
-    for (const loc of csvLocations) {
-      if (!currentDepts.find(d => d.name.toLowerCase() === loc.toLowerCase())) {
-        const newCode = getAvailableCode(loc, deptCodes);
-        const { data: newDep } = await supabase.from("departments").insert({ name: loc, code: newCode, is_storage: false }).select().single();
-        if (newDep) {
-          currentDepts.push(newDep);
-          deptCodes.add(newCode);
-        }
+    for (const locName of csvLocations) {
+      if (!currentLocs.find(l => l.name.toLowerCase() === locName.toLowerCase())) {
+        toast.error(`Location "${locName}" not found. Please add it to the database first.`);
+        setImporting(false);
+        return;
       }
     }
 
-    // 2. Auto-create missing item types
+    // 2. Resolve Divisions
     const csvDivisions = Array.from(new Set(previewRows.map(r => r.division).filter(Boolean)));
-    const itemCodes = new Set(currentItems.map(i => i.code.toUpperCase()));
-    for (const div of csvDivisions) {
-      if (!currentItems.find(i => i.name.toLowerCase() === div.toLowerCase())) {
-        const newCode = getAvailableCode(div, itemCodes);
-        const { data: newItem } = await supabase.from("item_types").insert({ name: div, code: newCode }).select().single();
-        if (newItem) {
-          currentItems.push(newItem);
-          itemCodes.add(newCode);
-        }
+    for (const divName of csvDivisions) {
+      if (!currentDivs.find(d => d.name.toLowerCase() === divName.toLowerCase())) {
+        toast.error(`Division "${divName}" not found. Please add it to the database first.`);
+        setImporting(false);
+        return;
       }
     }
 
-    setDepts(currentDepts);
-    setItems(currentItems);
-
-    const deptByName = new Map(currentDepts.map((d) => [d.name.toLowerCase(), d]));
+    const locByName = new Map(currentLocs.map((l) => [l.name.toLowerCase(), l]));
+    const divByName = new Map(currentDivs.map((d) => [d.name.toLowerCase(), d]));
     const itemByName = new Map(currentItems.map((i) => [i.name.toLowerCase(), i]));
-    const storageId = currentDepts.find((d) => d.is_storage)?.id;
+    const storageId = currentLocs.find((l) => l.is_storage)?.id;
 
     const errors: string[] = [];
     const valid: any[] = [];
@@ -222,30 +213,34 @@ export default function Assets() {
       const lineNo = idx + 2; 
       const desc = row.description || "Unknown Asset";
       const name = desc; 
-      const loc = (row.location ?? "").toLowerCase();
-      const div = (row.division ?? "").toLowerCase();
+      const locName = (row.location ?? "").toLowerCase();
+      const divName = (row.division ?? "").toLowerCase();
       const serial = row.serial_number ?? "";
       const assetCode = row.asset_code ?? "";
       const imageUrl = row.image_url || null;
 
-      if (!loc || !div) {
+      if (!locName || !divName) {
         errors.push(`Line ${lineNo}: missing Location or Division`);
         return;
       }
 
-      const dept = deptByName.get(loc);
-      const item = itemByName.get(div);
-      if (!dept) { errors.push(`Line ${lineNo}: failed to resolve location "${row.location}"`); return; }
-      if (!item) { errors.push(`Line ${lineNo}: failed to resolve division "${row.division}"`); return; }
+      const loc = locByName.get(locName);
+      const div = divByName.get(divName);
+      // Item type is actually what was previously 'division' in the CSV, but we match it by the 'division' column in CSV to the 'item_types' table for equipment category
+      const equipmentCategory = itemByName.get(divName); 
+
+      if (!loc) { errors.push(`Line ${lineNo}: failed to resolve location "${row.location}"`); return; }
+      if (!div) { errors.push(`Line ${lineNo}: failed to resolve division "${row.division}"`); return; }
 
       valid.push({
         name: name.slice(0, 120),
         description: desc.slice(0, 500) || null,
         serial_number: serial.slice(0, 80) || null,
-        department_id: dept.id,
-        item_type_id: item.id,
-        current_location_id: storageId ?? dept.id,
-        code: assetCode || "", // If empty, DB trigger will auto-generate
+        department_id: loc.id, // DB column name remains department_id for now
+        division_id: div.id,
+        item_type_id: equipmentCategory?.id ?? items[0]?.id, // Default to first category if not found
+        current_location_id: storageId ?? loc.id,
+        code: assetCode || "", 
         image_url: imageUrl
       });
     });
