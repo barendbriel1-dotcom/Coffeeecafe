@@ -13,30 +13,30 @@ type Role = "admin" | "staff" | "volunteer";
 
 interface Profile { id: string; display_name: string; email: string | null; }
 interface UserRole { user_id: string; role: Role; }
-interface Dept { id: string; code: string; name: string; }
+interface Loc { id: string; code: string; name: string; }
 interface ItemType { id: string; code: string; name: string; }
 
 export default function Admin() {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
-  const [depts, setDepts] = useState<Dept[]>([]);
+  const [locs, setLocs] = useState<Loc[]>([]);
   const [items, setItems] = useState<ItemType[]>([]);
-  const [newDeptCode, setNewDeptCode] = useState("");
-  const [newDeptName, setNewDeptName] = useState("");
+  const [newLocCode, setNewLocCode] = useState("");
+  const [newLocName, setNewLocName] = useState("");
   const [newItemCode, setNewItemCode] = useState("");
   const [newItemName, setNewItemName] = useState("");
 
   const load = async () => {
-    const [{ data: p }, { data: r }, { data: d }, { data: it }] = await Promise.all([
+    const [{ data: p }, { data: r }, { data: l }, { data: it }] = await Promise.all([
       supabase.from("profiles").select("id, display_name, email").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
-      supabase.from("departments").select("*").order("name"),
+      supabase.from("locations").select("*").order("name"),
       supabase.from("item_types").select("*").order("name"),
     ]);
     setProfiles(p ?? []);
     setUserRoles((r ?? []) as UserRole[]);
-    setDepts(d ?? []);
+    setLocs(l ?? []);
     setItems(it ?? []);
   };
   useEffect(() => { load(); }, []);
@@ -60,12 +60,12 @@ export default function Admin() {
     load();
   };
 
-  const addDept = async () => {
-    if (!newDeptCode || !newDeptName) return toast.error("Code and name required");
-    if (newDeptCode.length !== 1) return toast.error("Code must be 1 letter");
-    const { error } = await supabase.from("departments").insert({ code: newDeptCode.toUpperCase(), name: newDeptName });
+  const addLoc = async () => {
+    if (!newLocCode || !newLocName) return toast.error("Code and name required");
+    if (newLocCode.length !== 1) return toast.error("Code must be 1 letter");
+    const { error } = await supabase.from("locations").insert({ code: newLocCode.toUpperCase(), name: newLocName });
     if (error) return toast.error(error.message);
-    setNewDeptCode(""); setNewDeptName(""); load();
+    setNewLocCode(""); setNewLocName(""); load();
   };
 
   const addItem = async () => {
@@ -92,8 +92,8 @@ export default function Admin() {
             )}
           </TabsTrigger>
           <TabsTrigger value="users" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Users & Roles</TabsTrigger>
-          <TabsTrigger value="depts" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Departments</TabsTrigger>
-          <TabsTrigger value="items" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Item Types</TabsTrigger>
+          <TabsTrigger value="locs" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Locations</TabsTrigger>
+          <TabsTrigger value="items" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Categories</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-2 mt-4">
@@ -162,20 +162,20 @@ export default function Admin() {
           ))}
         </TabsContent>
 
-        <TabsContent value="depts" className="space-y-3 mt-4">
+        <TabsContent value="locs" className="space-y-3 mt-4">
           <Card className="bg-card/40 border-primary/30 p-4 space-y-2">
-            <h3 className="font-display text-primary text-sm uppercase">Add Department</h3>
+            <h3 className="font-display text-primary text-sm uppercase">Add Location</h3>
             <div className="flex gap-2">
-              <div className="w-20"><Label>Code</Label><Input maxLength={1} value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} className="text-center font-display uppercase" /></div>
-              <div className="flex-1"><Label>Name</Label><Input value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} maxLength={80} /></div>
-              <div className="self-end"><Button onClick={addDept} className="bg-primary text-primary-foreground">Add</Button></div>
+              <div className="w-20"><Label>Code</Label><Input maxLength={1} value={newLocCode} onChange={(e) => setNewLocCode(e.target.value)} className="text-center font-display uppercase" /></div>
+              <div className="flex-1"><Label>Name</Label><Input value={newLocName} onChange={(e) => setNewLocName(e.target.value)} maxLength={80} /></div>
+              <div className="self-end"><Button onClick={addLoc} className="bg-primary text-primary-foreground">Add</Button></div>
             </div>
           </Card>
           <div className="grid sm:grid-cols-2 gap-2">
-            {depts.map((d) => (
-              <Card key={d.id} className="bg-card/30 border-primary/20 p-3 flex items-center gap-3">
-                <span className="font-display text-2xl text-primary glow w-10 text-center">{d.code}</span>
-                <span className="text-sm">{d.name}</span>
+            {locs.map((l) => (
+              <Card key={l.id} className="bg-card/30 border-primary/20 p-3 flex items-center gap-3">
+                <span className="font-display text-2xl text-primary glow w-10 text-center">{l.code}</span>
+                <span className="text-sm">{l.name}</span>
               </Card>
             ))}
           </div>
@@ -183,7 +183,7 @@ export default function Admin() {
 
         <TabsContent value="items" className="space-y-3 mt-4">
           <Card className="bg-card/40 border-primary/30 p-4 space-y-2">
-            <h3 className="font-display text-primary text-sm uppercase">Add Item Type</h3>
+            <h3 className="font-display text-primary text-sm uppercase">Add Category</h3>
             <div className="flex gap-2">
               <div className="w-20"><Label>Code</Label><Input maxLength={1} value={newItemCode} onChange={(e) => setNewItemCode(e.target.value)} className="text-center font-display uppercase" /></div>
               <div className="flex-1"><Label>Name</Label><Input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} maxLength={80} /></div>
