@@ -62,12 +62,60 @@ export default function Requests() {
   };
 
   const review = async (r: Req, status: "approved" | "rejected", notes?: string) => {
-    const { error } = await supabase.from("asset_requests").update({
-      status, reviewed_by: user!.id, reviewed_at: new Date().toISOString(), admin_notes: notes || null,
-    }).eq("id", r.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Request ${status}`);
-    load();
+    setBusy(true);
+    try {
+      if (status === "approved" && r.asset_id) {
+        // Automatic Sign-Out workflow
+        const { data: signout, error: soError } = await supabase
+          .from("signouts")
+          .insert({
+            signed_out_by: user!.id,
+            signed_out_to: r.requested_by,
+            notes: `Auto-approved request: ${r.needed_for || "No details"}`,
+            status: "active",
+          })
+          .select("id")
+          .single();
+
+        if (soError) throw soError;
+
+        await supabase.from("signout_items").insert({
+          signout_id: signout.id,
+          asset_id: r.asset_id,
+        });
+
+        await supabase.from("assets").update({
+          status: "signed_out",
+          current_holder: r.requested_by,
+        }).eq("id", r.asset_id);
+
+        await supabase.from("asset_history").insert({
+          asset_id: r.asset_id,
+          action: "signed_out",
+          performed_by: user!.id,
+          to_user: r.requested_by,
+          notes: `Auto-approved request ID: ${r.id}`,
+        });
+
+        // Mark request as fulfilled instead of just approved if it's an immediate sign-out
+        status = "approved"; 
+      }
+
+      const { error } = await supabase.from("asset_requests").update({
+        status: status === "approved" ? "approved" : status,
+        reviewed_by: user!.id,
+        reviewed_at: new Date().toISOString(),
+        admin_notes: notes || null,
+      }).eq("id", r.id);
+
+      if (error) throw error;
+      toast.success(`Request ${status}`);
+      load();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process request");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const statusColor: Record<string, string> = {
