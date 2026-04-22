@@ -39,6 +39,7 @@ export default function Assets() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [divFilter, setDivFilter] = useState<string>("all");
+  const [locFilter, setLocFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [csvText, setCsvText] = useState("");
@@ -72,7 +73,8 @@ export default function Assets() {
     const matchesQ = !q || a.code.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
     const matchesS = statusFilter === "all" || a.status === statusFilter;
     const matchesD = divFilter === "all" || a.division_id === divFilter;
-    return matchesQ && matchesS && matchesD;
+    const matchesL = locFilter === "all" || (a.current_location_id ?? a.department_id) === locFilter;
+    return matchesQ && matchesS && matchesD && matchesL;
   });
 
   const create = async () => {
@@ -443,7 +445,7 @@ export default function Assets() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code or name…" className="pl-9 font-mono" />
@@ -463,6 +465,13 @@ export default function Assets() {
           <SelectContent>
             <SelectItem value="all">Division</SelectItem>
             {divs.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={locFilter} onValueChange={setLocFilter}>
+          <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Location</SelectItem>
+            {locs.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
