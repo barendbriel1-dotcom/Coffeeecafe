@@ -15,7 +15,7 @@ import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
 import Users from "./pages/Users";
 import Install from "./pages/Install";
-import NotFound from "./pages/NotFound.tsx";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
