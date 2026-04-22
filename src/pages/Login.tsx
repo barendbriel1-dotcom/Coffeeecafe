@@ -154,7 +154,7 @@ export default function Login() {
               className="block w-full text-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               {mode === "signin"
-                ? "// create access id"
+                ? "// Create Access ID"
                 : "// already enrolled? — log in"}
             </button>
           </form>
