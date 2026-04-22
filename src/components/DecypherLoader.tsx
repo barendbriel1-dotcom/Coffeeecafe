@@ -46,7 +46,7 @@ export default function DecypherLoader({ isReady, onComplete }: { isReady: boole
 
   return (
     <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-background transition-opacity duration-500 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500 ${
         phase === "fade" ? 'opacity-0' : 'opacity-100'
       }`}
     >
