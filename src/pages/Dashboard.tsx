@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
-import { Package, PackageCheck, AlertTriangle, History, Activity, ChevronRight } from "lucide-react";
+import { Package, PackageCheck, AlertTriangle, History, Activity, ChevronRight, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Stats {
@@ -10,6 +10,7 @@ interface Stats {
   available: number;
   signedOut: number;
   activeSignouts: number;
+  damaged: number;
 }
 
 interface ActivityRow {
@@ -21,16 +22,17 @@ interface ActivityRow {
 
 export default function Dashboard() {
   const { isAdmin, isStaff } = useAuth();
-  const [stats, setStats] = useState<Stats>({ total: 0, available: 0, signedOut: 0, activeSignouts: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, available: 0, signedOut: 0, activeSignouts: 0, damaged: 0 });
   const [activity, setActivity] = useState<ActivityRow[]>([]);
 
   useEffect(() => {
     (async () => {
-      const [{ count: total }, { count: avail }, { count: out }, { count: active }, { data: hist }] = await Promise.all([
+      const [{ count: total }, { count: avail }, { count: out }, { count: active }, { count: damaged }, { data: hist }] = await Promise.all([
         supabase.from("assets").select("*", { count: "exact", head: true }),
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "available"),
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "signed_out"),
         supabase.from("signouts").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "retired"),
         supabase
           .from("asset_history")
           .select("id, action, created_at, assets(code)")
@@ -42,6 +44,7 @@ export default function Dashboard() {
         available: avail ?? 0,
         signedOut: out ?? 0,
         activeSignouts: active ?? 0,
+        damaged: damaged ?? 0,
       });
       setActivity(
         (hist ?? []).map((h: any) => ({
@@ -60,6 +63,7 @@ export default function Dashboard() {
     { label: "Total Assets", value: stats.total, icon: Package, accent: "primary", to: "/assets" },
     { label: "Available", value: stats.available, icon: PackageCheck, accent: "cyan", to: "/assets?status=available" },
     { label: "Signed Out", value: stats.signedOut, icon: AlertTriangle, accent: "red", to: "/assets?status=signed_out" },
+    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "rose", to: "/assets?status=retired" },
     { label: "History", value: stats.activeSignouts, icon: History, accent: "amber", to: "/history" },
   ] as const;
 
@@ -125,7 +129,7 @@ function StatTile({
   label: string;
   value: number;
   icon: any;
-  accent: "primary" | "cyan" | "red" | "amber";
+  accent: "primary" | "cyan" | "red" | "amber" | "rose";
   to: string;
 }) {
   const palette = {
@@ -133,6 +137,7 @@ function StatTile({
     cyan: { border: "border-cyan-500/40 hover:border-cyan-400", text: "text-cyan-400", iconBg: "bg-cyan-500/10 border-cyan-500/40" },
     red: { border: "border-red-500/40 hover:border-red-400", text: "text-red-400", iconBg: "bg-red-500/10 border-red-500/40" },
     amber: { border: "border-amber-500/40 hover:border-amber-400", text: "text-amber-400", iconBg: "bg-amber-500/10 border-amber-500/40" },
+    rose: { border: "border-rose-500/40 hover:border-rose-400", text: "text-rose-400", iconBg: "bg-rose-500/10 border-rose-500/40" },
   }[accent];
 
   return (

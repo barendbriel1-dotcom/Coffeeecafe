@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   Package,
   LogOut,
+  LogIn,
   Layers,
   History,
   Users as UsersIcon,
