@@ -7,24 +7,24 @@
 /* MATRIX DESIGN SYSTEM — all values in HSL */
 @layer base {
   :root {
-    /* Matrix monochrome green palette (dark by default) - Dimmed */
-    --background: 0 0% 3%;
+    /* Soft neutral gray background palette */
+    --background: 220 10% 10%;
     --foreground: 120 100% 75%;
 
-    --card: 120 30% 5%;
+    --card: 220 10% 14%;
     --card-foreground: 120 100% 75%;
 
-    --popover: 120 30% 4%;
+    --popover: 220 10% 13%;
     --popover-foreground: 120 100% 75%;
 
-    --primary: 120 100% 35%;            /* Dimmer green */
+    --primary: 120 100% 35%;            /* Keep neon green */
     --primary-foreground: 0 0% 0%;
 
-    --secondary: 120 40% 10%;
+    --secondary: 220 10% 18%;
     --secondary-foreground: 120 100% 75%;
 
-    --muted: 120 20% 8%;
-    --muted-foreground: 120 30% 55%;
+    --muted: 220 10% 15%;
+    --muted-foreground: 220 10% 60%;
 
     --accent: 120 100% 30%;
     --accent-foreground: 0 0% 0%;
@@ -32,19 +32,19 @@
     --destructive: 0 100% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 120 60% 15%;
-    --input: 120 60% 12%;
+    --border: 220 10% 20%;
+    --input: 220 10% 18%;
     --ring: 120 100% 35%;
 
     --radius: 0.25rem;
 
-    --sidebar-background: 0 0% 4%;
+    --sidebar-background: 220 10% 8%;
     --sidebar-foreground: 120 100% 75%;
     --sidebar-primary: 120 100% 35%;
     --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 120 40% 10%;
+    --sidebar-accent: 220 10% 14%;
     --sidebar-accent-foreground: 120 100% 75%;
-    --sidebar-border: 120 60% 15%;
+    --sidebar-border: 220 10% 18%;
     --sidebar-ring: 120 100% 35%;
 
     /* Custom Matrix tokens */
@@ -56,24 +56,24 @@
   }
 
   .dark { /* same — app is dark only */
-    --background: 0 0% 3%;
+    --background: 220 10% 10%;
     --foreground: 120 100% 75%;
-    --card: 120 30% 5%;
+    --card: 220 10% 14%;
     --card-foreground: 120 100% 75%;
-    --popover: 120 30% 4%;
+    --popover: 220 10% 13%;
     --popover-foreground: 120 100% 75%;
     --primary: 120 100% 35%;
     --primary-foreground: 0 0% 0%;
-    --secondary: 120 40% 10%;
+    --secondary: 220 10% 18%;
     --secondary-foreground: 120 100% 75%;
-    --muted: 120 20% 8%;
-    --muted-foreground: 120 30% 55%;
+    --muted: 220 10% 15%;
+    --muted-foreground: 220 10% 60%;
     --accent: 120 100% 30%;
     --accent-foreground: 0 0% 0%;
     --destructive: 0 100% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 120 60% 15%;
-    --input: 120 60% 12%;
+    --border: 220 10% 20%;
+    --input: 220 10% 18%;
     --ring: 120 100% 35%;
   }
 }
