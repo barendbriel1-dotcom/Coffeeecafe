@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import MatrixRain from "@/components/MatrixRain";
+import DecypherLoader from "@/components/DecypherLoader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,9 +53,6 @@ export default function Login() {
         if (error) throw error;
         
         setIsDecyphering(true);
-        setTimeout(() => {
-          navigate(from, { replace: true });
-        }, 3000);
       } else {
         const { error } = await supabase.auth.signUp({
           email: email.toLowerCase(),
@@ -71,9 +69,6 @@ export default function Login() {
         await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         
         setIsDecyphering(true);
-        setTimeout(() => {
-          navigate(from, { replace: true });
-        }, 3000);
       }
     } catch (err: any) {
       toast.error(err?.message ?? "Authentication failure");
@@ -83,17 +78,10 @@ export default function Login() {
 
   if (isDecyphering) {
     return (
-      <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-black">
-        <MatrixRain />
-        <div className="relative z-10 text-center">
-          <div className="font-display text-2xl sm:text-4xl text-primary glow animate-pulse mb-4 tracking-[0.2em]">
-            DECYPERING CODE
-          </div>
-          <div className="font-mono text-xs text-primary/60 uppercase tracking-widest">
-            // establishing secure connection...
-          </div>
-        </div>
-      </div>
+      <DecypherLoader 
+        isReady={true} 
+        onComplete={() => navigate(from, { replace: true })} 
+      />
     );
   }
 
