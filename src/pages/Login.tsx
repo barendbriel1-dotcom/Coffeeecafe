@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react";
+
 const authSchema = z.object({
   email: z.string().trim().toLowerCase().email("Invalid access ID").max(255),
   password: z.string().min(1, "Required").max(100),
@@ -26,9 +27,10 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [isDecyphering, setIsDecyphering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  if (!loading && session) return <Navigate to={from} replace />;
+  if (!loading && session && !isDecyphering) return <Navigate to={from} replace />;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -41,14 +43,18 @@ export default function Login() {
       });
       if (!parsed.success) {
         toast.error(parsed.error.errors[0].message);
+        setBusy(false);
         return;
       }
 
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         if (error) throw error;
-        toast.success("ACCESS GRANTED");
-        navigate(from, { replace: true });
+        
+        setIsDecyphering(true);
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 3000);
       } else {
         const { error } = await supabase.auth.signUp({
           email: email.toLowerCase(),
@@ -59,17 +65,37 @@ export default function Login() {
           },
         });
         if (error) throw error;
-        toast.success("OPERATIVE REGISTERED — signing in…");
+        
+        toast.success("OPERATIVE REGISTERED");
         // try sign-in immediately (auto-confirm is enabled)
         await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
-        navigate(from, { replace: true });
+        
+        setIsDecyphering(true);
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 3000);
       }
     } catch (err: any) {
       toast.error(err?.message ?? "Authentication failure");
-    } finally {
       setBusy(false);
     }
   };
+
+  if (isDecyphering) {
+    return (
+      <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-black">
+        <MatrixRain />
+        <div className="relative z-10 text-center">
+          <div className="font-display text-2xl sm:text-4xl text-primary glow animate-pulse mb-4 tracking-[0.2em]">
+            DECYPERING CODE
+          </div>
+          <div className="font-mono text-xs text-primary/60 uppercase tracking-widest">
+            // establishing secure connection...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden flex items-center justify-center px-4 py-8">
@@ -100,6 +126,7 @@ export default function Login() {
                   placeholder="Neo"
                   className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                   maxLength={80}
+                  required
                 />
               </div>
             )}
@@ -114,6 +141,7 @@ export default function Login() {
                 className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono"
                 maxLength={255}
                 autoComplete="email"
+                required
               />
             </div>
             <div className="space-y-1">
@@ -128,6 +156,7 @@ export default function Login() {
                   className="bg-background/50 hover:bg-muted focus:bg-muted border-primary/40 text-primary placeholder:text-muted-foreground/50 focus:border-primary focus-visible:ring-primary/40 font-mono pr-10"
                   maxLength={100}
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  required
                 />
                 <button
                   type="button"
@@ -159,7 +188,7 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-primary/20 text-[10px] text-muted-foreground/60 font-mono text-center cursor-blink">
+          <div className="mt-6 pt-4 border-t border-primary/20 text-[10px] text-muted-foreground/60 font-mono text-center cursor-blink uppercase">
             wake up
           </div>
         </div>
