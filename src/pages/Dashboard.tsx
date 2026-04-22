@@ -58,8 +58,8 @@ export default function Dashboard() {
 
   const tiles = [
     { label: "Total Assets", value: stats.total, icon: Package, accent: "primary", to: "/assets" },
-    { label: "Available", value: stats.available, icon: PackageCheck, accent: "cyan", to: "/assets" },
-    { label: "Signed Out", value: stats.signedOut, icon: AlertTriangle, accent: "red", to: "/assets" },
+    { label: "Available", value: stats.available, icon: PackageCheck, accent: "cyan", to: "/assets?status=available" },
+    { label: "Signed Out", value: stats.signedOut, icon: AlertTriangle, accent: "red", to: "/assets?status=signed_out" },
     { label: "Active Sign-Outs", value: stats.activeSignouts, icon: LogOut, accent: "amber", to: "/signout" },
   ] as const;
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -25,12 +26,15 @@ interface Holder { id: string; display_name: string; }
 
 export default function Assets() {
   const { isAdmin } = useAuth();
+  const [searchParams] = useSearchParams();
+  const initialStatus = searchParams.get("status") || "all";
+
   const [assets, setAssets] = useState<Asset[]>([]);
   const [depts, setDepts] = useState<Dept[]>([]);
   const [items, setItems] = useState<ItemType[]>([]);
   const [holders, setHolders] = useState<Record<string, string>>({});
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [csvText, setCsvText] = useState("");
