@@ -51,6 +51,7 @@ export default function AppLayout() {
     { to: "/assets", label: "Assets", icon: Package, show: true },
     { to: "/signout", label: "Sign Out", icon: LogOut, show: isStaff },
     { to: "/signout/bulk", label: "Bulk Sign Out", icon: Layers, show: isStaff },
+    { to: "/signin", label: "Sign In", icon: LogIn, show: isAdmin },
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true },
     { to: "/requests", label: "Requests", icon: Inbox, show: true },
     { to: "/history", label: "History", icon: History, show: true },

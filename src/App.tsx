@@ -16,6 +16,7 @@ import Admin from "./pages/Admin";
 import Users from "./pages/Users";
 import Install from "./pages/Install";
 import History from "./pages/History";
+import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/assets" element={<Assets />} />
               <Route path="/signout" element={<ProtectedRoute requireRole="staff"><SignOut /></ProtectedRoute>} />
               <Route path="/signout/bulk" element={<ProtectedRoute requireRole="staff"><SignOut bulk /></ProtectedRoute>} />
+              <Route path="/signin" element={<ProtectedRoute requireRole="admin"><SignIn /></ProtectedRoute>} />
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/history" element={<History />} />
