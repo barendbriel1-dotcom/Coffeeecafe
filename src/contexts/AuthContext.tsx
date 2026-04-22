@@ -11,6 +11,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isStaff: boolean;
   isVolunteer: boolean;
+  isApproved: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -40,8 +41,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session: existing } }) => {
       setSession(existing);
       setUser(existing?.user ?? null);
-      if (existing?.user) loadRoles(existing.user.id).finally(() => setLoading(false));
-      else setLoading(false);
+      if (existing?.user) {
+        loadRoles(existing.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
     });
 
     return () => sub.subscription.unsubscribe();
@@ -68,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: roles.includes("admin"),
         isStaff: roles.includes("staff") || roles.includes("admin"),
         isVolunteer: roles.includes("volunteer"),
+        isApproved: roles.length > 0,
         loading,
         signOut,
       }}

@@ -80,15 +80,62 @@ export default function Admin() {
     <div className="space-y-4 animate-fade-in">
       <h1 className="font-display text-2xl text-primary glow">// Admin Console</h1>
 
-      <Tabs defaultValue="users">
+      <Tabs defaultValue="pending">
         <TabsList className="bg-card border border-primary/30">
+          <TabsTrigger value="pending" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary relative">
+            Pending Approval
+            {profiles.filter(p => rolesFor(p.id).length === 0).length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="users" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Users & Roles</TabsTrigger>
           <TabsTrigger value="depts" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Departments</TabsTrigger>
           <TabsTrigger value="items" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Item Types</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="pending" className="space-y-2 mt-4">
+          <div className="text-xs text-muted-foreground mb-4 uppercase tracking-widest px-1">
+            // NEW ENROLMENT REQUESTS
+          </div>
+          {profiles.filter(p => rolesFor(p.id).length === 0).length === 0 ? (
+            <div className="py-12 text-center font-mono text-sm text-muted-foreground/50 border border-dashed border-primary/20 rounded">
+              // NO PENDING REQUESTS
+            </div>
+          ) : (
+            profiles.filter(p => rolesFor(p.id).length === 0).map((p) => (
+              <Card key={p.id} className="bg-card/40 border-primary/20 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-sm text-primary truncate flex items-center gap-2">
+                    <span className="text-primary/60">▸</span> {p.display_name}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate ml-5">{p.email}</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => toggleRole(p.id, "volunteer")}
+                    className="bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30 font-mono text-[10px] uppercase tracking-widest px-4"
+                  >
+                    Approve as Volunteer
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => toggleRole(p.id, "staff")}
+                    className="bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30 font-mono text-[10px] uppercase tracking-widest px-4"
+                  >
+                    Approve as Staff
+                  </Button>
+                </div>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
         <TabsContent value="users" className="space-y-2 mt-4">
-          {profiles.map((p) => (
+          {profiles.filter(p => rolesFor(p.id).length > 0).map((p) => (
             <Card key={p.id} className="bg-card/40 border-primary/20 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
               <div className="flex-1 min-w-0">
                 <div className="font-mono text-sm text-primary truncate">{p.display_name}</div>
