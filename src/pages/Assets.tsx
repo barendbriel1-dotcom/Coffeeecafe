@@ -431,15 +431,14 @@ export default function Assets() {
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code or name…" className="pl-9 font-mono" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="sm:w-44"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="available">Available</SelectItem>
-            <SelectItem value="signed_out">Signed out</SelectItem>
-            <SelectItem value="in_handover">In handover</SelectItem>
+            <SelectItem value="signed_out">Sign Out</SelectItem>
             <SelectItem value="maintenance">Maintenance</SelectItem>
             <SelectItem value="lost">Lost</SelectItem>
-            <SelectItem value="retired">Retired</SelectItem>
+            <SelectItem value="retired">Damaged</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -472,7 +471,7 @@ export default function Assets() {
                     <td className="px-4 py-3 text-muted-foreground">{itemType?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={cn("uppercase text-[10px] tracking-widest", statusColor[a.status])}>
-                        {a.status.replace("_", " ")}
+                        {a.status === "signed_out" ? "Sign Out" : a.status === "retired" ? "Damaged" : a.status.replace("_", " ")}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground truncate max-w-[200px]">
