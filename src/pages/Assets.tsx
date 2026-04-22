@@ -307,19 +307,11 @@ export default function Assets() {
                     const toKeep = all.slice(0, 10).map(a => a.id);
                     const toDelete = all.filter(a => !toKeep.includes(a.id)).map(a => a.id);
                     
-                    // Chunk deletion to avoid limits and ensure FK safety
+                    // Chunk deletion to avoid limits
                     const chunkSize = 50;
                     for (let i = 0; i < toDelete.length; i += chunkSize) {
                       const chunk = toDelete.slice(i, i + chunkSize);
-                      await supabase.from("signout_items").delete().in("asset_id", chunk);
-                      await supabase.from("handover_items").delete().in("asset_id", chunk);
-                      await supabase.from("asset_requests").delete().in("asset_id", chunk);
-                      await supabase.from("asset_history").delete().in("asset_id", chunk);
-                    }
-                    
-                    // Final asset deletion
-                    for (let i = 0; i < toDelete.length; i += chunkSize) {
-                      const chunk = toDelete.slice(i, i + chunkSize);
+                      // Database will now handle CASCADE for signouts, handovers, etc.
                       const { error } = await supabase.from("assets").delete().in("id", chunk);
                       if (error) throw error;
                     }
