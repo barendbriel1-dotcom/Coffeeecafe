@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Search } from "lucide-react";
+import { Search, Package } from "lucide-react";
 
 interface Asset { id: string; code: string; name: string; status: string; department_id: string; item_type_id: string; }
 interface Profile { id: string; display_name: string; }
