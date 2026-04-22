@@ -80,22 +80,37 @@ export default function AssetDetail() {
       setEditSerial(a.serial_number || "");
       setEditImageUrl(a.image_url || "");
 
-      // Fetch history with profiles
+      // Fetch history with profiles via manual join/lookup since relationship isn't in schema cache
       const { data: h, error: hErr } = await supabase
         .from("asset_history")
         .select(`
           id, action, created_at, notes,
-          performed_by:profiles!asset_history_performed_by_fkey(display_name),
-          to_user:profiles!asset_history_to_user_fkey(display_name)
+          performed_by,
+          to_user
         `)
         .eq("asset_id", id)
         .order("created_at", { ascending: false });
 
       if (hErr) throw hErr;
+
+      // Get unique user IDs from history
+      const userIds = Array.from(new Set([
+        ...h.map(x => x.performed_by),
+        ...h.map(x => x.to_user)
+      ].filter(Boolean)));
+
+      // Fetch profiles for these users
+      const { data: pData } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", userIds);
+
+      const profileMap = Object.fromEntries((pData ?? []).map(p => [p.id, p.display_name]));
+
       setHistory(h.map((x: any) => ({
         ...x,
-        performed_by_name: x.performed_by?.display_name,
-        to_user_name: x.to_user?.display_name
+        performed_by_name: profileMap[x.performed_by] || x.performed_by,
+        to_user_name: profileMap[x.to_user] || x.to_user
       })));
 
     } catch (err: any) {
