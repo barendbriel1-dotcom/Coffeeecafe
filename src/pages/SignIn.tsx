@@ -49,18 +49,16 @@ export default function SignIn() {
   const load = async () => {
     setLoading(true);
     try {
-      // 1. Fetch all assets currently signed out
+      // 1. Fetch all assets currently marked as 'signed_out'
       const { data: assets, error: assetErr } = await supabase
         .from("assets")
         .select(`
-          id, code, name, status,
-          current_holder_profile:profiles!assets_current_holder_fkey(display_name),
+          id, code, name, status, current_holder,
           signout_items(
-            id, returned,
+            id, returned, signout_id,
             signout:signouts(
-              id, created_at, package_name, notes, status,
-              signed_out_to_profile:profiles!signouts_signed_out_to_fkey(display_name),
-              to_department:departments!signouts_to_department_id_fkey(name)
+              id, created_at, package_name, notes, signed_out_to,
+              to_department:departments(name)
             )
           )
         `)
@@ -68,8 +66,24 @@ export default function SignIn() {
 
       if (assetErr) throw assetErr;
 
+      // 2. Extract unique user IDs to fetch profiles manually (avoids relationship cache issues)
+      const userIds = new Set<string>();
+      (assets || []).forEach(a => {
+        if (a.current_holder) userIds.add(a.current_holder);
+        a.signout_items?.forEach((si: any) => {
+          if (si.signout?.signed_out_to) userIds.add(si.signout.signed_out_to);
+        });
+      });
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", Array.from(userIds));
+
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
+
       const returns: AssetReturn[] = (assets || []).map(a => {
-        // Find the active signout item for this asset
+        // Find the active (not returned) signout record for this asset
         const activeItem = a.signout_items?.find((si: any) => !si.returned);
         const so = activeItem?.signout;
 
@@ -77,17 +91,17 @@ export default function SignIn() {
           id: a.id,
           code: a.code,
           name: a.name,
-          holder_name: a.current_holder_profile?.display_name || so?.signed_out_to_profile?.display_name || "Unknown",
+          holder_name: profileMap[a.current_holder || ""] || profileMap[so?.signed_out_to || ""] || "Unknown Operative",
           signout_item_id: activeItem?.id || null,
           signout_id: so?.id || null,
           package_name: so?.package_name || null,
           notes: so?.notes || null,
           created_at: so?.created_at || null,
-          to_dept: so?.to_department?.name || null
+          to_dept: (so as any)?.to_department?.name || null
         };
       });
 
-      // 2. Group items by sign-out record
+      // 3. Group items by sign-out record
       const groupMap = new Map<string, GroupedSignOut>();
       const orphans: AssetReturn[] = [];
 
@@ -114,7 +128,8 @@ export default function SignIn() {
       setOrphaned(orphans);
 
     } catch (err: any) {
-      toast.error(err.message || "Failed to load signed-out items");
+      console.error(err);
+      toast.error(err.message || "Failed to load items");
     } finally {
       setLoading(false);
     }
