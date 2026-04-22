@@ -139,17 +139,34 @@ export default function Handover() {
                   <SelectContent>{profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="flex items-center justify-between mb-2">
                 <Label>Assets currently held by you</Label>
-                <div className="grid gap-2 mt-1">
-                  {myAssets.map((a) => (
-                    <label key={a.id} className="flex items-center gap-3 rounded border border-primary/15 p-2 cursor-pointer hover:border-primary/40">
-                      <Checkbox checked={selected.has(a.id)} onCheckedChange={() => toggle(a.id)} />
-                      <span className="font-display text-primary glow-soft">{a.code}</span>
-                      <span className="text-sm">{a.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => {
+                    if (selected.size === myAssets.length) {
+                      setSelected(new Set());
+                    } else {
+                      setSelected(new Set(myAssets.map(a => a.id)));
+                    }
+                  }}
+                  className="h-7 text-[10px] uppercase tracking-widest font-mono text-primary/70 hover:text-primary hover:bg-primary/10"
+                >
+                  {selected.size === myAssets.length ? "Deselect All" : "Select All"}
+                </Button>
+              </div>
+              <div className="grid gap-2 mt-1">
+                {myAssets.map((a) => (
+                  <label key={a.id} className={cn(
+                    "flex items-center gap-3 rounded border p-2 cursor-pointer transition-colors",
+                    selected.has(a.id) ? "border-primary/60 bg-primary/10 box-glow-soft" : "border-primary/15 hover:border-primary/40 hover:bg-primary/5"
+                  )}>
+                    <Checkbox checked={selected.has(a.id)} onCheckedChange={() => toggle(a.id)} />
+                    <span className="font-display text-primary glow-soft">{a.code}</span>
+                    <span className="text-sm">{a.name}</span>
+                  </label>
+                ))}
               </div>
               <div><Label>Notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} /></div>
               <Button onClick={initiate} disabled={busy} className="w-full bg-primary text-primary-foreground font-display">
