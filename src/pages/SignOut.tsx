@@ -37,6 +37,32 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [filterDept, setFilterDept] = useState("all");
   const [filterItem, setFilterItem] = useState("all");
 
+  // Multi-code search
+  const [multiSearch, setMultiSearch] = useState("");
+
+  const KIT_TEMPLATES = [
+    { name: "Camera 5 (Wireless)", items: ["Camera 5", "Lens", "Charger", "Battery", "Wireless", "SD", "Cable"] },
+    { name: "Camera 6 (Wireless)", items: ["Camera 6", "Lens", "Charger", "Battery", "Wireless", "SD", "Cable"] },
+    { name: "Photo Camera 1", items: ["Photo Camera 1", "Lens", "Meta", "Battery", "SD", "Charger"] },
+    { name: "Photo Camera 2", items: ["Photo Camera 2", "Lens", "Meta", "Battery", "SD", "Charger"] },
+  ];
+
+  const applyMultiSearch = () => {
+    const codes = multiSearch.split(/[\s,]+/).map(c => c.trim().toUpperCase()).filter(c => c.length > 0);
+    if (codes.length === 0) return;
+
+    const toSelect = available.filter(a => codes.includes(a.code.toUpperCase())).map(a => a.id);
+    if (toSelect.length > 0) {
+      const next = new Set(selected);
+      toSelect.forEach(id => next.add(id));
+      setSelected(next);
+      setMultiSearch("");
+      toast.success(`Added ${toSelect.length} asset(s) from search`);
+    } else {
+      toast.error("No matching available assets found for those codes");
+    }
+  };
+
   const load = async () => {
     const [{ data: a }, { data: p }, { data: d }, { data: i }] = await Promise.all([
       supabase.from("assets").select("id, code, name, status, department_id, item_type_id").eq("status", "available").order("code"),
@@ -116,102 +142,229 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <h1 className="font-display text-2xl text-primary glow">
-        // {bulk ? "Bulk SignOut" : "SignOut"}
-      </h1>
-      <p className="text-sm text-muted-foreground">
-        {bulk
-          ? "Bundle multiple assets (e.g. camera + lenses + batteries + chargers) as one package."
-          : "Pick an available asset and the recipient. Returns must be processed by an Admin."}
-      </p>
-
-      <Card className="bg-card/40 border-primary/30 p-4 space-y-3">
-        {bulk && (
-          <div>
-            <Label>Package Name</Label>
-            <Input value={packageName} onChange={(e) => setPackageName(e.target.value)} placeholder="Sunday Service Camera Kit" maxLength={120} />
-          </div>
-        )}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <Label>Recipient <span className="text-destructive">*</span></Label>
-            <Select value={toUser} onValueChange={setToUser}>
-              <SelectTrigger><SelectValue placeholder="Choose user" /></SelectTrigger>
-              <SelectContent>{profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>To Department / Location <span className="text-destructive">*</span></Label>
-            <Select value={toDept} onValueChange={setToDept}>
-              <SelectTrigger><SelectValue placeholder="Required" /></SelectTrigger>
-              <SelectContent>{depts.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <Label>Expected Return</Label>
-            <Input 
-              type="datetime-local" 
-              value={expectedReturn} 
-              onChange={(e) => setExpectedReturn(e.target.value)} 
-              className="calendar-icon-green"
-              style={{ colorScheme: 'dark' }}
-            />
-          </div>
-        </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
         <div>
-          <Label>Notes</Label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
+          <h1 className="font-display text-2xl text-primary glow">
+            // {bulk ? "Bulk SignOut" : "SignOut"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {bulk
+              ? "Rapidly bundle assets into kits based on Event Checkout Forms."
+              : "Pick an available asset and recipient. Returns require Admin processing."}
+          </p>
         </div>
-      </Card>
-
-      <Card className="bg-card/40 border-primary/30 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-primary text-sm uppercase">Available Assets</h2>
-          <Badge variant="outline" className="border-primary/40 text-primary">
-            {selected.size} selected
+        {bulk && (
+          <Badge variant="outline" className="border-primary/60 text-primary py-1 px-3 font-mono box-glow-soft">
+            {selected.size} ASSETS IN BUNDLE
           </Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Sign-out Info */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="bg-card/40 border-primary/30 p-4 space-y-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-12 h-12 bg-primary/5 -rotate-45 translate-x-6 -translate-y-6" />
+            
+            <h2 className="font-display text-xs text-primary uppercase tracking-[0.2em] mb-2">// Session Data</h2>
+            
+            {bulk && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest text-primary/60">Package Name</Label>
+                <Input 
+                  value={packageName} 
+                  onChange={(e) => setPackageName(e.target.value)} 
+                  placeholder="Sunday Service Kit A" 
+                  className="bg-primary/5 border-primary/20 font-mono"
+                />
+              </div>
+            )}
+            
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest text-primary/60">Recipient</Label>
+              <Select value={toUser} onValueChange={setToUser}>
+                <SelectTrigger className="bg-primary/5 border-primary/20 font-mono">
+                  <SelectValue placeholder="Select operative" />
+                </SelectTrigger>
+                <SelectContent className="font-mono">
+                  {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest text-primary/60">Destination / Location</Label>
+              <Select value={toDept} onValueChange={setToDept}>
+                <SelectTrigger className="bg-primary/5 border-primary/20 font-mono">
+                  <SelectValue placeholder="Required" />
+                </SelectTrigger>
+                <SelectContent className="font-mono">
+                  {depts.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest text-primary/60">Expected Return</Label>
+              <Input 
+                type="datetime-local" 
+                value={expectedReturn} 
+                onChange={(e) => setExpectedReturn(e.target.value)} 
+                className="bg-primary/5 border-primary/20 font-mono calendar-icon-green"
+                style={{ colorScheme: 'dark' }}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest text-primary/60">Notes</Label>
+              <Textarea 
+                value={notes} 
+                onChange={(e) => setNotes(e.target.value)} 
+                className="bg-primary/5 border-primary/20 font-mono min-h-[80px]"
+                placeholder="Incident details or special instructions..."
+              />
+            </div>
+
+            <Button 
+              onClick={submit} 
+              disabled={busy || selected.size === 0} 
+              className="w-full bg-primary text-black hover:bg-primary/90 font-display tracking-[0.2em] uppercase transition-all box-glow-soft h-12"
+            >
+              {busy ? "Processing..." : `▸ Confirm SignOut (${selected.size})`}
+            </Button>
+          </Card>
+
+          {bulk && (
+            <Card className="bg-card/40 border-primary/30 p-4">
+              <h2 className="font-display text-xs text-primary uppercase tracking-[0.2em] mb-4">// Quick Kit Templates</h2>
+              <div className="grid grid-cols-1 gap-2">
+                {KIT_TEMPLATES.map((k) => (
+                  <Button
+                    key={k.name}
+                    variant="outline"
+                    className="justify-start border-primary/20 text-primary/70 hover:text-primary hover:border-primary/60 font-mono text-xs uppercase"
+                    onClick={() => {
+                      setQ(k.items[0]); // Search for first item to help
+                      setPackageName(k.name);
+                      toast.info(`Selected ${k.name}. Now picking items...`);
+                    }}
+                  >
+                    <Package size={14} className="mr-2 opacity-50" />
+                    {k.name}
+                  </Button>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
 
-        <div className="flex flex-col gap-2 mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search asset code or name…" className="pl-9" />
-          </div>
-          <div className="grid sm:grid-cols-2 gap-2">
-            <Select value={filterDept} onValueChange={setFilterDept}>
-              <SelectTrigger><SelectValue placeholder="All Locations" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Locations</SelectItem>
-                {depts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterItem} onValueChange={setFilterItem}>
-              <SelectTrigger><SelectValue placeholder="All Divisions" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Divisions</SelectItem>
-                {items.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        {/* Right Column: Asset Selection */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="bg-card/40 border-primary/30 p-4">
+            <div className="flex flex-col gap-4">
+              {/* Multi-code rapid entry */}
+              <div className="space-y-2 pb-4 border-b border-primary/10">
+                <Label className="text-[10px] uppercase tracking-widest text-primary/60">Rapid Entry (Paste Asset Codes)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={multiSearch} 
+                    onChange={(e) => setMultiSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && applyMultiSearch()}
+                    placeholder="AA015, AA016, AA017..." 
+                    className="font-mono bg-primary/5 border-primary/30 focus:border-primary/60 transition-all uppercase"
+                  />
+                  <Button onClick={applyMultiSearch} className="bg-primary/20 hover:bg-primary/40 text-primary border border-primary/40 font-mono px-6">
+                    ADD
+                  </Button>
+                </div>
+                <p className="text-[9px] text-muted-foreground font-mono italic">// Separate codes with spaces or commas for fast batch selection.</p>
+              </div>
 
-        <div className="grid gap-2 max-h-96 overflow-auto pr-1">
-          {filteredAssets.length === 0 && <div className="text-sm text-muted-foreground py-4 text-center font-mono">// none available</div>}
-          {filteredAssets.map((a) => (
-            <label key={a.id} className="flex items-center gap-3 rounded border border-primary/15 p-2 hover:border-primary/40 cursor-pointer transition-colors hover:bg-primary/5">
-              <Checkbox checked={selected.has(a.id)} onCheckedChange={() => toggle(a.id)} />
-              <span className="font-display text-primary glow-soft min-w-[60px]">{a.code}</span>
-              <span className="text-sm flex-1">{a.name}</span>
-            </label>
-          ))}
-        </div>
-      </Card>
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+                  <Input 
+                    value={q} 
+                    onChange={(e) => setQ(e.target.value)} 
+                    placeholder="Search asset registry..." 
+                    className="pl-9 font-mono bg-primary/5 border-primary/20" 
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full md:w-auto">
+                  <Select value={filterDept} onValueChange={setFilterDept}>
+                    <SelectTrigger className="font-mono bg-primary/5 border-primary/20 text-xs h-10 min-w-[140px]">
+                      <SelectValue placeholder="Location" />
+                    </SelectTrigger>
+                    <SelectContent className="font-mono">
+                      <SelectItem value="all">All Locations</SelectItem>
+                      {depts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterItem} onValueChange={setFilterItem}>
+                    <SelectTrigger className="font-mono bg-primary/5 border-primary/20 text-xs h-10 min-w-[140px]">
+                      <SelectValue placeholder="Division" />
+                    </SelectTrigger>
+                    <SelectContent className="font-mono">
+                      <SelectItem value="all">All Divisions</SelectItem>
+                      {items.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </Card>
 
-      <Button onClick={submit} disabled={busy} className="w-full bg-primary text-primary-foreground font-display tracking-wider">
-        {busy ? "Processing…" : `▸ Confirm Sign-Out (${selected.size})`}
-      </Button>
+          <Card className="bg-card/40 border-primary/30 p-4 min-h-[400px]">
+            <div className="flex items-center justify-between mb-4 border-b border-primary/10 pb-2">
+              <h2 className="font-display text-xs text-primary uppercase tracking-[0.2em]">Available Inventory</h2>
+              <div className="font-mono text-[10px] text-muted-foreground uppercase">
+                {filteredAssets.length} items found
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[500px] overflow-auto pr-1">
+              {filteredAssets.length === 0 && (
+                <div className="col-span-full py-12 text-center">
+                  <div className="font-mono text-sm text-muted-foreground/50 italic">// NO MATCHING ASSETS FOUND</div>
+                </div>
+              )}
+              {filteredAssets.map((a) => (
+                <label 
+                  key={a.id} 
+                  className={cn(
+                    "flex items-center gap-3 rounded border p-3 cursor-pointer transition-all duration-200 group relative overflow-hidden",
+                    selected.has(a.id) 
+                      ? "border-primary/60 bg-primary/10 box-glow-soft" 
+                      : "border-primary/10 bg-primary/5 hover:border-primary/40 hover:bg-primary/5"
+                  )}
+                >
+                  {selected.has(a.id) && (
+                    <div className="absolute top-0 right-0 w-8 h-8 bg-primary/20 flex items-center justify-center">
+                      <div className="size-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(0,255,65,0.8)]" />
+                    </div>
+                  )}
+                  <Checkbox 
+                    checked={selected.has(a.id)} 
+                    onCheckedChange={() => toggle(a.id)}
+                    className="border-primary/40 data-[state=checked]:bg-primary data-[state=checked]:text-black"
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className={cn(
+                      "font-display text-sm tracking-widest",
+                      selected.has(a.id) ? "text-primary glow-soft" : "text-primary/70 group-hover:text-primary"
+                    )}>
+                      {a.code}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground uppercase truncate font-mono">
+                      {a.name}
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
