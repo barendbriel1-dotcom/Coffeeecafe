@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, LockKeyhole, ShieldCheck, TerminalSquare } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, TerminalSquare } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
 import DecypherLoader from "@/components/DecypherLoader";
+import MatrixRain from "@/components/MatrixRain";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +65,7 @@ export default function Login() {
         if (error) throw error;
         setIsDecyphering(true);
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: email.toLowerCase(),
           password,
           options: {
@@ -74,10 +75,19 @@ export default function Login() {
         });
         if (error) throw error;
 
-        toast.success("Profile created. Waiting for admin approval.");
+        toast.success("Profile created. Waiting for approval.");
 
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
-        if (signInErr) throw signInErr;
+        if (!data.session) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: email.toLowerCase(),
+            password,
+          });
+
+          if (signInError) {
+            navigate("/approval-pending", { replace: true });
+            return;
+          }
+        }
 
         setIsDecyphering(true);
       }
@@ -108,35 +118,11 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.16),transparent_24%)]" />
+      <MatrixRain interactive className="opacity-95" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.1),transparent_24%)]" />
 
-      <div className="relative grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="app-panel-strong hidden overflow-hidden p-10 lg:block">
-          <div className="app-kicker">Encounter Church assets</div>
-          <h1 className="mt-3 font-display text-5xl font-semibold leading-tight text-foreground glow">
-            Green-black identity, cleaner flow, and calmer control.
-          </h1>
-          <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
-            Sign in to manage sign-outs, returns, requests, and live inventory with a modern shell that still feels unmistakably Matrix.
-          </p>
-
-          <div className="mt-10 grid gap-4">
-            {[
-              "Track assets across locations and divisions",
-              "Approve requests and manage user roles",
-              "Handle handovers and returns without clutter",
-            ].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-[1.4rem] border border-primary/12 bg-secondary/65 px-4 py-4 text-sm text-foreground">
-                <div className="flex size-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-                  <LockKeyhole size={16} />
-                </div>
-                {item}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="app-panel-strong scanlines relative p-6 sm:p-8">
+      <div className="relative w-full max-w-xl">
+        <section className="scanlines relative overflow-hidden rounded-[2rem] border border-primary/20 bg-background p-6 shadow-[var(--shadow-strong)] sm:p-8">
           <div className="absolute inset-x-0 top-0 h-px bg-primary/24" />
           <div className="mb-8">
             <div className="app-kicker">{mode === "signin" ? "Welcome back" : "Create access"}</div>
@@ -206,7 +192,7 @@ export default function Login() {
               onClick={() => setMode((value) => (value === "signin" ? "signup" : "signin"))}
               className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
             >
-              {mode === "signin" ? "Need a new profile? Request one here." : "Already have an approved account? Sign in instead."}
+              {mode === "signin" ? "Create Oporator Access" : "Login Oporator Access"}
             </button>
           </form>
         </section>

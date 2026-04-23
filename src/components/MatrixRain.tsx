@@ -1,7 +1,12 @@
 import { useEffect, useRef } from "react";
 
-/** Full-screen Matrix-style binary rain canvas (pure black + neon green). */
-export default function MatrixRain({ className = "" }: { className?: string }) {
+export default function MatrixRain({
+  className = "",
+  interactive = false,
+}: {
+  className?: string;
+  interactive?: boolean;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -15,6 +20,7 @@ export default function MatrixRain({ className = "" }: { className?: string }) {
     const fontSize = 16;
     let columns = Math.floor(width / fontSize);
     let drops: number[] = Array(columns).fill(1).map(() => Math.random() * -50);
+    const mouse = { x: -9999, y: -9999, active: false };
 
     const chars = "01";
 
@@ -26,6 +32,24 @@ export default function MatrixRain({ className = "" }: { className?: string }) {
     };
     window.addEventListener("resize", handleResize);
 
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!interactive) return;
+      mouse.x = event.clientX;
+      mouse.y = event.clientY;
+      mouse.active = true;
+    };
+
+    const handlePointerLeave = () => {
+      mouse.active = false;
+      mouse.x = -9999;
+      mouse.y = -9999;
+    };
+
+    if (interactive) {
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerleave", handlePointerLeave);
+    }
+
     let raf = 0;
     let last = 0;
     const fps = 24;
@@ -36,30 +60,57 @@ export default function MatrixRain({ className = "" }: { className?: string }) {
       if (now - last < interval) return;
       last = now;
 
-      // fade trail
-      ctx.fillStyle = "rgba(0, 0, 0, 0.07)";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
       ctx.fillRect(0, 0, width, height);
 
-      ctx.font = `${fontSize}px "Share Tech Mono", monospace`;
+      ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
 
       for (let i = 0; i < columns; i++) {
         const text = chars[Math.floor(Math.random() * chars.length)];
         const x = i * fontSize;
-        const y = drops[i] * fontSize;
+        const baseY = drops[i] * fontSize;
+        let drawX = x;
+        let drawY = baseY;
 
-        // bright leading char
+        if (interactive && mouse.active) {
+          const dx = drawX - mouse.x;
+          const dy = drawY - mouse.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const radius = 120;
+
+          if (distance < radius) {
+            const breakStrength = (radius - distance) / radius;
+            drawX += (Math.random() - 0.5) * 18 * breakStrength;
+            drawY -= Math.random() * 30 * breakStrength;
+            if (Math.random() < 0.3) {
+              drops[i] = Math.max(0, drops[i] - breakStrength * 3);
+            }
+          }
+        }
+
         ctx.fillStyle = "#CCFFCC";
         ctx.shadowColor = "#00FF41";
         ctx.shadowBlur = 8;
-        ctx.fillText(text, x, y);
+        ctx.fillText(text, drawX, drawY);
 
-        // dim trail char above
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#00B82D";
-        ctx.fillText(text, x, y - fontSize);
+        ctx.fillText(text, drawX, drawY - fontSize);
 
-        if (y > height && Math.random() > 0.975) drops[i] = 0;
+        if (baseY > height && Math.random() > 0.975) drops[i] = 0;
         drops[i]++;
+      }
+
+      if (interactive && mouse.active) {
+        for (let index = 0; index < 18; index += 1) {
+          const scatterChar = chars[Math.floor(Math.random() * chars.length)];
+          const angle = Math.random() * Math.PI * 2;
+          const radius = Math.random() * 70;
+          const scatterX = mouse.x + Math.cos(angle) * radius;
+          const scatterY = mouse.y + Math.sin(angle) * radius;
+          ctx.fillStyle = "rgba(0, 255, 65, 0.18)";
+          ctx.fillText(scatterChar, scatterX, scatterY);
+        }
       }
     };
     raf = requestAnimationFrame(draw);
@@ -67,8 +118,12 @@ export default function MatrixRain({ className = "" }: { className?: string }) {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", handleResize);
+      if (interactive) {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerleave", handlePointerLeave);
+      }
     };
-  }, []);
+  }, [interactive]);
 
   return (
     <canvas
