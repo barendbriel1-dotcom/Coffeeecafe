@@ -160,13 +160,13 @@
   .app-panel {
     @apply rounded-[1.75rem] border bg-card shadow-[var(--shadow-soft)] backdrop-blur-xl;
     border-color: hsl(var(--primary) / 0.15);
-    background-color: hsl(var(--card) / 0.88);
+    background-color: hsl(var(--card) / 0.95);
   }
 
   .app-panel-strong {
     @apply rounded-[2rem] border bg-card shadow-[var(--shadow-strong)] backdrop-blur-xl;
     border-color: hsl(var(--primary) / 0.2);
-    background-color: hsl(var(--card) / 0.92);
+    background-color: hsl(var(--card) / 0.98);
   }
 
   .app-kicker {

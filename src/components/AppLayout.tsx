@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 
+import MatrixRain from "@/components/MatrixRain";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,10 +117,13 @@ export default function AppLayout() {
   );
 
   return (
-    <div className="flex min-h-screen bg-transparent text-foreground">
+    <div className="relative isolate flex min-h-screen bg-transparent text-foreground">
+      <MatrixRain className="-z-20 opacity-55" />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.08),transparent_24%),linear-gradient(180deg,rgba(5,10,7,0.32),rgba(5,10,7,0.6))]" />
+
       <aside
         className={cn(
-          "hidden shrink-0 flex-col border-r border-primary/12 bg-sidebar/95 text-sidebar-foreground transition-[width] duration-200 md:flex",
+          "hidden shrink-0 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)] transition-[width] duration-200 md:flex",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -129,15 +133,15 @@ export default function AppLayout() {
       {mobileOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-primary/12 bg-sidebar/95 text-sidebar-foreground md:hidden">
+          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-strong)] md:hidden">
             <SidebarInner onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/78 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/92 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
             <div className="flex min-w-0 items-center gap-3">
               <button className="text-foreground md:hidden" onClick={() => setMobileOpen((value) => !value)} aria-label="menu">
                 {mobileOpen ? <X size={20} /> : <Menu size={20} />}

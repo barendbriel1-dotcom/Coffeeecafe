@@ -30,6 +30,7 @@ export default function Login() {
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [isDecyphering, setIsDecyphering] = useState(false);
+  const [decypherTarget, setDecypherTarget] = useState(from);
   const [showPassword, setShowPassword] = useState(false);
   const [booting, setBooting] = useState(true);
 
@@ -63,6 +64,7 @@ export default function Login() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         if (error) throw error;
+        setDecypherTarget(from);
         setIsDecyphering(true);
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -89,6 +91,7 @@ export default function Login() {
           }
         }
 
+        setDecypherTarget("/approval-pending");
         setIsDecyphering(true);
       }
     } catch (error: any) {
@@ -98,7 +101,7 @@ export default function Login() {
   };
 
   if (isDecyphering) {
-    return <DecypherLoader isReady={true} onComplete={() => navigate(from, { replace: true })} />;
+    return <DecypherLoader isReady={true} onComplete={() => navigate(decypherTarget, { replace: true })} />;
   }
 
   if (booting) {
