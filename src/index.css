@@ -1,138 +1,206 @@
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* MATRIX DESIGN SYSTEM — all values in HSL */
 @layer base {
   :root {
-    /* Soft neutral gray background palette */
-    --background: 220 10% 10%;
-    --foreground: 120 100% 75%;
+    --background: 216 24% 95%;
+    --foreground: 222 26% 17%;
 
-    --card: 220 10% 14%;
-    --card-foreground: 120 100% 75%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 26% 17%;
 
-    --popover: 220 10% 13%;
-    --popover-foreground: 120 100% 75%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 26% 17%;
 
-    --primary: 120 100% 35%;            /* Keep neon green */
-    --primary-foreground: 0 0% 0%;
+    --primary: 168 64% 39%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 10% 18%;
-    --secondary-foreground: 120 100% 75%;
+    --secondary: 210 28% 92%;
+    --secondary-foreground: 222 26% 17%;
 
-    --muted: 220 10% 15%;
-    --muted-foreground: 220 10% 60%;
+    --muted: 210 24% 92%;
+    --muted-foreground: 218 15% 42%;
 
-    --accent: 120 100% 30%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 174 52% 93%;
+    --accent-foreground: 168 64% 26%;
 
-    --destructive: 0 100% 45%;
+    --destructive: 0 73% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 10% 20%;
-    --input: 220 10% 18%;
-    --ring: 120 100% 35%;
+    --border: 212 20% 86%;
+    --input: 212 20% 88%;
+    --ring: 168 64% 39%;
 
-    --radius: 0.25rem;
+    --radius: 1.35rem;
 
-    --sidebar-background: 220 10% 8%;
-    --sidebar-foreground: 120 100% 75%;
-    --sidebar-primary: 120 100% 35%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 220 10% 14%;
-    --sidebar-accent-foreground: 120 100% 75%;
-    --sidebar-border: 220 10% 18%;
-    --sidebar-ring: 120 100% 35%;
+    --sidebar-background: 220 27% 17%;
+    --sidebar-foreground: 210 29% 92%;
+    --sidebar-primary: 168 64% 55%;
+    --sidebar-primary-foreground: 220 27% 17%;
+    --sidebar-accent: 218 25% 22%;
+    --sidebar-accent-foreground: 210 29% 92%;
+    --sidebar-border: 217 21% 25%;
+    --sidebar-ring: 168 64% 55%;
 
-    /* Custom Matrix tokens */
-    --matrix-glow: 120 100% 35%;
-    --matrix-dim: 120 60% 20%;
-    --shadow-glow: 0 0 8px hsl(120 100% 35% / 0.4), 0 0 16px hsl(120 100% 35% / 0.15);
-    --shadow-glow-soft: 0 0 4px hsl(120 100% 35% / 0.2);
-    --gradient-scanline: linear-gradient(to bottom, transparent 50%, hsl(120 100% 35% / 0.04) 50%);
+    --shadow-soft: 0 16px 40px hsl(220 29% 18% / 0.08);
+    --shadow-strong: 0 24px 70px hsl(220 29% 18% / 0.12);
+    --page-gradient:
+      radial-gradient(circle at top left, hsl(172 66% 88% / 0.9), transparent 36%),
+      radial-gradient(circle at top right, hsl(207 85% 90% / 0.8), transparent 30%),
+      linear-gradient(180deg, hsl(216 24% 96%), hsl(215 18% 92%));
   }
 
-  .dark { /* same — app is dark only */
-    --background: 220 10% 10%;
-    --foreground: 120 100% 75%;
-    --card: 220 10% 14%;
-    --card-foreground: 120 100% 75%;
-    --popover: 220 10% 13%;
-    --popover-foreground: 120 100% 75%;
-    --primary: 120 100% 35%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 220 10% 18%;
-    --secondary-foreground: 120 100% 75%;
-    --muted: 220 10% 15%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 120 100% 30%;
-    --accent-foreground: 0 0% 0%;
-    --destructive: 0 100% 45%;
+  .dark {
+    --background: 222 27% 11%;
+    --foreground: 210 25% 96%;
+    --card: 222 24% 14%;
+    --card-foreground: 210 25% 96%;
+    --popover: 222 24% 14%;
+    --popover-foreground: 210 25% 96%;
+    --primary: 168 56% 48%;
+    --primary-foreground: 220 25% 10%;
+    --secondary: 219 20% 19%;
+    --secondary-foreground: 210 25% 96%;
+    --muted: 219 20% 18%;
+    --muted-foreground: 217 12% 68%;
+    --accent: 169 32% 20%;
+    --accent-foreground: 169 74% 80%;
+    --destructive: 0 73% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 10% 20%;
-    --input: 220 10% 18%;
-    --ring: 120 100% 35%;
+    --border: 220 16% 24%;
+    --input: 220 16% 22%;
+    --ring: 168 56% 48%;
   }
 }
 
 @layer base {
-  * { @apply border-border; }
-  html, body, #root { @apply h-full; }
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    background-image: var(--gradient-scanline);
-    background-size: 100% 4px;
+    font-family: 'Manrope', system-ui, sans-serif;
+    background-image: var(--page-gradient);
+    background-attachment: fixed;
   }
-  h1, h2, h3, h4, .font-display {
-    font-family: 'Share Tech Mono', 'JetBrains Mono', monospace;
-    letter-spacing: 0.04em;
-  }
-  ::selection { background: hsl(var(--primary) / 0.3); color: hsl(var(--primary)); }
 
-  /* Fix browser autofill styling for Matrix theme */
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: 'Outfit', 'Manrope', system-ui, sans-serif;
+    letter-spacing: -0.03em;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
+  }
+
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
   input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 30px hsl(120 20% 8%) inset !important;
-    -webkit-text-fill-color: hsl(120 100% 50%) !important;
+    -webkit-box-shadow: 0 0 0 30px hsl(var(--card)) inset !important;
+    -webkit-text-fill-color: hsl(var(--foreground)) !important;
     transition: background-color 5000s ease-in-out 0s;
   }
 }
 
 @layer utilities {
-  .glow { text-shadow: 0 0 8px hsl(var(--primary) / 0.8), 0 0 18px hsl(var(--primary) / 0.4); }
-  .glow-soft { text-shadow: 0 0 6px hsl(var(--primary) / 0.5); }
-  .box-glow { box-shadow: var(--shadow-glow); }
-  .box-glow-soft { box-shadow: var(--shadow-glow-soft); }
-  .terminal-border {
-    @apply border border-primary/40;
-    box-shadow: inset 0 0 12px hsl(var(--primary) / 0.08), 0 0 12px hsl(var(--primary) / 0.15);
+  .glow {
+    color: hsl(var(--foreground));
   }
+
+  .glow-soft {
+    color: hsl(var(--foreground));
+  }
+
+  .box-glow {
+    box-shadow: var(--shadow-strong);
+  }
+
+  .box-glow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .terminal-border {
+    @apply rounded-[2rem] border border-border/80 bg-card shadow-xl;
+  }
+
   .scanlines::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(to bottom, transparent 0, transparent 2px, hsl(0 0% 0% / 0.25) 3px, transparent 4px);
-    pointer-events: none;
-    mix-blend-mode: multiply;
+    content: none;
+  }
+
+  .app-panel {
+    @apply rounded-[1.75rem] border border-white/60 bg-card shadow-[var(--shadow-soft)] backdrop-blur-xl;
+  }
+
+  .app-panel-strong {
+    @apply rounded-[2rem] border border-white/70 bg-card shadow-[var(--shadow-strong)] backdrop-blur-xl;
+  }
+
+  .app-kicker {
+    @apply text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/75;
+  }
+
+  .app-title {
+    @apply font-display text-3xl font-semibold tracking-[-0.04em] text-foreground sm:text-4xl;
+  }
+
+  .app-subtitle {
+    @apply max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[0.95rem];
+  }
+
+  .app-grid {
+    @apply grid gap-4 sm:gap-5;
   }
 }
 
 @keyframes flicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
-}
-@keyframes blink {
-  0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; }
-}
-.animate-flicker { animation: flicker 3s infinite; }
-.cursor-blink::after { content: '_'; @apply text-primary; animation: blink 1s steps(1) infinite; }
+  0%,
+  100% {
+    opacity: 1;
+  }
 
-/* Forces the webkit calendar icon to be green */
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-flicker {
+  animation: flicker 3s infinite;
+}
+
+.cursor-blink::after {
+  content: '_';
+  @apply text-primary;
+  animation: blink 1s steps(1) infinite;
+}
+
 .calendar-icon-green::-webkit-calendar-picker-indicator {
-  filter: invert(50%) sepia(100%) saturate(500%) hue-rotate(80deg) brightness(1.2);
+  filter: saturate(0.7) hue-rotate(120deg);
 }

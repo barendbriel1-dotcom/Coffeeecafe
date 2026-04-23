@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Activity, AlertTriangle, ChevronRight, History, Package, PackageCheck, Sparkles, XCircle } from "lucide-react";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Link } from "react-router-dom";
-import { Package, PackageCheck, AlertTriangle, History, Activity, ChevronRight, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Stats {
@@ -27,163 +28,115 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const [{ count: total }, { count: avail }, { count: out }, { count: active }, { count: damaged }, { data: hist }] = await Promise.all([
+      const [{ count: total }, { count: available }, { count: signedOut }, { count: activeSignouts }, { count: damaged }, { data: history }] = await Promise.all([
         supabase.from("assets").select("*", { count: "exact", head: true }),
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "available"),
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "signed_out"),
         supabase.from("signouts").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "retired"),
-        supabase
-          .from("asset_history")
-          .select("id, action, created_at, assets(code)")
-          .order("created_at", { ascending: false })
-          .limit(8),
+        supabase.from("asset_history").select("id, action, created_at, assets(code)").order("created_at", { ascending: false }).limit(8),
       ]);
+
       setStats({
         total: total ?? 0,
-        available: avail ?? 0,
-        signedOut: out ?? 0,
-        activeSignouts: active ?? 0,
+        available: available ?? 0,
+        signedOut: signedOut ?? 0,
+        activeSignouts: activeSignouts ?? 0,
         damaged: damaged ?? 0,
       });
+
       setActivity(
-        (hist ?? []).map((h: any) => ({
-          id: h.id,
-          action: h.action,
-          created_at: h.created_at,
-          asset_code: h.assets?.code,
-        }))
+        (history ?? []).map((entry: any) => ({
+          id: entry.id,
+          action: entry.action,
+          created_at: entry.created_at,
+          asset_code: entry.assets?.code,
+        })),
       );
     })();
   }, []);
 
-  const role = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "VOLUNTEER";
+  const role = isAdmin ? "Admin" : isStaff ? "Staff" : "Volunteer";
 
   const tiles = [
-    { label: "Total Assets", value: stats.total, icon: Package, accent: "primary", to: "/assets" },
-    { label: "Available", value: stats.available, icon: PackageCheck, accent: "cyan", to: "/assets?status=available" },
-    { label: "Signed Out", value: stats.signedOut, icon: AlertTriangle, accent: "red", to: "/assets?status=signed_out" },
-    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "rose", to: "/assets?status=retired" },
-    { label: "History", value: stats.activeSignouts, icon: History, accent: "amber", to: "/history" },
+    { label: "Total assets", value: stats.total, icon: Package, accent: "bg-slate-900 text-white", to: "/assets" },
+    { label: "Available now", value: stats.available, icon: PackageCheck, accent: "bg-emerald-100 text-emerald-700", to: "/assets?status=available" },
+    { label: "Signed out", value: stats.signedOut, icon: AlertTriangle, accent: "bg-amber-100 text-amber-700", to: "/assets?status=signed_out" },
+    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "bg-rose-100 text-rose-700", to: "/assets?status=retired" },
+    { label: "Open sign-outs", value: stats.activeSignouts, icon: History, accent: "bg-sky-100 text-sky-700", to: "/history" },
   ] as const;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl sm:text-3xl text-primary glow flex items-center gap-2">
-            <span className="text-primary/60">$</span> SYSTEM DASHBOARD
-          </h1>
-          <p className="font-mono text-xs text-muted-foreground mt-1 uppercase tracking-wider">
-            // asset management overview · access level: <span className="text-primary">{role}</span>
-          </p>
-        </div>
-        <div className="hidden sm:flex items-center gap-1.5 font-mono text-[11px] text-primary/80 uppercase tracking-widest">
-          <Activity size={12} className="animate-pulse" />
-          system online
-        </div>
-      </div>
+      <section className="app-panel-strong overflow-hidden p-6 sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <div className="app-kicker">Operations snapshot</div>
+            <h1 className="app-title">Keep every asset visible, accountable, and ready.</h1>
+            <p className="app-subtitle">
+              Track availability, open sign-outs, and recent movement from one cleaner dashboard. Signed out, damaged, and active handover work all stay in one place.
+            </p>
+          </div>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        {tiles.map((t) => (
-          <StatTile key={t.label} {...t} />
+          <div className="flex items-center gap-3 rounded-[1.5rem] bg-slate-900 px-4 py-3 text-white shadow-lg">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-white/10">
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.2em] text-white/60">Access level</div>
+              <div className="font-display text-xl">{role}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {tiles.map((tile) => (
+          <Link key={tile.label} to={tile.to} className="app-panel group p-5 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]">
+            <div className="mb-6 flex items-center justify-between">
+              <div className={cn("flex size-12 items-center justify-center rounded-2xl", tile.accent)}>
+                <tile.icon size={20} />
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </div>
+            <div className="font-display text-4xl font-semibold text-foreground">{tile.value}</div>
+            <div className="mt-2 text-sm text-muted-foreground">{tile.label}</div>
+          </Link>
         ))}
-      </div>
+      </section>
 
-      {/* Recent Activity */}
-      <BracketCard title="Recent Activity">
+      <section className="app-panel p-5 sm:p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <div className="app-kicker">Recent activity</div>
+            <h2 className="font-display text-2xl text-foreground">Latest asset events</h2>
+          </div>
+          <div className="hidden items-center gap-2 rounded-full bg-accent px-3 py-1.5 text-sm text-accent-foreground sm:flex">
+            <Activity size={14} />
+            Live feed
+          </div>
+        </div>
+
         {activity.length === 0 ? (
-          <div className="py-12 text-center font-mono text-sm text-muted-foreground/70">
-            // NO RECORDS FOUND
+          <div className="rounded-[1.5rem] bg-secondary/65 px-6 py-12 text-center text-sm text-muted-foreground">
+            No asset activity has been recorded yet.
           </div>
         ) : (
-          <ul className="divide-y divide-primary/10">
-            {activity.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 px-1 font-mono text-sm">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-primary/60">▸</span>
-                  <span className="text-primary truncate">{a.asset_code ?? "—"}</span>
-                  <span className="text-muted-foreground uppercase text-xs tracking-wider truncate">{a.action}</span>
+          <ul className="space-y-3">
+            {activity.map((entry) => (
+              <li key={entry.id} className="flex flex-col gap-3 rounded-[1.35rem] bg-secondary/55 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="font-display text-lg text-foreground">{entry.asset_code ?? "Unknown asset"}</div>
+                  <div className="text-sm capitalize text-muted-foreground">{entry.action.replace(/_/g, " ")}</div>
                 </div>
-                <span className="text-[11px] text-muted-foreground/70 tabular-nums shrink-0">
-                  {new Date(a.created_at).toLocaleString()}
-                </span>
+                <div className="shrink-0 text-sm text-muted-foreground">
+                  {new Date(entry.created_at).toLocaleString()}
+                </div>
               </li>
             ))}
           </ul>
         )}
-      </BracketCard>
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  icon: Icon,
-  accent,
-  to,
-}: {
-  label: string;
-  value: number;
-  icon: any;
-  accent: "primary" | "cyan" | "red" | "amber" | "rose";
-  to: string;
-}) {
-  const palette = {
-    primary: { border: "border-primary/40 hover:border-primary", text: "text-primary", iconBg: "bg-primary/10 border-primary/40" },
-    cyan: { border: "border-cyan-500/40 hover:border-cyan-400", text: "text-cyan-400", iconBg: "bg-cyan-500/10 border-cyan-500/40" },
-    red: { border: "border-red-500/40 hover:border-red-400", text: "text-red-400", iconBg: "bg-red-500/10 border-red-500/40" },
-    amber: { border: "border-amber-500/40 hover:border-amber-400", text: "text-amber-400", iconBg: "bg-amber-500/10 border-amber-500/40" },
-    rose: { border: "border-rose-500/40 hover:border-rose-400", text: "text-rose-400", iconBg: "bg-rose-500/10 border-rose-500/40" },
-  }[accent];
-
-  return (
-    <Link
-      to={to}
-      className={cn(
-        "group relative block rounded border bg-card/40 p-4 transition-all hover:bg-card/60",
-        palette.border
-      )}
-    >
-      {/* corner brackets */}
-      <Corner className="top-0 left-0 border-l border-t" />
-      <Corner className="top-0 right-0 border-r border-t" />
-      <Corner className="bottom-0 left-0 border-l border-b" />
-      <Corner className="bottom-0 right-0 border-r border-b" />
-
-      <div className="flex items-center gap-4">
-        <div className={cn("size-12 shrink-0 rounded border flex items-center justify-center", palette.iconBg)}>
-          <Icon size={22} className={palette.text} />
-        </div>
-        <div className="min-w-0">
-          <div className={cn("font-display text-3xl leading-none", palette.text)}>{value}</div>
-          <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-widest mt-2">
-            {label}
-          </div>
-        </div>
-        <ChevronRight
-          size={16}
-          className="ml-auto text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition"
-        />
-      </div>
-    </Link>
-  );
-}
-
-function Corner({ className }: { className?: string }) {
-  return <span className={cn("absolute size-2 border-primary/60", className)} />;
-}
-
-function BracketCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="relative rounded border border-primary/30 bg-card/30">
-      <div className="border-b border-primary/30 px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-primary">
-        <span className="text-primary/60 mr-1">&gt;</span> {title}
-      </div>
-      <div className="p-4 min-h-[160px]">{children}</div>
+      </section>
     </div>
   );
 }

@@ -64,8 +64,9 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
-        display: ['Share Tech Mono', 'JetBrains Mono', 'monospace'],
+        display: ['Outfit', 'Manrope', 'system-ui', 'sans-serif'],
       },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
