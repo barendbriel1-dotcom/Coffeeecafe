@@ -14,7 +14,6 @@ import {
   Menu,
   Package,
   Shield,
-  Sparkles,
   Terminal,
   Users as UsersIcon,
   X,
@@ -67,20 +66,20 @@ export default function AppLayout() {
     { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin },
   ].filter((entry) => entry.show);
 
-  const roleLabel = isAdmin ? "Admin" : isStaff ? "Staff" : "Volunteer";
+  const roleLabel = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "VOLUNTEER";
   const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   const SidebarInner = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
-      <div className={cn("flex items-center gap-3 border-b border-white/10 p-5", collapsed && "justify-center px-3")}>
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-[0_12px_26px_hsl(var(--primary)/0.22)]">
+      <div className={cn("flex items-center gap-3 border-b border-primary/12 p-5", collapsed && "justify-center px-3")}>
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.18)]">
           <Terminal size={18} />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="font-display text-base font-semibold tracking-tight text-white">Assets Hub</div>
-            <div className="text-[11px] text-white/55">Inventory operations</div>
+            <div className="font-display text-base font-semibold tracking-tight text-foreground glow-soft">ASSETS HUB</div>
+            <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary/52">Inventory operations</div>
           </div>
         )}
       </div>
@@ -97,7 +96,7 @@ export default function AppLayout() {
               cn(
                 "group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all",
                 collapsed && "justify-center px-3",
-                isActive ? "bg-white text-slate-900 shadow-lg" : "text-white/68 hover:bg-white/8 hover:text-white",
+                isActive ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]" : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
               )
             }
           >
@@ -109,7 +108,7 @@ export default function AppLayout() {
 
       <button
         onClick={() => setCollapsed((value) => !value)}
-        className="hidden items-center justify-center gap-2 border-t border-white/10 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/55 transition hover:bg-white/5 hover:text-white md:flex"
+        className="hidden items-center justify-center gap-2 border-t border-primary/12 py-4 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-primary/46 transition hover:bg-primary/6 hover:text-primary md:flex"
       >
         {collapsed ? <ChevronRight size={14} /> : (<><ChevronLeft size={14} /> Collapse</>)}
       </button>
@@ -120,7 +119,7 @@ export default function AppLayout() {
     <div className="flex min-h-screen bg-transparent text-foreground">
       <aside
         className={cn(
-          "hidden shrink-0 flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex",
+          "hidden shrink-0 flex-col border-r border-primary/12 bg-sidebar/95 text-sidebar-foreground transition-[width] duration-200 md:flex",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -129,8 +128,8 @@ export default function AppLayout() {
 
       {mobileOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground md:hidden">
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />
+          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-primary/12 bg-sidebar/95 text-sidebar-foreground md:hidden">
             <SidebarInner onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
@@ -138,7 +137,7 @@ export default function AppLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-white/70 bg-background/72 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/78 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
             <div className="flex min-w-0 items-center gap-3">
               <button className="text-foreground md:hidden" onClick={() => setMobileOpen((value) => !value)} aria-label="menu">
                 {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -146,7 +145,7 @@ export default function AppLayout() {
 
               <div className="min-w-0">
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/75">Operations overview</div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
                   <Clock size={14} className="opacity-70" />
                   <span className="tabular-nums">{timeStr}</span>
                   <span className="hidden text-primary/35 sm:inline">•</span>
@@ -158,20 +157,20 @@ export default function AppLayout() {
             <div className="flex items-center gap-2 sm:gap-3">
               <span
                 className={cn(
-                  "hidden rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] sm:inline-flex",
-                  isAdmin ? "bg-primary/12 text-primary" : isStaff ? "bg-amber-400/15 text-amber-600" : "bg-slate-500/12 text-slate-600",
+                  "hidden rounded-full border px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] sm:inline-flex",
+                  isAdmin ? "border-primary/30 bg-primary/10 text-primary" : isStaff ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-primary/14 bg-muted/80 text-muted-foreground",
                 )}
               >
                 <Shield size={12} className="mr-1.5 opacity-80" />
                 {roleLabel}
               </span>
 
-              <span className="hidden max-w-[220px] items-center gap-2 truncate rounded-full bg-card px-3 py-1.5 text-sm text-foreground/80 md:inline-flex">
-                <Sparkles size={14} className="text-primary/70" />
+              <span className="hidden max-w-[220px] items-center gap-2 truncate rounded-full border border-primary/12 bg-card/80 px-3 py-1.5 text-sm text-foreground/80 md:inline-flex">
+                <Terminal size={14} className="text-primary/70" />
                 {displayName}
               </span>
 
-              <Button variant="outline" size="sm" onClick={handleSignOut} className="gap-1.5 border-destructive/25 bg-card/60 text-destructive hover:bg-destructive/10 hover:text-destructive">
+              <Button variant="outline" size="sm" onClick={handleSignOut} className="gap-1.5 border-destructive/25 bg-card/70 text-destructive hover:bg-destructive/10 hover:text-destructive">
                 <LogOut size={14} /> Logout
               </Button>
             </div>

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, ShieldCheck, TerminalSquare } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
@@ -95,12 +95,12 @@ export default function Login() {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background p-6">
         <div className="app-panel-strong w-full max-w-md p-8 text-center">
-          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-[1.6rem] bg-primary/12 text-primary">
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-[1.6rem] border border-primary/20 bg-primary/10 text-primary">
             <ShieldCheck className="size-8" />
           </div>
           <div className="app-kicker">Preparing workspace</div>
-          <div className="mt-2 font-display text-3xl text-foreground">Loading Assets Hub</div>
-          <div className="mt-3 text-sm text-muted-foreground">Starting a cleaner, faster inventory workspace…</div>
+          <div className="mt-2 font-display text-3xl text-foreground glow-soft">Loading Assets Hub</div>
+          <div className="mt-3 font-mono text-sm text-muted-foreground">Starting a cleaner Matrix workspace...</div>
         </div>
       </div>
     );
@@ -108,16 +108,16 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(39,197,169,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(125,168,255,0.18),transparent_28%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.16),transparent_24%)]" />
 
       <div className="relative grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="app-panel-strong hidden overflow-hidden p-10 lg:block">
           <div className="app-kicker">Encounter Church assets</div>
-          <h1 className="mt-3 font-display text-5xl font-semibold leading-tight text-foreground">
-            Asset control that feels polished, calm, and easy to run.
+          <h1 className="mt-3 font-display text-5xl font-semibold leading-tight text-foreground glow">
+            Green-black identity, cleaner flow, and calmer control.
           </h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
-            Sign in to manage sign-outs, returns, requests, and live inventory across all locations and divisions from one modern dashboard.
+            Sign in to manage sign-outs, returns, requests, and live inventory with a modern shell that still feels unmistakably Matrix.
           </p>
 
           <div className="mt-10 grid gap-4">
@@ -126,8 +126,8 @@ export default function Login() {
               "Approve requests and manage user roles",
               "Handle handovers and returns without clutter",
             ].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-[1.4rem] bg-secondary/65 px-4 py-4 text-sm text-foreground">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+              <div key={item} className="flex items-center gap-3 rounded-[1.4rem] border border-primary/12 bg-secondary/65 px-4 py-4 text-sm text-foreground">
+                <div className="flex size-10 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
                   <LockKeyhole size={16} />
                 </div>
                 {item}
@@ -136,10 +136,11 @@ export default function Login() {
           </div>
         </section>
 
-        <section className="app-panel-strong p-6 sm:p-8">
+        <section className="app-panel-strong scanlines relative p-6 sm:p-8">
+          <div className="absolute inset-x-0 top-0 h-px bg-primary/24" />
           <div className="mb-8">
             <div className="app-kicker">{mode === "signin" ? "Welcome back" : "Create access"}</div>
-            <h2 className="mt-2 font-display text-3xl text-foreground">
+            <h2 className="mt-2 font-display text-3xl text-foreground glow-soft">
               {mode === "signin" ? "Sign in to your workspace" : "Request a new account"}
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -152,13 +153,13 @@ export default function Login() {
           <form onSubmit={onSubmit} className="space-y-4">
             {mode === "signup" && (
               <div className="space-y-2">
-                <Label htmlFor="name">Display name</Label>
+                <Label htmlFor="name" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Display name</Label>
                 <Input id="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="John Doe" maxLength={80} required />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Email address</Label>
               <Input
                 id="email"
                 type="email"
@@ -172,7 +173,7 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -188,7 +189,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-primary"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -196,7 +197,8 @@ export default function Login() {
             </div>
 
             <Button type="submit" disabled={busy} className="mt-3 w-full">
-              {busy ? "Working…" : mode === "signin" ? "Sign in" : "Create account"}
+              <TerminalSquare size={16} />
+              {busy ? "Working..." : mode === "signin" ? "Sign in" : "Create account"}
             </Button>
 
             <button

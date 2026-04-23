@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, AlertTriangle, ChevronRight, History, Package, PackageCheck, Sparkles, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, ChevronRight, History, Package, PackageCheck, TerminalSquare, XCircle } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,35 +56,36 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const role = isAdmin ? "Admin" : isStaff ? "Staff" : "Volunteer";
+  const role = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "VOLUNTEER";
 
   const tiles = [
-    { label: "Total assets", value: stats.total, icon: Package, accent: "bg-slate-900 text-white", to: "/assets" },
-    { label: "Available now", value: stats.available, icon: PackageCheck, accent: "bg-emerald-100 text-emerald-700", to: "/assets?status=available" },
-    { label: "Signed out", value: stats.signedOut, icon: AlertTriangle, accent: "bg-amber-100 text-amber-700", to: "/assets?status=signed_out" },
-    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "bg-rose-100 text-rose-700", to: "/assets?status=retired" },
-    { label: "Open sign-outs", value: stats.activeSignouts, icon: History, accent: "bg-sky-100 text-sky-700", to: "/history" },
+    { label: "Total assets", value: stats.total, icon: Package, accent: "border-primary/24 bg-primary/10 text-primary", to: "/assets" },
+    { label: "Available now", value: stats.available, icon: PackageCheck, accent: "border-emerald-500/24 bg-emerald-500/10 text-emerald-300", to: "/assets?status=available" },
+    { label: "Signed out", value: stats.signedOut, icon: AlertTriangle, accent: "border-amber-500/24 bg-amber-500/10 text-amber-300", to: "/assets?status=signed_out" },
+    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "border-rose-500/24 bg-rose-500/10 text-rose-300", to: "/assets?status=retired" },
+    { label: "Open sign-outs", value: stats.activeSignouts, icon: History, accent: "border-cyan-500/24 bg-cyan-500/10 text-cyan-300", to: "/history" },
   ] as const;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <section className="app-panel-strong overflow-hidden p-6 sm:p-8">
+      <section className="app-panel-strong scanlines relative overflow-hidden p-6 sm:p-8">
+        <div className="absolute inset-x-0 top-0 h-px bg-primary/25" />
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <div className="app-kicker">Operations snapshot</div>
-            <h1 className="app-title">Keep every asset visible, accountable, and ready.</h1>
+            <div className="app-kicker">System overview</div>
+            <h1 className="app-title glow">Modern asset control with a lighter Matrix edge.</h1>
             <p className="app-subtitle">
-              Track availability, open sign-outs, and recent movement from one cleaner dashboard. Signed out, damaged, and active handover work all stay in one place.
+              The structure stays app-like and clean, while the visual identity returns to black glass, green accents, and subtle terminal energy instead of the heavier retro treatment.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 rounded-[1.5rem] bg-slate-900 px-4 py-3 text-white shadow-lg">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-white/10">
-              <Sparkles size={18} />
+          <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-black/35 px-4 py-3 text-foreground shadow-[0_0_30px_hsl(var(--primary)/0.08)]">
+            <div className="flex size-11 items-center justify-center rounded-2xl border border-primary/22 bg-primary/10 text-primary">
+              <TerminalSquare size={18} />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-white/60">Access level</div>
-              <div className="font-display text-xl">{role}</div>
+              <div className="font-mono text-xs uppercase tracking-[0.2em] text-primary/62">Access level</div>
+              <div className="font-display text-xl glow-soft">{role}</div>
             </div>
           </div>
         </div>
@@ -92,15 +93,15 @@ export default function Dashboard() {
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {tiles.map((tile) => (
-          <Link key={tile.label} to={tile.to} className="app-panel group p-5 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-strong)]">
+          <Link key={tile.label} to={tile.to} className="app-panel group p-5 transition-all hover:-translate-y-1 hover:border-primary/24 hover:shadow-[0_0_40px_hsl(var(--primary)/0.08)]">
             <div className="mb-6 flex items-center justify-between">
-              <div className={cn("flex size-12 items-center justify-center rounded-2xl", tile.accent)}>
+              <div className={cn("flex size-12 items-center justify-center rounded-2xl border", tile.accent)}>
                 <tile.icon size={20} />
               </div>
-              <ChevronRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1" />
+              <ChevronRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
             </div>
-            <div className="font-display text-4xl font-semibold text-foreground">{tile.value}</div>
-            <div className="mt-2 text-sm text-muted-foreground">{tile.label}</div>
+            <div className="font-display text-4xl font-semibold text-foreground glow-soft">{tile.value}</div>
+            <div className="mt-2 font-mono text-sm uppercase tracking-[0.14em] text-muted-foreground">{tile.label}</div>
           </Link>
         ))}
       </section>
@@ -109,27 +110,27 @@ export default function Dashboard() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <div className="app-kicker">Recent activity</div>
-            <h2 className="font-display text-2xl text-foreground">Latest asset events</h2>
+            <h2 className="font-display text-2xl text-foreground glow-soft">Latest asset events</h2>
           </div>
-          <div className="hidden items-center gap-2 rounded-full bg-accent px-3 py-1.5 text-sm text-accent-foreground sm:flex">
+          <div className="hidden items-center gap-2 rounded-full border border-primary/18 bg-primary/8 px-3 py-1.5 font-mono text-sm text-primary sm:flex">
             <Activity size={14} />
             Live feed
           </div>
         </div>
 
         {activity.length === 0 ? (
-          <div className="rounded-[1.5rem] bg-secondary/65 px-6 py-12 text-center text-sm text-muted-foreground">
+          <div className="rounded-[1.5rem] border border-primary/12 bg-secondary/65 px-6 py-12 text-center text-sm text-muted-foreground">
             No asset activity has been recorded yet.
           </div>
         ) : (
           <ul className="space-y-3">
             {activity.map((entry) => (
-              <li key={entry.id} className="flex flex-col gap-3 rounded-[1.35rem] bg-secondary/55 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <li key={entry.id} className="flex flex-col gap-3 rounded-[1.35rem] border border-primary/10 bg-secondary/55 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <div className="font-display text-lg text-foreground">{entry.asset_code ?? "Unknown asset"}</div>
-                  <div className="text-sm capitalize text-muted-foreground">{entry.action.replace(/_/g, " ")}</div>
+                  <div className="font-display text-lg text-foreground glow-soft">{entry.asset_code ?? "Unknown asset"}</div>
+                  <div className="font-mono text-sm capitalize text-muted-foreground">{entry.action.replace(/_/g, " ")}</div>
                 </div>
-                <div className="shrink-0 text-sm text-muted-foreground">
+                <div className="shrink-0 font-mono text-sm text-muted-foreground">
                   {new Date(entry.created_at).toLocaleString()}
                 </div>
               </li>
