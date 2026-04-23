@@ -127,13 +127,13 @@ export default function Login() {
           <div className="mb-8">
             <div className="app-kicker">{mode === "signin" ? "Welcome back" : "Create access"}</div>
             <h2 className="mt-2 font-display text-3xl text-foreground glow-soft">
-              {mode === "signin" ? "Sign in to your workspace" : "Request a new account"}
+              {mode === "signin" ? "Login" : "Request a new account"}
             </h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              {mode === "signin"
-                ? "Use your approved account to continue into the asset management dashboard."
-                : "New accounts are created here and then approved by an administrator before full access is granted."}
-            </p>
+            {mode === "signup" && (
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                New accounts are created here and then approved by an administrator before full access is granted.
+              </p>
+            )}
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">

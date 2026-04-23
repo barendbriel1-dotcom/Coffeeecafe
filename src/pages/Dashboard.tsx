@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, AlertTriangle, ChevronRight, History, Package, PackageCheck, TerminalSquare, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, ChevronRight, History, Package, PackageCheck, XCircle } from "lucide-react";
 
-import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +21,6 @@ interface ActivityRow {
 }
 
 export default function Dashboard() {
-  const { isAdmin, isStaff } = useAuth();
   const [stats, setStats] = useState<Stats>({ total: 0, available: 0, signedOut: 0, activeSignouts: 0, damaged: 0 });
   const [activity, setActivity] = useState<ActivityRow[]>([]);
 
@@ -56,8 +54,6 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const role = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "VOLUNTEER";
-
   const tiles = [
     { label: "Total assets", value: stats.total, icon: Package, accent: "border-primary/24 bg-primary/10 text-primary", to: "/assets" },
     { label: "Available now", value: stats.available, icon: PackageCheck, accent: "border-emerald-500/24 bg-emerald-500/10 text-emerald-300", to: "/assets?status=available" },
@@ -68,29 +64,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <section className="app-panel-strong scanlines relative overflow-hidden p-6 sm:p-8">
-        <div className="absolute inset-x-0 top-0 h-px bg-primary/25" />
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
-            <div className="app-kicker">System overview</div>
-            <h1 className="app-title glow">Modern asset control with a lighter Matrix edge.</h1>
-            <p className="app-subtitle">
-              The structure stays app-like and clean, while the visual identity returns to black glass, green accents, and subtle terminal energy instead of the heavier retro treatment.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-black/35 px-4 py-3 text-foreground shadow-[0_0_30px_hsl(var(--primary)/0.08)]">
-            <div className="flex size-11 items-center justify-center rounded-2xl border border-primary/22 bg-primary/10 text-primary">
-              <TerminalSquare size={18} />
-            </div>
-            <div>
-              <div className="font-mono text-xs uppercase tracking-[0.2em] text-primary/62">Access level</div>
-              <div className="font-display text-xl glow-soft">{role}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {tiles.map((tile) => (
           <Link key={tile.label} to={tile.to} className="app-panel group p-5 transition-all hover:-translate-y-1 hover:border-primary/24 hover:shadow-[0_0_40px_hsl(var(--primary)/0.08)]">
