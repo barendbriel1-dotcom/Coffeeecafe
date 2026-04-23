@@ -3,7 +3,6 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
 import MatrixRain from "./MatrixRain";
 import ApprovalPending from "./ApprovalPending";
-import { Terminal } from "lucide-react";
 
 export function ProtectedRoute({
   children,
@@ -17,15 +16,14 @@ export function ProtectedRoute({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background relative overflow-hidden">
-        <MatrixRain />
-        <div className="z-10 flex flex-col items-center gap-4">
-          <Terminal className="text-primary animate-pulse size-10" />
-          <div className="font-display text-primary text-xl glow tracking-[0.2em] uppercase">
-            Decrypting Session<span className="cursor-blink"></span>
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-background">
+        <MatrixRain className="opacity-90" />
+        <div className="z-10 rounded-[1.8rem] border border-primary/20 bg-background/58 px-6 py-5 text-center shadow-[var(--shadow-strong)] backdrop-blur-sm">
+          <div className="font-display text-2xl text-primary glow tracking-[0.24em] uppercase md:text-4xl">
+            DECYPHERING CODE<span className="cursor-blink"></span>
           </div>
-          <div className="font-mono text-[10px] text-primary/40 uppercase tracking-[0.3em]">
-            Verifying Credentials
+          <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.32em] text-primary/45">
+            Verifying session
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ShieldCheck, TerminalSquare } from "lucide-react";
+import { Eye, EyeOff, TerminalSquare } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
@@ -106,14 +106,15 @@ export default function Login() {
 
   if (booting) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background p-6">
-        <div className="app-panel-strong w-full max-w-md p-8 text-center">
-          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-[1.6rem] border border-primary/20 bg-primary/10 text-primary">
-            <ShieldCheck className="size-8" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-background">
+        <MatrixRain className="opacity-95" />
+        <div className="z-10 rounded-[1.8rem] border border-primary/20 bg-background/58 px-6 py-5 text-center shadow-[var(--shadow-strong)] backdrop-blur-sm">
+          <div className="font-display text-2xl text-primary glow tracking-[0.24em] uppercase md:text-4xl">
+            DECYPHERING CODE<span className="cursor-blink"></span>
           </div>
-          <div className="app-kicker">Preparing workspace</div>
-          <div className="mt-2 font-display text-3xl text-foreground glow-soft">Loading Assets Hub</div>
-          <div className="mt-3 font-mono text-sm text-muted-foreground">Starting a cleaner Matrix workspace...</div>
+          <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.32em] text-primary/45">
+            Initializing access shell
+          </div>
         </div>
       </div>
     );
