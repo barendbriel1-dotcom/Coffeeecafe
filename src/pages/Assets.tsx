@@ -1,260 +1,288 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Download, ExternalLink, FileSpreadsheet, Plus, Search, Upload } from "lucide-react";
+import { toast } from "sonner";
+
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import { Plus, Search, Trash2, Upload, Download, FileSpreadsheet, ExternalLink } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, getTagPrefix, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
 
 interface Asset {
-  id: string; code: string; name: string; status: string;
-  description: string | null; serial_number: string | null;
-  department_id: string; item_type_id: string; division_id: string | null;
-  current_holder: string | null; current_location_id: string | null;
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  description: string | null;
+  serial_number: string | null;
+  department_id: string;
+  item_type_id: string;
+  division_id: string | null;
+  current_holder: string | null;
+  current_location_id: string | null;
 }
-interface Loc { id: string; code: string; name: string; is_storage?: boolean; }
-interface Div { id: string; name: string; }
-interface ItemType { id: string; code: string; name: string; }
-interface Holder { id: string; display_name: string; }
+
+interface Loc {
+  id: string;
+  code: string;
+  name: string;
+  is_storage?: boolean;
+}
+
+interface Div {
+  id: string;
+  name: string;
+}
+
+interface ItemType {
+  id: string;
+  code: string;
+  name: string;
+}
 
 export default function Assets() {
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
-  const initialStatus = searchParams.get("status") || "all";
+  const initialStatus = normalizeAssetStatus(searchParams.get("status") || "available") || "all";
 
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [locs, setLocs] = useState<Loc[]>([]);
-  const [divs, setDivs] = useState<Div[]>([]);
-  const [items, setItems] = useState<ItemType[]>([]);
-  const [holders, setHolders] = useState<Record<string, string>>({});
+  const [locations, setLocations] = useState<Loc[]>([]);
+  const [divisions, setDivisions] = useState<Div[]>([]);
+  const [categories, setCategories] = useState<ItemType[]>([]);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
-  const [divFilter, setDivFilter] = useState<string>("all");
-  const [locFilter, setLocFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") ? normalizeAssetStatus(searchParams.get("status") || "") : "all");
+  const [locationFilter, setLocationFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [csvText, setCsvText] = useState("");
   const [importing, setImporting] = useState(false);
 
-  // form
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [serial, setSerial] = useState("");
-  const [locId, setLocId] = useState("");
-  const [divId, setDivId] = useState("");
-  const [itemId, setItemId] = useState("");
+  const [locationId, setLocationId] = useState("");
+  const [divisionId, setDivisionId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
 
   const load = async () => {
-    const [{ data: a }, { data: l }, { data: dv }, { data: i }, { data: p }] = await Promise.all([
-      supabase.from("assets").select("*").order("code"),
-      supabase.from("locations").select("*").order("name"),
+    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: categoryRows }] = await Promise.all([
+      supabase.from("assets").select("*").order("name"),
+      supabase.from("locations").select("*"),
       supabase.from("divisions").select("*").order("name"),
       supabase.from("item_types").select("*").order("name"),
-      supabase.from("profiles").select("id, display_name"),
     ]);
-    setAssets(a ?? []);
-    setLocs(l ?? []);
-    setDivs(dv ?? []);
-    setItems(i ?? []);
-    setHolders(Object.fromEntries((p ?? []).map((x: Holder) => [x.id, x.display_name])));
-  };
-  useEffect(() => { load(); }, []);
 
-  const filtered = assets.filter((a) => {
-    const matchesQ = !q || a.code.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase());
-    const matchesS = statusFilter === "all" || a.status === statusFilter;
-    const matchesD = divFilter === "all" || a.division_id === divFilter;
-    const matchesL = locFilter === "all" || (a.current_location_id ?? a.department_id) === locFilter;
-    return matchesQ && matchesS && matchesD && matchesL;
+    const orderedLocations = (locationRows ?? []).sort((a: Loc, b: Loc) => {
+      const aIndex = LOCATION_NAMES.indexOf(a.name as (typeof LOCATION_NAMES)[number]);
+      const bIndex = LOCATION_NAMES.indexOf(b.name as (typeof LOCATION_NAMES)[number]);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+
+    setAssets(assetRows ?? []);
+    setLocations(orderedLocations);
+    setDivisions(divisionRows ?? []);
+    setCategories(categoryRows ?? []);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
+  const categoryMap = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, category.name])), [categories]);
+  const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
+
+  const filtered = assets.filter((asset) => {
+    const normalizedStatus = normalizeAssetStatus(asset.status);
+    const currentLocationId = asset.current_location_id ?? asset.department_id;
+    const currentLocationName = locationMap[currentLocationId] ?? "";
+    const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+    const categoryName = categoryMap[asset.item_type_id] ?? "";
+    const searchBlob = buildSearchBlob([
+      asset.name,
+      asset.code,
+      categoryName,
+      currentLocationName,
+      divisionName,
+      getAssetStatusLabel(normalizedStatus),
+      asset.description,
+      asset.serial_number,
+    ]);
+
+    const matchesQuery = !q.trim() || searchBlob.includes(q.trim().toLowerCase());
+    const matchesStatus = statusFilter === "all" || normalizedStatus === statusFilter;
+    const matchesLocation = locationFilter === "all" || currentLocationId === locationFilter;
+    return matchesQuery && matchesStatus && matchesLocation;
   });
 
   const create = async () => {
-    if (!name || !locId || !itemId) {
-      toast.error("Name, location and item type are required");
+    if (!name || !locationId || !categoryId || !divisionId) {
+      toast.error("Name, location, division, and category are required.");
       return;
     }
+
     const { error } = await supabase.from("assets").insert({
-      name, description: description || null, serial_number: serial || null,
-      department_id: locId, item_type_id: itemId, division_id: divId || null,
-      current_location_id: locs.find((l) => l.is_storage)?.id ?? locId,
-      code: "", // generated by trigger
+      name: name.trim(),
+      description: description.trim() || null,
+      serial_number: serial.trim() || null,
+      department_id: locationId,
+      item_type_id: categoryId,
+      division_id: divisionId,
+      current_location_id: locationId,
+      code: "",
+      status: "available",
     } as any);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Asset registered.`);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Asset registered.");
     setOpen(false);
-    setName(""); setDescription(""); setSerial(""); setLocId(""); setDivId(""); setItemId("");
+    setName("");
+    setDescription("");
+    setSerial("");
+    setLocationId("");
+    setDivisionId("");
+    setCategoryId("");
     load();
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this asset permanently?")) return;
-    const { error } = await supabase.from("assets").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Asset deleted");
-    load();
-  };
-
-  // ----- CSV BULK IMPORT -----
-  const csvHeader = "Asset Code,Division,Description,Serial Number,Location,Image URL";
-  const csvSample = `${csvHeader}\nAJ001,Aircon,Jet Air 12000btu Split unit,SN12345,Centurion,/assets/photos/sample.jpg`;
+  const csvHeader = "Asset Code,Division,Description,Serial Number,Location,Category,Image URL";
+  const csvSample = `${csvHeader}\nAP431,Assets,Portable speaker,SN12345,Centurion,Speaker,/assets/photos/sample.jpg`;
 
   const downloadTemplate = () => {
     const blob = new Blob([csvSample], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "assets-template.csv";
-    a.click();
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "assets-template.csv";
+    anchor.click();
     URL.revokeObjectURL(url);
   };
 
   const onCsvFile = async (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("File too large (max 2MB)");
+      toast.error("File too large (max 2MB).");
       return;
     }
-    const text = await file.text();
-    setCsvText(text);
+
+    setCsvText(await file.text());
   };
 
   const parseCsv = (text: string): string[][] => {
     const rows: string[][] = [];
     let row: string[] = [];
-    let cur = "";
+    let current = "";
     let inQuotes = false;
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
+
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+
       if (inQuotes) {
-        if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; }
-        else if (ch === '"') { inQuotes = false; }
-        else { cur += ch; }
-      } else {
-        if (ch === '"') inQuotes = true;
-        else if (ch === ",") { row.push(cur); cur = ""; }
-        else if (ch === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
-        else if (ch === "\r") { /* skip */ }
-        else cur += ch;
+        if (char === '"' && text[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          current += char;
+        }
+      } else if (char === '"') {
+        inQuotes = true;
+      } else if (char === ",") {
+        row.push(current);
+        current = "";
+      } else if (char === "\n") {
+        row.push(current);
+        rows.push(row);
+        row = [];
+        current = "";
+      } else if (char !== "\r") {
+        current += char;
       }
     }
-    if (cur.length > 0 || row.length > 0) { row.push(cur); rows.push(row); }
-    return rows.filter((r) => r.some((c) => c.trim() !== ""));
+
+    if (current.length > 0 || row.length > 0) {
+      row.push(current);
+      rows.push(row);
+    }
+
+    return rows.filter((candidate) => candidate.some((cell) => cell.trim() !== ""));
   };
 
-  const previewRows = (() => {
+  const previewRows = useMemo(() => {
     if (!csvText.trim()) return [] as Record<string, string>[];
+
     const rows = parseCsv(csvText);
     if (rows.length === 0) return [];
-    // Normalize headers to lowercase with underscores
-    const header = rows[0].map((h) => h.trim().toLowerCase().replace(/ /g, "_"));
-    return rows.slice(1).map((r) => {
-      const obj: Record<string, string> = {};
-      header.forEach((h, idx) => { obj[h] = (r[idx] ?? "").trim(); });
-      return obj;
-    });
-  })();
 
-  const getAvailableCode = (preferred: string, existingCodes: Set<string>) => {
-    let char = preferred.charAt(0).toUpperCase();
-    if (!existingCodes.has(char)) return char;
-    for (let i = 65; i <= 90; i++) {
-      if (!existingCodes.has(String.fromCharCode(i))) return String.fromCharCode(i);
-    }
-    for (let i = 48; i <= 57; i++) {
-      if (!existingCodes.has(String.fromCharCode(i))) return String.fromCharCode(i);
-    }
-    return 'X';
-  };
+    const header = rows[0].map((value) => value.trim().toLowerCase().replace(/ /g, "_"));
+    return rows.slice(1).map((values) => {
+      const row: Record<string, string> = {};
+      header.forEach((key, index) => {
+        row[key] = (values[index] ?? "").trim();
+      });
+      return row;
+    });
+  }, [csvText]);
 
   const runImport = async () => {
-    if (previewRows.length === 0) { toast.error("No rows to import"); return; }
-    setImporting(true);
-
-    let currentLocs = [...locs];
-    let currentDivs = [...divs];
-    let currentItems = [...items];
-
-    // 1. Resolve Locations
-    const csvLocations = Array.from(new Set(previewRows.map(r => r.location).filter(Boolean)));
-    for (const locName of csvLocations) {
-      if (!currentLocs.find(l => l.name.toLowerCase() === locName.toLowerCase())) {
-        toast.error(`Location "${locName}" not found. Please add it to the database first.`);
-        setImporting(false);
-        return;
-      }
-    }
-
-    // 2. Resolve Divisions
-    const csvDivisions = Array.from(new Set(previewRows.map(r => r.division).filter(Boolean)));
-    for (const divName of csvDivisions) {
-      if (!currentDivs.find(d => d.name.toLowerCase() === divName.toLowerCase())) {
-        toast.error(`Division "${divName}" not found. Please add it to the database first.`);
-        setImporting(false);
-        return;
-      }
-    }
-
-    const locByName = new Map(currentLocs.map((l) => [l.name.toLowerCase(), l]));
-    const divByName = new Map(currentDivs.map((d) => [d.name.toLowerCase(), d]));
-    const itemByName = new Map(currentItems.map((i) => [i.name.toLowerCase(), i]));
-    const storageId = currentLocs.find((l) => l.is_storage)?.id;
-
-    const errors: string[] = [];
-    const valid: any[] = [];
-    previewRows.forEach((row, idx) => {
-      const lineNo = idx + 2; 
-      const desc = row.description || "Unknown Asset";
-      const name = desc; 
-      const locName = (row.location ?? "").toLowerCase();
-      const divName = (row.division ?? "").toLowerCase();
-      const serial = row.serial_number ?? "";
-      const assetCode = row.asset_code ?? "";
-      const imageUrl = row.image_url || null;
-
-      if (!locName || !divName) {
-        errors.push(`Line ${lineNo}: missing Location or Division`);
-        return;
-      }
-
-      const loc = locByName.get(locName);
-      const div = divByName.get(divName);
-      // Item type is actually what was previously 'division' in the CSV, but we match it by the 'division' column in CSV to the 'item_types' table for equipment category
-      const equipmentCategory = itemByName.get(divName); 
-
-      if (!loc) { errors.push(`Line ${lineNo}: failed to resolve location "${row.location}"`); return; }
-      if (!div) { errors.push(`Line ${lineNo}: failed to resolve division "${row.division}"`); return; }
-
-      valid.push({
-        name: name.slice(0, 120),
-        description: desc.slice(0, 500) || null,
-        serial_number: serial.slice(0, 80) || null,
-        department_id: loc.id, // DB column name remains department_id for now
-        division_id: div.id,
-        item_type_id: equipmentCategory?.id ?? items[0]?.id, // Default to first category if not found
-        current_location_id: storageId ?? loc.id,
-        code: assetCode || "", 
-        image_url: imageUrl
-      });
-    });
-
-    if (valid.length === 0) {
-      setImporting(false);
-      toast.error(errors[0] ?? "No valid rows");
+    if (previewRows.length === 0) {
+      toast.error("No rows to import.");
       return;
     }
 
-    // Insert in chunks of 100
+    setImporting(true);
+
+    const locationByName = new Map(locations.map((location) => [location.name.toLowerCase(), location]));
+    const divisionByName = new Map(divisions.map((division) => [division.name.toLowerCase(), division]));
+    const categoryByName = new Map(categories.map((category) => [category.name.toLowerCase(), category]));
+    const errors: string[] = [];
+    const validRows: any[] = [];
+
+    previewRows.forEach((row, index) => {
+      const lineNo = index + 2;
+      const assetName = row.description || "Unknown Asset";
+      const location = locationByName.get((row.location ?? "").toLowerCase());
+      const division = divisionByName.get((row.division ?? "").toLowerCase());
+      const category = categoryByName.get((row.category ?? "").toLowerCase());
+
+      if (!location || !division || !category) {
+        errors.push(`Line ${lineNo}: location, division, or category could not be matched.`);
+        return;
+      }
+
+      validRows.push({
+        name: assetName.slice(0, 120),
+        description: assetName.slice(0, 500) || null,
+        serial_number: (row.serial_number ?? "").slice(0, 80) || null,
+        department_id: location.id,
+        division_id: division.id,
+        item_type_id: category.id,
+        current_location_id: location.id,
+        code: row.asset_code || "",
+        status: "available",
+      });
+    });
+
+    if (validRows.length === 0) {
+      setImporting(false);
+      toast.error(errors[0] ?? "No valid rows.");
+      return;
+    }
+
     let inserted = 0;
-    for (let i = 0; i < valid.length; i += 100) {
-      const chunk = valid.slice(i, i + 100);
+    for (let index = 0; index < validRows.length; index += 100) {
+      const chunk = validRows.slice(index, index + 100);
       const { error } = await supabase.from("assets").insert(chunk);
       if (error) {
         setImporting(false);
@@ -268,156 +296,188 @@ export default function Assets() {
     setImporting(false);
     setImportOpen(false);
     setCsvText("");
+
     if (errors.length > 0) {
-      toast.success(`Imported ${inserted} · skipped ${errors.length}`, {
-        description: errors.slice(0, 3).join(" · "),
+      toast.success(`Imported ${inserted} and skipped ${errors.length}.`, {
+        description: errors.slice(0, 3).join(" | "),
       });
     } else {
-      toast.success(`Imported ${inserted} asset${inserted === 1 ? "" : "s"}`);
+      toast.success(`Imported ${inserted} asset${inserted === 1 ? "" : "s"}.`);
     }
+
     load();
   };
 
-  const statusColor: Record<string, string> = {
-    available: "bg-primary/20 text-primary border-primary/40",
-    signed_out: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
-    in_handover: "bg-blue-500/20 text-blue-400 border-blue-500/40",
-    maintenance: "bg-orange-500/20 text-orange-400 border-orange-500/40",
-    lost: "bg-destructive/20 text-destructive border-destructive/40",
-    retired: "bg-muted text-muted-foreground border-border",
-  };
+  const selectedDivisionName = divisionId ? divisionMap[divisionId] : "";
+  const tagPreview = `${getTagPrefix(selectedDivisionName, name)}###`;
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+    <div className="space-y-5 animate-fade-in">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-display text-2xl text-primary glow">
-            <span className="text-primary/60">$</span> ASSET REGISTRY
-          </h1>
-          <p className="font-mono text-xs text-muted-foreground mt-1 uppercase tracking-wider">
-            // {filtered.length} record{filtered.length === 1 ? "" : "s"}
+          <div className="app-kicker">Asset registry</div>
+          <h1 className="mt-2 font-display text-3xl text-foreground glow-soft sm:text-4xl">See every asset in one searchable list.</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Each row shows item name, tag, category, status, and current location.
           </p>
         </div>
+
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wider">
+                <Button>
                   <Plus size={16} className="mr-1" /> New Asset
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-primary/40">
-                <DialogHeader><DialogTitle className="font-display text-primary">Register Asset</DialogTitle></DialogHeader>
+              <DialogContent className="bg-card/95">
+                <DialogHeader>
+                  <DialogTitle className="font-display text-foreground">Register asset</DialogTitle>
+                </DialogHeader>
+
                 <div className="space-y-3">
-                  <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} /></div>
-                  <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} /></div>
-                  <div><Label>Serial Number</Label><Input value={serial} onChange={(e) => setSerial(e.target.value)} maxLength={80} /></div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
+                  <div className="space-y-2">
+                    <Label>Item name</Label>
+                    <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Serial number</Label>
+                    <Input value={serial} onChange={(event) => setSerial(event.target.value)} maxLength={80} />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
                       <Label>Location</Label>
-                      <Select value={locId} onValueChange={setLocId}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>{locs.map((l) => <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>)}</SelectContent>
+                      <Select value={locationId} onValueChange={setLocationId}>
+                        <SelectTrigger><SelectValue placeholder="Select a location" /></SelectTrigger>
+                        <SelectContent>
+                          {locations.map((location) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
-                    <div>
+
+                    <div className="space-y-2">
                       <Label>Division</Label>
-                      <Select value={divId} onValueChange={setDivId}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>{divs.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                      <Select value={divisionId} onValueChange={setDivisionId}>
+                        <SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger>
+                        <SelectContent>
+                          {divisions.map((division) => (
+                            <SelectItem key={division.id} value={division.id}>
+                              {division.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label>Category (Item Type)</Label>
-                      <Select value={itemId} onValueChange={setItemId}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.code} — {i.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
+
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={categoryId} onValueChange={setCategoryId}>
+                      <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <p className="text-xs text-muted-foreground">Code auto-generated: <span className="text-primary font-mono">{(locs.find(l=>l.id===locId)?.code ?? "?")}{(items.find(i=>i.id===itemId)?.code ?? "?")}##</span></p>
-                  <Button onClick={create} className="w-full bg-primary text-primary-foreground">Register</Button>
+
+                  <p className="font-mono text-xs text-muted-foreground">
+                    Tag preview: <span className="text-primary">{tagPreview}</span>
+                  </p>
+
+                  <Button onClick={create} className="w-full">
+                    Register asset
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
 
-            <Dialog open={importOpen} onOpenChange={(o) => { setImportOpen(o); if (!o) setCsvText(""); }}>
+            <Dialog open={importOpen} onOpenChange={(value) => { setImportOpen(value); if (!value) setCsvText(""); }}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10 font-mono uppercase tracking-wider">
+                <Button variant="outline">
                   <Upload size={16} className="mr-1" /> CSV Import
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-primary/40 max-w-2xl">
+              <DialogContent className="max-w-2xl bg-card/95">
                 <DialogHeader>
-                  <DialogTitle className="font-display text-primary flex items-center gap-2">
-                    <FileSpreadsheet size={18} /> Bulk Import Assets
+                  <DialogTitle className="flex items-center gap-2 font-display text-foreground">
+                    <FileSpreadsheet size={18} /> Bulk import assets
                   </DialogTitle>
                 </DialogHeader>
+
                 <div className="space-y-4">
-                  <div className="rounded border border-primary/20 bg-background/40 p-3 font-mono text-xs space-y-2">
-                    <div className="text-primary uppercase tracking-widest">// expected columns</div>
-                    <div className="text-muted-foreground">
-                      <span className="text-primary">Asset Code</span>, <span className="text-primary">Division</span>, <span className="text-primary">Description</span>, Serial Number, <span className="text-primary">Location</span>
-                    </div>
-                    <div className="text-muted-foreground/70">
-                      Standard import. Divisions and Locations must exist or will be matched by name.
+                  <div className="rounded-[1.35rem] border border-primary/12 bg-secondary/65 p-4 text-sm text-muted-foreground">
+                    <div className="app-kicker">Expected columns</div>
+                    <div className="mt-2">
+                      Asset Code, Division, Description, Serial Number, Location, Category, Image URL
                     </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={downloadTemplate} className="border-primary/40 font-mono text-xs">
+                    <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
                       <Download size={14} className="mr-1" /> Download template
                     </Button>
+
                     <label className="inline-flex">
                       <input
                         type="file"
                         accept=".csv,text/csv"
                         className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsvFile(f); e.target.value = ""; }}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) onCsvFile(file);
+                          event.target.value = "";
+                        }}
                       />
-                      <span className="inline-flex items-center cursor-pointer rounded border border-primary/40 px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-primary hover:bg-primary/10">
+                      <span className="inline-flex cursor-pointer items-center rounded-full border border-primary/14 px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/8">
                         <Upload size={14} className="mr-1" /> Choose file
                       </span>
                     </label>
                   </div>
 
-                  <div>
-                    <Label className="font-mono text-xs uppercase tracking-wider">CSV content</Label>
-                    <Textarea
-                      value={csvText}
-                      onChange={(e) => setCsvText(e.target.value)}
-                      placeholder={csvSample}
-                      rows={6}
-                      className="font-mono text-xs"
-                    />
+                  <div className="space-y-2">
+                    <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">CSV content</Label>
+                    <Textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder={csvSample} rows={6} className="font-mono text-xs" />
                   </div>
 
                   {previewRows.length > 0 && (
-                    <div className="rounded border border-primary/20">
-                      <div className="border-b border-primary/20 px-3 py-2 font-mono text-[11px] uppercase tracking-widest text-primary">
-                        &gt; Preview · {previewRows.length} row{previewRows.length === 1 ? "" : "s"}
+                    <div className="overflow-hidden rounded-[1.4rem] border border-primary/12">
+                      <div className="border-b border-primary/12 px-4 py-3 font-mono text-xs uppercase tracking-[0.18em] text-primary">
+                        Preview | {previewRows.length} row{previewRows.length === 1 ? "" : "s"}
                       </div>
                       <div className="max-h-48 overflow-auto">
                         <table className="w-full font-mono text-xs">
-                          <thead className="bg-primary/5 text-muted-foreground uppercase text-[10px]">
+                          <thead className="bg-primary/6 text-muted-foreground">
                             <tr>
-                              <th className="px-2 py-1 text-left">Code</th>
-                              <th className="px-2 py-1 text-left">Description</th>
-                              <th className="px-2 py-1 text-left">Loc</th>
-                              <th className="px-2 py-1 text-left">Div</th>
-                              <th className="px-2 py-1 text-left">Serial</th>
+                              <th className="px-2 py-2 text-left">Code</th>
+                              <th className="px-2 py-2 text-left">Description</th>
+                              <th className="px-2 py-2 text-left">Location</th>
+                              <th className="px-2 py-2 text-left">Division</th>
+                              <th className="px-2 py-2 text-left">Category</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {previewRows.slice(0, 50).map((r, idx) => (
-                              <tr key={idx} className="border-t border-primary/10">
-                                <td className="px-2 py-1 text-primary truncate max-w-[100px]">{r.asset_code}</td>
-                                <td className="px-2 py-1 text-foreground/80 truncate max-w-[200px]">{r.description}</td>
-                                <td className="px-2 py-1 text-foreground/80">{r.location}</td>
-                                <td className="px-2 py-1 text-foreground/80">{r.division}</td>
-                                <td className="px-2 py-1 text-muted-foreground">{r.serial_number}</td>
+                            {previewRows.slice(0, 50).map((row, index) => (
+                              <tr key={`${row.asset_code}-${index}`} className="border-t border-primary/10">
+                                <td className="px-2 py-2 text-primary">{row.asset_code}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.description}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.location}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.division}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.category}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -426,12 +486,8 @@ export default function Assets() {
                     </div>
                   )}
 
-                  <Button
-                    onClick={runImport}
-                    disabled={importing || previewRows.length === 0}
-                    className="w-full bg-primary text-primary-foreground font-mono uppercase tracking-wider"
-                  >
-                    {importing ? "Importing…" : `Import ${previewRows.length || ""} asset${previewRows.length === 1 ? "" : "s"}`}
+                  <Button onClick={runImport} disabled={importing || previewRows.length === 0} className="w-full">
+                    {importing ? "Importing..." : `Import ${previewRows.length || ""} asset${previewRows.length === 1 ? "" : "s"}`}
                   </Button>
                 </div>
               </DialogContent>
@@ -440,91 +496,86 @@ export default function Assets() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code or name…" className="pl-9 font-mono" />
+      <div className="app-panel p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_200px_220px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
+            <Input
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="Search by item name, tag, category, status, location..."
+              className="pl-9"
+            />
+          </div>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Status</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="signed_out">Signed Out</SelectItem>
+              <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
+              <SelectItem value="damaged">Damaged</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Location</SelectItem>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Status</SelectItem>
-            <SelectItem value="available">Available</SelectItem>
-            <SelectItem value="signed_out">Sign Out</SelectItem>
-            <SelectItem value="maintenance">Maintenance</SelectItem>
-            <SelectItem value="retired">Damaged</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={divFilter} onValueChange={setDivFilter}>
-          <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Division</SelectItem>
-            {divs.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={locFilter} onValueChange={setLocFilter}>
-          <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Location</SelectItem>
-            {locs.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
-      {/* Table */}
-      <div className="rounded border border-primary/30 bg-card/30 overflow-hidden">
+      <div className="app-panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full font-mono text-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-primary/30 text-left text-[11px] uppercase tracking-widest text-muted-foreground">
-                <th className="px-4 py-3 font-normal">Name</th>
+              <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                <th className="px-4 py-3 font-normal">Item Name</th>
                 <th className="px-4 py-3 font-normal">Tag</th>
-                <th className="px-4 py-3 font-normal">Division</th>
                 <th className="px-4 py-3 font-normal">Category</th>
                 <th className="px-4 py-3 font-normal">Status</th>
                 <th className="px-4 py-3 font-normal">Location</th>
-                {isAdmin && <th className="px-4 py-3 font-normal w-10" />}
               </tr>
             </thead>
+
             <tbody className="divide-y divide-primary/10">
               {filtered.length === 0 && (
-                <tr><td colSpan={isAdmin ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground/70">// no records found</td></tr>
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground/70">
+                    No assets matched your search or filters.
+                  </td>
+                </tr>
               )}
-              {filtered.map((a) => {
-                const itemType = items.find((i) => i.id === a.item_type_id);
-                const loc = locs.find((l) => l.id === (a.current_location_id ?? a.department_id));
-                const division = divs.find((d) => d.id === a.division_id);
+
+              {filtered.map((asset) => {
+                const categoryName = categoryMap[asset.item_type_id] ?? "-";
+                const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "-";
+                const normalizedStatus = normalizeAssetStatus(asset.status);
+
                 return (
-                  <tr key={a.id} className="hover:bg-primary/5 transition-colors group">
-                    <td className="px-4 py-3 text-primary glow-soft truncate max-w-[220px]">
-                      <Link to={`/assets/${a.id}`} className="hover:underline flex items-center gap-2">
-                        {a.name}
-                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-50 transition-opacity" />
+                  <tr key={asset.id} className="group transition-colors hover:bg-primary/5">
+                    <td className="max-w-[260px] truncate px-4 py-3 text-foreground">
+                      <Link to={`/assets/${asset.id}`} className="flex items-center gap-2 hover:text-primary">
+                        {asset.name}
+                        <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-50" />
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-foreground/80">
-                      <Link to={`/assets/${a.id}`} className="hover:text-primary transition-colors">
-                        {a.code}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{division?.name ?? "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{itemType?.name ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-foreground/80">{asset.code}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{categoryName}</td>
                     <td className="px-4 py-3">
-                      <Badge variant="outline" className={cn("uppercase text-[10px] tracking-widest", statusColor[a.status])}>
-                        {a.status === "signed_out" ? "Sign Out" : a.status === "retired" ? "Damaged" : a.status.replace("_", " ")}
+                      <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                        {getAssetStatusLabel(normalizedStatus)}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground truncate max-w-[200px]">
-                      {loc?.name ?? "—"}
-                      {a.current_holder && <span className="text-foreground/60"> · {holders[a.current_holder] ?? "?"}</span>}
-                    </td>
-                    {isAdmin && (
-                      <td className="px-4 py-3">
-                        <Button size="sm" variant="ghost" onClick={() => remove(a.id)} className="text-destructive hover:bg-destructive/10 h-7 w-7 p-0">
-                          <Trash2 size={14} />
-                        </Button>
-                      </td>
-                    )}
+                    <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
                   </tr>
                 );
               })}

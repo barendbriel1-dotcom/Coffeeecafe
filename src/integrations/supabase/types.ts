@@ -464,9 +464,9 @@ export type Database = {
         | "available"
         | "signed_out"
         | "in_handover"
-        | "maintenance"
+        | "out_for_repairs"
         | "lost"
-        | "retired"
+        | "damaged"
       handover_status: "pending" | "accepted" | "rejected" | "cancelled"
       request_status: "pending" | "approved" | "rejected" | "fulfilled"
       signout_status: "active" | "returned" | "overdue"
@@ -602,9 +602,9 @@ export const Constants = {
         "available",
         "signed_out",
         "in_handover",
-        "maintenance",
+        "out_for_repairs",
         "lost",
-        "retired",
+        "damaged",
       ],
       handover_status: ["pending", "accepted", "rejected", "cancelled"],
       request_status: ["pending", "approved", "rejected", "fulfilled"],

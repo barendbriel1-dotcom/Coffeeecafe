@@ -33,7 +33,7 @@ export default function Dashboard() {
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "available"),
         supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "signed_out"),
         supabase.from("signouts").select("*", { count: "exact", head: true }).eq("status", "active"),
-        supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "retired"),
+        supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "damaged"),
         supabase.from("asset_history").select("id, action, created_at, assets(code)").order("created_at", { ascending: false }).limit(8),
       ]);
 
@@ -62,7 +62,7 @@ export default function Dashboard() {
     { label: "Total assets", value: stats.total, icon: Package, accent: "border-primary/24 bg-primary/10 text-primary", to: "/assets" },
     { label: "Available now", value: stats.available, icon: PackageCheck, accent: "border-emerald-500/24 bg-emerald-500/10 text-emerald-300", to: "/assets?status=available" },
     { label: "Signed out", value: stats.signedOut, icon: AlertTriangle, accent: "border-amber-500/24 bg-amber-500/10 text-amber-300", to: "/assets?status=signed_out" },
-    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "border-rose-500/24 bg-rose-500/10 text-rose-300", to: "/assets?status=retired" },
+    { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "border-rose-500/24 bg-rose-500/10 text-rose-300", to: "/assets?status=damaged" },
     { label: "Open sign-outs", value: stats.activeSignouts, icon: History, accent: "border-cyan-500/24 bg-cyan-500/10 text-cyan-300", to: "/history" },
   ] as const;
 

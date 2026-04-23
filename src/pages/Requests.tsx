@@ -65,12 +65,16 @@ export default function Requests() {
     setBusy(true);
     try {
       if (status === "approved" && r.asset_id) {
+        const { data: locations } = await supabase.from("locations").select("id, name");
+        const travelingId = locations?.find((location: any) => location.name === "Traveling")?.id;
+
         // Automatic Sign-Out workflow
         const { data: signout, error: soError } = await supabase
           .from("signouts")
           .insert({
             signed_out_by: user!.id,
             signed_out_to: r.requested_by,
+            to_department_id: travelingId ?? null,
             notes: `Auto-approved request: ${r.needed_for || "No details"}`,
             status: "active",
           })
@@ -87,6 +91,7 @@ export default function Requests() {
         await supabase.from("assets").update({
           status: "signed_out",
           current_holder: r.requested_by,
+          current_location_id: travelingId ?? null,
         }).eq("id", r.asset_id);
 
         await supabase.from("asset_history").insert({

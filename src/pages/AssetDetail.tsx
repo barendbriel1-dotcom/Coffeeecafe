@@ -153,8 +153,9 @@ export default function AssetDetail() {
 
   const statusMap: Record<string, { label: string, color: string, icon: any }> = {
     available: { label: "Available", color: "text-primary border-primary/40 bg-primary/10", icon: CheckCircle2 },
-    signed_out: { label: "Sign Out", color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", icon: Clock },
-    retired: { label: "Damaged", color: "text-rose-400 border-rose-500/40 bg-rose-500/10", icon: AlertTriangle },
+    signed_out: { label: "Signed Out", color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", icon: Clock },
+    out_for_repairs: { label: "Out for Repairs", color: "text-cyan-300 border-cyan-500/40 bg-cyan-500/10", icon: Clock },
+    damaged: { label: "Damaged", color: "text-rose-400 border-rose-500/40 bg-rose-500/10", icon: AlertTriangle },
   };
 
   const currentStatus = statusMap[asset.status] || { label: asset.status, color: "text-muted-foreground border-border bg-muted/10", icon: Package };

@@ -66,7 +66,7 @@ export default function Handover() {
       const ids = [...selected];
       const { error: ie } = await supabase.from("handover_items").insert(ids.map((asset_id) => ({ handover_id: h.id, asset_id })));
       if (ie) throw ie;
-      await supabase.from("assets").update({ status: "in_handover" }).in("id", ids);
+      await supabase.from("assets").update({ status: "signed_out" } as any).in("id", ids);
       toast.success("Handover initiated — awaiting recipient confirmation");
       setSelected(new Set()); setToUser(""); setNotes("");
       load();

@@ -1,215 +1,193 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Check, LogIn, MapPin, User, Wrench, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { LogIn, Package, User, Calendar, MapPin, Check, AlertCircle, XCircle } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface AssetReturn {
   id: string;
   code: string;
   name: string;
-  holder_name: string | null;
+  holder_id: string | null;
+  holder_name: string;
   signout_item_id: string | null;
   signout_id: string | null;
   package_name: string | null;
   notes: string | null;
   created_at: string | null;
-  to_dept: string | null;
 }
 
-interface GroupedSignOut {
+interface ReturnDecision {
+  item: AssetReturn;
+  nextStatus: "available" | "out_for_repairs" | "damaged";
+}
+
+interface LocationRow {
   id: string;
-  package_name: string;
-  signed_out_to: string;
-  department: string;
-  created_at: string;
-  notes: string | null;
-  items: AssetReturn[];
+  name: string;
 }
 
 export default function SignIn() {
   const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
-  const [grouped, setGrouped] = useState<GroupedSignOut[]>([]);
-  const [orphaned, setOrphaned] = useState<AssetReturn[]>([]);
-
-  // Damage reporting state
-  const [damageItem, setDamageItem] = useState<AssetReturn | null>(null);
-  const [damageNotes, setDamageNotes] = useState("");
+  const [rows, setRows] = useState<AssetReturn[]>([]);
+  const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [decision, setDecision] = useState<ReturnDecision | null>(null);
+  const [returnLocationId, setReturnLocationId] = useState("");
+  const [decisionNotes, setDecisionNotes] = useState("");
 
   const load = async () => {
     setLoading(true);
+
     try {
-      // 1. Fetch all assets currently marked as 'signed_out'
-      const { data: assets, error: assetErr } = await supabase
-        .from("assets")
-        .select(`
-          id, code, name, status, current_holder,
-          signout_items(
-            id, returned, signout_id,
-            signout:signouts(
-              id, created_at, package_name, notes, signed_out_to,
-              to_department:departments(name)
+      const [{ data: assets, error: assetError }, { data: profiles }, { data: locationRows }] = await Promise.all([
+        supabase
+          .from("assets")
+          .select(`
+            id, code, name, status, current_holder,
+            signout_items(
+              id, returned, signout_id,
+              signout:signouts(
+                id, created_at, package_name, notes, signed_out_to
+              )
             )
-          )
-        `)
-        .eq("status", "signed_out");
+          `)
+          .eq("status", "signed_out"),
+        supabase.from("profiles").select("id, display_name"),
+        supabase.from("locations").select("id, name"),
+      ]);
 
-      if (assetErr) throw assetErr;
+      if (assetError) throw assetError;
 
-      // 2. Extract unique user IDs to fetch profiles manually (avoids relationship cache issues)
-      const userIds = new Set<string>();
-      (assets || []).forEach(a => {
-        if (a.current_holder) userIds.add(a.current_holder);
-        a.signout_items?.forEach((si: any) => {
-          if (si.signout?.signed_out_to) userIds.add(si.signout.signed_out_to);
-        });
+      const orderedLocations = (locationRows ?? []).sort((a: LocationRow, b: LocationRow) => {
+        const aIndex = LOCATION_NAMES.indexOf(a.name as (typeof LOCATION_NAMES)[number]);
+        const bIndex = LOCATION_NAMES.indexOf(b.name as (typeof LOCATION_NAMES)[number]);
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
       });
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", Array.from(userIds));
-
-      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
-
-      const returns: AssetReturn[] = (assets || []).map(a => {
-        // Find the active (not returned) signout record for this asset
-        const activeItem = a.signout_items?.find((si: any) => !si.returned);
-        const so = activeItem?.signout;
+      const profileMap = Object.fromEntries((profiles ?? []).map((profile) => [profile.id, profile.display_name]));
+      const formattedRows: AssetReturn[] = (assets ?? []).map((asset: any) => {
+        const activeItem = asset.signout_items?.find((item: any) => !item.returned);
+        const signout = activeItem?.signout;
+        const holderId = asset.current_holder || signout?.signed_out_to || null;
 
         return {
-          id: a.id,
-          code: a.code,
-          name: a.name,
-          holder_name: profileMap[a.current_holder || ""] || profileMap[so?.signed_out_to || ""] || "Unknown Operative",
-          signout_item_id: activeItem?.id || null,
-          signout_id: so?.id || null,
-          package_name: so?.package_name || null,
-          notes: so?.notes || null,
-          created_at: so?.created_at || null,
-          to_dept: (so as any)?.to_department?.name || null
+          id: asset.id,
+          code: asset.code,
+          name: asset.name,
+          holder_id: holderId,
+          holder_name: profileMap[holderId ?? ""] || "Unknown user",
+          signout_item_id: activeItem?.id ?? null,
+          signout_id: signout?.id ?? null,
+          package_name: signout?.package_name ?? null,
+          notes: signout?.notes ?? null,
+          created_at: signout?.created_at ?? null,
         };
       });
 
-      // 3. Group items by sign-out record
-      const groupMap = new Map<string, GroupedSignOut>();
-      const orphans: AssetReturn[] = [];
-
-      returns.forEach(r => {
-        if (r.signout_id) {
-          if (!groupMap.has(r.signout_id)) {
-            groupMap.set(r.signout_id, {
-              id: r.signout_id,
-              package_name: r.package_name || "Standard Sign-Out",
-              signed_out_to: r.holder_name || "Unknown",
-              department: r.to_dept || "—",
-              created_at: r.created_at || "",
-              notes: r.notes,
-              items: []
-            });
-          }
-          groupMap.get(r.signout_id)!.items.push(r);
-        } else {
-          orphans.push(r);
-        }
-      });
-
-      setGrouped(Array.from(groupMap.values()).sort((a, b) => b.created_at.localeCompare(a.created_at)));
-      setOrphaned(orphans);
-
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to load items");
+      setRows(formattedRows.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? "")));
+      setLocations(orderedLocations);
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to load signed-out assets.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  const processReturn = async (item: AssetReturn, isDamaged: boolean, notes?: string) => {
+  const locationOptions = useMemo(() => locations.filter((location) => location.name !== "Traveling"), [locations]);
+
+  const openDecision = (item: AssetReturn, nextStatus: "available" | "out_for_repairs" | "damaged") => {
+    setDecision({ item, nextStatus });
+    setDecisionNotes("");
+    setReturnLocationId("");
+  };
+
+  const confirmDecision = async () => {
+    if (!decision) return;
+    if (!returnLocationId) {
+      toast.error("Select the location the asset is being signed back into.");
+      return;
+    }
+
+    const { item, nextStatus } = decision;
     setProcessing(item.id);
+
     try {
-      // 1. Update asset status
-      const { error: assetErr } = await supabase
+      const { error: assetError } = await supabase
         .from("assets")
-        .update({ 
-          status: isDamaged ? "retired" : "available", 
-          current_holder: null 
-        })
+        .update({
+          status: nextStatus,
+          current_holder: null,
+          current_location_id: returnLocationId,
+        } as any)
         .eq("id", item.id);
-      if (assetErr) throw assetErr;
 
-      // 2. If part of a signout record, mark item as returned
+      if (assetError) throw assetError;
+
       if (item.signout_item_id) {
-        const { error: itemErr } = await supabase
-          .from("signout_items")
-          .update({ returned: true })
-          .eq("id", item.signout_item_id);
-        if (itemErr) throw itemErr;
+        const { error: signoutItemError } = await supabase.from("signout_items").update({ returned: true }).eq("id", item.signout_item_id);
+        if (signoutItemError) throw signoutItemError;
+      }
 
-        // 3. Check if we should close the parent signout record
-        if (item.signout_id) {
-          const { data: remaining } = await supabase
-            .from("signout_items")
-            .select("id")
-            .eq("signout_id", item.signout_id)
-            .eq("returned", false);
-          
-          if (!remaining || remaining.length === 0) {
-            await supabase
-              .from("signouts")
-              .update({ 
-                status: "returned", 
-                signed_in_at: new Date().toISOString(),
-                signed_in_by: user?.id
-              })
-              .eq("id", item.signout_id);
-          }
+      if (item.signout_id) {
+        const { data: remaining } = await supabase
+          .from("signout_items")
+          .select("id")
+          .eq("signout_id", item.signout_id)
+          .eq("returned", false);
+
+        if (!remaining || remaining.length === 0) {
+          await supabase
+            .from("signouts")
+            .update({
+              status: "returned",
+              signed_in_at: new Date().toISOString(),
+              signed_in_by: user?.id,
+            })
+            .eq("id", item.signout_id);
         }
       }
 
-      // 4. Log history
+      const returnLocationName = locations.find((location) => location.id === returnLocationId)?.name ?? "Unknown location";
+      const action =
+        nextStatus === "available"
+          ? "signed_in"
+          : nextStatus === "out_for_repairs"
+            ? "sent_for_repairs"
+            : "marked_damaged";
+
       await supabase.from("asset_history").insert({
         asset_id: item.id,
-        action: isDamaged ? "damaged" : "signed_in",
+        action,
         performed_by: user?.id,
-        notes: notes || (isDamaged ? "Marked as DAMAGED during return." : "Standard return.")
+        from_user: item.holder_id,
+        notes: `${decisionNotes || "Admin sign-in review completed."} Returned to ${returnLocationName}.`,
       });
 
-      toast.success(`${item.code} signed in ${isDamaged ? "as DAMAGED" : "successfully"}`);
+      toast.success(`${item.code} updated to ${getAssetStatusLabel(nextStatus)}.`);
+      setDecision(null);
+      setDecisionNotes("");
+      setReturnLocationId("");
       load();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to process return");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to complete sign-in.");
     } finally {
       setProcessing(null);
-      setDamageItem(null);
-      setDamageNotes("");
-    }
-  };
-
-  const handleReturnAll = async (group: GroupedSignOut) => {
-    if (!confirm(`Sign in all ${group.items.length} items as AVAILABLE?`)) return;
-    setProcessing(group.id);
-    try {
-      for (const item of group.items) {
-        await processReturn(item, false);
-      }
-    } catch (err: any) {
-      toast.error("Bulk process interrupted");
-    } finally {
-      setProcessing(null);
-      load();
     }
   };
 
@@ -217,161 +195,123 @@ export default function SignIn() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl text-primary glow flex items-center gap-2">
-            <span className="text-primary/60">$</span> ASSET SIGN-IN
-          </h1>
-          <p className="font-mono text-xs text-muted-foreground mt-1 uppercase tracking-wider">
-            // process returned equipment
-          </p>
-        </div>
+      <div>
+        <div className="app-kicker">Asset sign in</div>
+        <h1 className="mt-2 font-display text-3xl text-foreground glow-soft">Sign assets back in and approve their next status.</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Every sign-in is completed by an admin, records the user who had the asset, and assigns the item back to a chosen location.
+        </p>
       </div>
 
-      <div className="grid gap-6">
-        {loading ? (
-          <div className="py-12 text-center font-mono text-sm text-primary/70 animate-pulse">// SCANNING SIGNED-OUT INVENTORY...</div>
-        ) : grouped.length === 0 && orphaned.length === 0 ? (
-          <div className="py-12 text-center font-mono text-sm text-muted-foreground/70 border border-dashed border-primary/20 rounded">// NO SIGNED-OUT ITEMS DETECTED</div>
-        ) : (
-          <>
-            {/* Grouped Sign-Out Packages */}
-            {grouped.map((group) => (
-              <Card key={group.id} className="bg-card/40 border-primary/30 p-5 space-y-4 hover:border-primary/50 transition-colors">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <LogIn size={18} className="text-primary" />
-                      <h3 className="font-display text-primary text-lg glow-soft">
-                        {group.package_name}
-                      </h3>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground font-mono uppercase tracking-widest">
-                      <span className="flex items-center gap-1.5"><User size={12} /> {group.signed_out_to}</span>
-                      <span className="flex items-center gap-1.5"><MapPin size={12} /> {group.department}</span>
-                      <span className="flex items-center gap-1.5"><Calendar size={12} /> {new Date(group.created_at).toLocaleDateString()}</span>
-                    </div>
+      {loading ? (
+        <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-primary/70">
+          Loading signed-out assets...
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-muted-foreground/70">
+          No signed-out assets are waiting for sign-in.
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {rows.map((item) => (
+            <Card key={item.id} className="space-y-4 bg-card/40 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <LogIn size={18} className="text-primary" />
+                    <h2 className="font-display text-xl text-foreground glow-soft">{item.code}</h2>
+                    <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass("signed_out"))}>
+                      Signed Out
+                    </Badge>
                   </div>
-                  <Button 
-                    onClick={() => handleReturnAll(group)} 
-                    disabled={!!processing}
-                    variant="outline"
-                    className="border-primary/40 text-primary hover:bg-primary/10 font-mono text-[10px] uppercase tracking-widest h-8"
-                  >
-                    Sign In All
+                  <div className="text-sm text-foreground/85">{item.name}</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><User size={12} /> Used by {item.holder_name}</span>
+                    {item.created_at && <span>Signed out {new Date(item.created_at).toLocaleString()}</span>}
+                    {item.package_name && <span>Package: {item.package_name}</span>}
+                  </div>
+                  {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={processing === item.id} onClick={() => openDecision(item, "available")} className="gap-1.5">
+                    <Check size={14} /> Sign in as Available
+                  </Button>
+                  <Button disabled={processing === item.id} variant="outline" onClick={() => openDecision(item, "out_for_repairs")} className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200">
+                    <Wrench size={14} /> Out for Repairs
+                  </Button>
+                  <Button disabled={processing === item.id} variant="outline" onClick={() => openDecision(item, "damaged")} className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200">
+                    <XCircle size={14} /> Damaged
                   </Button>
                 </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
-                <div className="pt-3 border-t border-primary/10">
-                  <div className="grid gap-2">
-                    {group.items.map((item) => (
-                      <ItemRow 
-                        key={item.id} 
-                        item={item} 
-                        processing={!!processing} 
-                        onReturn={(damaged) => damaged ? setDamageItem(item) : processReturn(item, false)} 
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {group.notes && (
-                  <div className="bg-background/40 p-3 rounded border border-primary/5 text-xs text-muted-foreground italic font-mono">
-                    &gt; Notes: {group.notes}
-                  </div>
-                )}
-              </Card>
-            ))}
-
-            {/* Individual / Orphaned Items */}
-            {orphaned.length > 0 && (
-              <Card className="bg-card/40 border-rose-500/20 p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={18} className="text-rose-400" />
-                  <h3 className="font-display text-rose-400 text-lg uppercase tracking-tight">
-                    Individual Asset Returns
-                  </h3>
-                </div>
-                <div className="grid gap-2">
-                  {orphaned.map((item) => (
-                    <ItemRow 
-                      key={item.id} 
-                      item={item} 
-                      processing={!!processing} 
-                      onReturn={(damaged) => damaged ? setDamageItem(item) : processReturn(item, false)} 
-                    />
-                  ))}
-                </div>
-              </Card>
-            )}
-          </>
-        )}
-      </div>
-
-      <Dialog open={!!damageItem} onOpenChange={(o) => !o && setDamageItem(null)}>
-        <DialogContent className="bg-card border-primary/40">
+      <Dialog open={!!decision} onOpenChange={(open) => !open && setDecision(null)}>
+        <DialogContent className="bg-card/95">
           <DialogHeader>
-            <DialogTitle className="font-display text-red-400 flex items-center gap-2">
-              <XCircle size={20} /> Report Damage: {damageItem?.code}
+            <DialogTitle className="font-display text-foreground">
+              {decision ? `${decision.item.code} | ${getAssetStatusLabel(decision.nextStatus)}` : "Complete sign-in"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Damage Details / Incident Summary</Label>
-              <Textarea 
-                value={damageNotes}
-                onChange={(e) => setDamageNotes(e.target.value)}
-                placeholder="Describe the damage or incident..."
-                className="min-h-[120px] font-mono text-sm border-primary/20 focus:border-red-500/50"
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Return location</Label>
+              <Select value={returnLocationId} onValueChange={setReturnLocationId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select the location to return the item to" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locationOptions.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Approval notes</Label>
+              <Textarea
+                value={decisionNotes}
+                onChange={(event) => setDecisionNotes(event.target.value)}
+                placeholder={
+                  decision?.nextStatus === "damaged"
+                    ? "Describe why the asset is not usable."
+                    : decision?.nextStatus === "out_for_repairs"
+                      ? "Describe the repair issue."
+                      : "Optional sign-in notes."
+                }
               />
             </div>
+
+            {decision && (
+              <div className="rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-foreground">
+                  <MapPin size={14} className="text-primary" />
+                  Admin sign-in will set the asset location to the selected return location.
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-foreground">
+                  <AlertCircle size={14} className="text-primary" />
+                  History will record both the admin completing the action and the user who last used the asset.
+                </div>
+              </div>
+            )}
           </div>
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDamageItem(null)} className="font-mono text-xs uppercase tracking-widest">Cancel</Button>
-            <Button 
-              onClick={() => damageItem && processReturn(damageItem, true, damageNotes)}
-              className="bg-red-500 text-white hover:bg-red-600 font-mono text-xs uppercase tracking-widest px-6"
-            >
-              Confirm Damage Report
+            <Button variant="ghost" onClick={() => setDecision(null)}>Cancel</Button>
+            <Button onClick={confirmDecision} disabled={!decision || processing === decision.item.id}>
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function ItemRow({ item, processing, onReturn }: { item: AssetReturn, processing: boolean, onReturn: (damaged: boolean) => void }) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-2 bg-primary/5 border border-primary/10 rounded group">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <Package size={14} className="text-primary/60 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-mono text-primary truncate">{item.code}</div>
-          <div className="text-[10px] text-foreground/80 truncate">{item.name}</div>
-        </div>
-        <div className="hidden sm:block text-[9px] font-mono text-muted-foreground uppercase tracking-tighter">
-          Held by: {item.holder_name}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          disabled={processing}
-          onClick={() => onReturn(false)}
-          className="bg-primary/20 text-primary border border-primary/40 hover:bg-primary/40 h-7 px-3 text-[10px] font-mono uppercase tracking-widest"
-        >
-          <Check size={12} className="mr-1" /> Available
-        </Button>
-        <Button
-          size="sm"
-          disabled={processing}
-          onClick={() => onReturn(true)}
-          className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 h-7 px-3 text-[10px] font-mono uppercase tracking-widest"
-        >
-          <AlertCircle size={12} className="mr-1" /> Damaged
-        </Button>
-      </div>
     </div>
   );
 }
