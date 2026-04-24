@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Download,
   History,
   Inbox,
   Layers,
@@ -47,6 +48,11 @@ interface LocationOption {
   name: string;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
 export default function AppLayout() {
   const { user, isAdmin, isStaff, signOut } = useAuth();
   const navigate = useNavigate();
@@ -60,10 +66,59 @@ export default function AppLayout() {
   const [profilePhone, setProfilePhone] = useState("");
   const [profileDepartmentId, setProfileDepartmentId] = useState("none");
   const [locations, setLocations] = useState<LocationOption[]>([]);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIosDevice, setIsIosDevice] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const installBannerDismissed = window.localStorage.getItem("assets-install-banner-dismissed") === "true";
+    const mobileQuery = window.matchMedia("(max-width: 768px)");
+    const standaloneQuery = window.matchMedia("(display-mode: standalone)");
+
+    const syncDeviceState = () => {
+      const ua = window.navigator.userAgent.toLowerCase();
+      const isIos = /iphone|ipad|ipod/.test(ua);
+      const mobile = mobileQuery.matches || /android|iphone|ipad|ipod|mobile/.test(ua);
+      const standalone = standaloneQuery.matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+      setIsIosDevice(isIos);
+      setIsMobileDevice(mobile);
+      setIsStandalone(standalone);
+      setShowInstallBanner(mobile && !standalone && !installBannerDismissed);
+    };
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+      syncDeviceState();
+    };
+
+    const handleInstalled = () => {
+      setDeferredInstallPrompt(null);
+      setShowInstallBanner(false);
+      window.localStorage.setItem("assets-install-banner-dismissed", "true");
+      syncDeviceState();
+    };
+
+    syncDeviceState();
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+    mobileQuery.addEventListener("change", syncDeviceState);
+    standaloneQuery.addEventListener("change", syncDeviceState);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+      mobileQuery.removeEventListener("change", syncDeviceState);
+      standaloneQuery.removeEventListener("change", syncDeviceState);
+    };
   }, []);
 
   useEffect(() => {
@@ -123,6 +178,30 @@ export default function AppLayout() {
     setDisplayName(trimmedName);
     setProfileOpen(false);
     toast.success("Profile updated");
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    window.localStorage.setItem("assets-install-banner-dismissed", "true");
+  };
+
+  const handleInstallClick = async () => {
+    if (deferredInstallPrompt) {
+      await deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice.outcome === "accepted") {
+        dismissInstallBanner();
+      }
+      setDeferredInstallPrompt(null);
+      return;
+    }
+
+    if (isIosDevice) {
+      navigate("/install");
+      return;
+    }
+
+    toast.info("Use your browser menu and choose Install app or Add to Home screen.");
   };
 
   const nav = [
@@ -212,6 +291,30 @@ export default function AppLayout() {
       )}
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        {showInstallBanner && isMobileDevice && (
+          <div className="px-4 pt-4 sm:px-6">
+            <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-card px-4 py-3 shadow-[var(--shadow-soft)]">
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-sm text-foreground glow-soft">Download Mobile App</div>
+                <div className="text-xs text-muted-foreground">
+                  {isIosDevice ? "Add this app to your phone dashboard." : "Install this app on your phone dashboard."}
+                </div>
+              </div>
+              <Button type="button" size="sm" onClick={handleInstallClick} className="shrink-0 gap-1.5">
+                <Download size={14} /> Download
+              </Button>
+              <button
+                type="button"
+                onClick={dismissInstallBanner}
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Dismiss install banner"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <header className="sticky top-0 z-30 px-4 py-4 sm:px-6">
           <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/92 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
             <div className="flex min-w-0 items-center gap-3">
