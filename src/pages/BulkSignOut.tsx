@@ -65,6 +65,8 @@ interface Asset {
   department_id: string;
   current_location_id: string | null;
   division_id: string | null;
+  serial_number: string | null;
+  description: string | null;
 }
 
 interface LocationRow {
@@ -103,6 +105,7 @@ export default function BulkSignOut() {
   const [editorName, setEditorName] = useState("");
   const [editorNotes, setEditorNotes] = useState("");
   const [editorItems, setEditorItems] = useState<BulkPacketItemDraft[]>([EMPTY_ITEM()]);
+  const [activeEditorSearchId, setActiveEditorSearchId] = useState<string | null>(null);
 
   const [recipientId, setRecipientId] = useState("");
   const [signoutNotes, setSignoutNotes] = useState("");
@@ -123,7 +126,10 @@ export default function BulkSignOut() {
         supabase.from("bulk_packets").select("*").order("name"),
         supabase.from("bulk_packet_items").select("*").order("packet_id").order("sort_order"),
         supabase.from("profiles").select("id, display_name").order("display_name"),
-        supabase.from("assets").select("id, code, name, status, department_id, current_location_id, division_id").order("name"),
+        supabase
+          .from("assets")
+          .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, description")
+          .order("name"),
         supabase.from("locations").select("id, name"),
         supabase.from("divisions").select("id, name").order("name"),
       ]);
@@ -295,6 +301,46 @@ export default function BulkSignOut() {
 
   const createNewPacket = () => {
     setActivePacketId("new");
+  };
+
+  const getEditorSuggestions = (item: BulkPacketItemDraft) => {
+    const query = item.line_label.trim();
+    if (!query) return [];
+
+    const normalizedQuery = buildSearchBlob([query]);
+
+    return [...availableAssets]
+      .filter((asset) => {
+        const locationName = asset.current_location_id ? locationMap[asset.current_location_id] ?? "" : "";
+        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+        const searchBlob = buildSearchBlob([
+          asset.name,
+          asset.code,
+          asset.serial_number,
+          asset.description,
+          locationName,
+          divisionName,
+        ]);
+        return searchBlob.includes(normalizedQuery);
+      })
+      .sort((a, b) => {
+        const aExact = a.name.toLowerCase() === query.toLowerCase() || a.code.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        const bExact = b.name.toLowerCase() === query.toLowerCase() || b.code.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 8);
+  };
+
+  const assignTemplateAsset = (itemId: string, asset: Asset) => {
+    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+    updateEditorItem(itemId, {
+      line_label: asset.name,
+      division_id: asset.division_id ?? null,
+      location_id: locationMap[effectiveLocationId] ? effectiveLocationId : null,
+      notes: "",
+    });
+    setActiveEditorSearchId(null);
   };
 
   const updateEditorItem = (id: string, patch: Partial<BulkPacketItemDraft>) => {
@@ -659,37 +705,89 @@ export default function BulkSignOut() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_220px_220px]">
-                      <Input
-                        value={item.line_label}
-                        onChange={(event) => updateEditorItem(item.id, { line_label: event.target.value })}
-                        placeholder="Line label / item name"
-                        maxLength={120}
-                      />
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/72">Search and add item</Label>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={item.line_label}
+                            onChange={(event) => updateEditorItem(item.id, { line_label: event.target.value })}
+                            onFocus={() => setActiveEditorSearchId(item.id)}
+                            onBlur={() => {
+                              window.setTimeout(() => {
+                                setActiveEditorSearchId((current) => (current === item.id ? null : current));
+                              }, 120);
+                            }}
+                            className="pl-10"
+                            placeholder="Search asset by name, tag, or serial number"
+                            maxLength={120}
+                          />
+                        </div>
 
-                      <Select value={item.division_id ?? "any"} onValueChange={(value) => updateEditorItem(item.id, { division_id: value === "any" ? null : value })}>
-                        <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any division</SelectItem>
-                          {divisions.map((division) => (
-                            <SelectItem key={division.id} value={division.id}>
-                              {division.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        {activeEditorSearchId === item.id && item.line_label.trim() && (
+                          <div className="max-h-64 overflow-y-auto rounded-[1.1rem] border border-primary/12 bg-card p-2">
+                            {getEditorSuggestions(item).length === 0 ? (
+                              <div className="px-3 py-4 text-sm text-muted-foreground">
+                                No matching assets found. You can still type your own group line name manually.
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {getEditorSuggestions(item).map((asset) => {
+                                  const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+                                  return (
+                                    <button
+                                      key={asset.id}
+                                      type="button"
+                                      onMouseDown={(event) => {
+                                        event.preventDefault();
+                                        assignTemplateAsset(item.id, asset);
+                                      }}
+                                      className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
+                                    >
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-display text-sm text-foreground glow-soft">{asset.name}</span>
+                                        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">{asset.code}</span>
+                                      </div>
+                                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                        {asset.serial_number && <span>Serial: {asset.serial_number}</span>}
+                                        {asset.division_id && <span>{divisionMap[asset.division_id] ?? "Division"}</span>}
+                                        {locationMap[effectiveLocationId] && <span>{locationMap[effectiveLocationId]}</span>}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
-                      <Select value={item.location_id ?? "any"} onValueChange={(value) => updateEditorItem(item.id, { location_id: value === "any" ? null : value })}>
-                        <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any location</SelectItem>
-                          {locations.map((location) => (
-                            <SelectItem key={location.id} value={location.id}>
-                              {location.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <Select value={item.division_id ?? "any"} onValueChange={(value) => updateEditorItem(item.id, { division_id: value === "any" ? null : value })}>
+                          <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any division</SelectItem>
+                            {divisions.map((division) => (
+                              <SelectItem key={division.id} value={division.id}>
+                                {division.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={item.location_id ?? "any"} onValueChange={(value) => updateEditorItem(item.id, { location_id: value === "any" ? null : value })}>
+                          <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any location</SelectItem>
+                            {locations.map((location) => (
+                              <SelectItem key={location.id} value={location.id}>
+                                {location.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <Textarea
