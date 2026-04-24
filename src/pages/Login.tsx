@@ -23,10 +23,12 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || "/";
+  const isResetRecovery = new URLSearchParams(location.search).get("reset") === "true";
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">(isResetRecovery ? "reset" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [isDecyphering, setIsDecyphering] = useState(false);
@@ -39,7 +41,25 @@ export default function Login() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!loading && session && !isDecyphering && !booting) {
+  useEffect(() => {
+    if (isResetRecovery) {
+      setMode("reset");
+    }
+  }, [isResetRecovery]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("reset");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (!loading && session && !isDecyphering && !booting && mode !== "reset") {
     return <Navigate to={isApproved || isAdmin ? from : "/approval-pending"} replace />;
   }
 
@@ -55,13 +75,50 @@ export default function Login() {
         displayName: mode === "signup" ? displayName : undefined,
       });
 
-      if (!parsed.success) {
+      if (mode !== "forgot" && mode !== "reset" && !parsed.success) {
         toast.error(parsed.error.errors[0].message);
         setBusy(false);
         return;
       }
 
-      if (mode === "signin") {
+      if (mode === "forgot") {
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail) {
+          toast.error("Enter your email address");
+          setBusy(false);
+          return;
+        }
+
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: `${window.location.origin}/login?reset=true`,
+        });
+        if (error) throw error;
+
+        toast.success("Password reset email sent.");
+        setMode("signin");
+      } else if (mode === "reset") {
+        if (!password) {
+          toast.error("Enter your new password");
+          setBusy(false);
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match");
+          setBusy(false);
+          return;
+        }
+
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+
+        toast.success("Password updated. Please sign in.");
+        await supabase.auth.signOut();
+        setPassword("");
+        setConfirmPassword("");
+        setMode("signin");
+        navigate("/login", { replace: true });
+      } else if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase(), password });
         if (error) throw error;
         setDecypherTarget(from);
@@ -129,13 +186,25 @@ export default function Login() {
         <section className="scanlines relative overflow-hidden rounded-[2rem] border border-primary/20 bg-background p-6 shadow-[var(--shadow-strong)] sm:p-8">
           <div className="absolute inset-x-0 top-0 h-px bg-primary/24" />
           <div className="mb-8">
-            <div className="app-kicker">{mode === "signin" ? "Welcome back" : "Create access"}</div>
+            <div className="app-kicker">
+              {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create access" : mode === "forgot" ? "Recover access" : "Reset password"}
+            </div>
             <h2 className="mt-2 font-display text-3xl text-foreground glow-soft">
-              {mode === "signin" ? "Login" : "Request a new account"}
+              {mode === "signin" ? "Login" : mode === "signup" ? "Request a new account" : mode === "forgot" ? "Forgot Password" : "Choose a new password"}
             </h2>
             {mode === "signup" && (
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 New accounts are created here and then approved by an administrator before full access is granted.
+              </p>
+            )}
+            {mode === "forgot" && (
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Enter your email address and we will send you a verification link to reset your password.
+              </p>
+            )}
+            {mode === "reset" && (
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Set a new password for your operator account.
               </p>
             )}
           </div>
@@ -148,56 +217,132 @@ export default function Login() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Email address</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="name@example.com"
-                maxLength={255}
-                autoComplete="email"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Password</Label>
-              <div className="relative">
+            {mode !== "reset" && (
+              <div className="space-y-2">
+                <Label htmlFor="email" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Email address</Label>
                 <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                  maxLength={100}
-                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                  className="pr-12"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="name@example.com"
+                  maxLength={255}
+                  autoComplete="email"
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-primary"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
               </div>
-            </div>
+            )}
+
+            {mode !== "forgot" && (
+              <div className="space-y-2">
+                <Label htmlFor="password" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                  {mode === "reset" ? "New password" : "Password"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder={mode === "reset" ? "Enter your new password" : "Enter your password"}
+                    maxLength={100}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    className="pr-12"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mode === "reset" && (
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                  Confirm password
+                </Label>
+                <Input
+                  id="confirm-password"
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Confirm your new password"
+                  maxLength={100}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+            )}
 
             <Button type="submit" disabled={busy} className="mt-3 w-full">
               <TerminalSquare size={16} />
-              {busy ? "Working..." : mode === "signin" ? "Sign in" : "Create account"}
+              {busy
+                ? "Working..."
+                : mode === "signin"
+                  ? "Sign in"
+                  : mode === "signup"
+                    ? "Create account"
+                    : mode === "forgot"
+                      ? "Send reset email"
+                      : "Update password"}
             </Button>
 
-            <button
-              type="button"
-              onClick={() => setMode((value) => (value === "signin" ? "signup" : "signin"))}
-              className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              {mode === "signin" ? "Create Oporator Access" : "Login Oporator Access"}
-            </button>
+            {mode === "signin" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMode("signup")}
+                  className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
+                >
+                  Create Oporator Access
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("forgot")}
+                  className="block w-full text-center text-sm font-medium text-primary/82 transition-colors hover:text-primary"
+                >
+                  Forgot Password
+                </button>
+              </>
+            )}
+
+            {mode === "signup" && (
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                Login Oporator Access
+              </button>
+            )}
+
+            {mode === "forgot" && (
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                Login Oporator Access
+              </button>
+            )}
+
+            {mode === "reset" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  navigate("/login", { replace: true });
+                }}
+                className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                Back to Login
+              </button>
+            )}
           </form>
         </section>
       </div>
