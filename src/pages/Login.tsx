@@ -19,7 +19,7 @@ const authSchema = z.object({
 });
 
 export default function Login() {
-  const { session, loading } = useAuth();
+  const { session, loading, isApproved, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || "/";
@@ -40,7 +40,7 @@ export default function Login() {
   }, []);
 
   if (!loading && session && !isDecyphering && !booting) {
-    return <Navigate to={from} replace />;
+    return <Navigate to={isApproved || isAdmin ? from : "/approval-pending"} replace />;
   }
 
   const onSubmit = async (event: FormEvent) => {

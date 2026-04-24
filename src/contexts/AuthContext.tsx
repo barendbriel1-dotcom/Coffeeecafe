@@ -24,16 +24,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadRoles = async (userId: string) => {
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const nextRoles = (data ?? []).map((row) => row.role as AppRole);
+    setRoles(nextRoles);
+    return nextRoles;
+  };
+
   useEffect(() => {
     // Set up listener FIRST
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
+        setLoading(true);
+        setRoles([]);
         // Defer DB call to avoid deadlock
-        setTimeout(() => loadRoles(newSession.user.id), 0);
+        setTimeout(() => {
+          loadRoles(newSession.user.id).finally(() => setLoading(false));
+        }, 0);
       } else {
         setRoles([]);
+        setLoading(false);
       }
     });
 
@@ -42,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(existing);
       setUser(existing?.user ?? null);
       if (existing?.user) {
+        setRoles([]);
         loadRoles(existing.user.id).finally(() => setLoading(false));
       } else {
         setLoading(false);
@@ -50,12 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => sub.subscription.unsubscribe();
   }, []);
-
-  const loadRoles = async (userId: string) => {
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    setRoles((data ?? []).map((r) => r.role as AppRole));
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);

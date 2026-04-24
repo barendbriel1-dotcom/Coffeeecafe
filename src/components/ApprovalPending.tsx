@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 
 import MatrixRain from "@/components/MatrixRain";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
 interface ApprovalPendingProps {
@@ -13,6 +14,16 @@ export default function ApprovalPending({
   allowSignOut = false,
   onSignOut,
 }: ApprovalPendingProps) {
+  const { session, loading, isApproved, isAdmin } = useAuth();
+
+  if (!loading && !session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!loading && session && (isApproved || isAdmin)) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
       <MatrixRain interactive className="opacity-100" />
