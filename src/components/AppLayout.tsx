@@ -249,7 +249,7 @@ export default function AppLayout() {
               <button
                 type="button"
                 onClick={() => setProfileOpen(true)}
-                className="hidden max-w-[220px] items-center truncate rounded-full border border-primary/12 bg-card/80 px-4 py-1.5 text-sm text-foreground transition-colors hover:border-primary/24 hover:bg-primary/10 md:inline-flex"
+                className="hidden max-w-[220px] items-center truncate rounded-full border border-primary/18 bg-card px-4 py-1.5 text-sm text-foreground shadow-[var(--shadow-soft)] transition-colors hover:border-primary/26 hover:bg-card md:inline-flex"
               >
                 <span className="truncate">{displayName}</span>
               </button>
