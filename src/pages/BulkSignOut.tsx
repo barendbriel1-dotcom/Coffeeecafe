@@ -332,12 +332,12 @@ export default function BulkSignOut() {
     const validItems = normalizedEditorItems.filter((item) => item.line_label);
 
     if (!trimmedName) {
-      toast.error("Packet name is required.");
+      toast.error("Group name is required.");
       return;
     }
 
     if (validItems.length === 0) {
-      toast.error("Add at least one packet line.");
+      toast.error("Add at least one group line.");
       return;
     }
 
@@ -383,7 +383,7 @@ export default function BulkSignOut() {
       toast.success(packetId === activePacketId ? "Group updated." : "Group created.");
       await load(packetId);
     } catch (error: any) {
-      toast.error(error?.message ?? "Failed to save packet.");
+      toast.error(error?.message ?? "Failed to save group.");
     } finally {
       setSavingPacket(false);
     }
@@ -391,7 +391,7 @@ export default function BulkSignOut() {
 
   const deletePacket = async () => {
     if (!activeSavedPacket) return;
-    const confirmed = window.confirm(`Delete packet "${activeSavedPacket.name}"?`);
+    const confirmed = window.confirm(`Delete group "${activeSavedPacket.name}"?`);
     if (!confirmed) return;
 
     setDeletingPacket(true);
@@ -399,10 +399,10 @@ export default function BulkSignOut() {
       const { error } = await supabase.from("bulk_packets").delete().eq("id", activeSavedPacket.id);
       if (error) throw error;
 
-      toast.success("Packet deleted.");
+      toast.success("Group deleted.");
       await load(null);
     } catch (error: any) {
-      toast.error(error?.message ?? "Failed to delete packet.");
+      toast.error(error?.message ?? "Failed to delete group.");
     } finally {
       setDeletingPacket(false);
     }
@@ -417,35 +417,35 @@ export default function BulkSignOut() {
 
   const submitBulkSignout = async () => {
     if (!user || !activePacketForSignout) {
-      toast.error("Choose a saved packet first.");
+      toast.error("Choose a saved group first.");
       return;
     }
 
     if (packetDirty) {
-      toast.error("Save packet changes before signing it out.");
+      toast.error("Save group changes before signing it out.");
       return;
     }
 
     if (!recipientId) {
-      toast.error("Choose the user receiving this packet.");
+      toast.error("Choose the user receiving this group.");
       return;
     }
 
     const packetItems = activePacketForSignout.items;
     if (packetItems.length === 0) {
-      toast.error("This packet has no saved lines.");
+      toast.error("This group has no saved lines.");
       return;
     }
 
     const unresolvedItems = packetItems.filter((item) => !assignments[item.id]);
     if (unresolvedItems.length > 0) {
-      toast.error("Assign an asset to every packet line before signout.");
+      toast.error("Assign an asset to every group line before signout.");
       return;
     }
 
     const assignedAssetIds = packetItems.map((item) => assignments[item.id]);
     if (new Set(assignedAssetIds).size !== assignedAssetIds.length) {
-      toast.error("Each packet line must use a different asset.");
+      toast.error("Each group line must use a different asset.");
       return;
     }
 
@@ -486,7 +486,7 @@ export default function BulkSignOut() {
           return next;
         });
 
-        toast.error("One or more assets are no longer available. Replace them before completing the packet.");
+        toast.error("One or more assets are no longer available. Replace them before completing the group.");
         return;
       }
 
@@ -626,11 +626,11 @@ export default function BulkSignOut() {
 
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group name</Label>
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group Name</Label>
                 <Input value={editorName} onChange={(event) => setEditorName(event.target.value)} placeholder="Camera 5 Wireless Kit" maxLength={120} />
               </div>
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group notes</Label>
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group Notes</Label>
                 <Input value={editorNotes} onChange={(event) => setEditorNotes(event.target.value)} placeholder="Optional group notes" maxLength={160} />
               </div>
             </div>
@@ -821,7 +821,7 @@ export default function BulkSignOut() {
 
                     {selectedAssetUnavailable && (
                       <div className="text-sm text-amber-200">
-                        This assigned asset is no longer available. Replace it before completing the packet.
+                        This assigned asset is no longer available. Replace it before completing the group.
                       </div>
                     )}
                   </div>
