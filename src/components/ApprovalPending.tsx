@@ -25,7 +25,7 @@ export default function ApprovalPending({
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
       <MatrixRain interactive className="opacity-95" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.1),transparent_24%)]" />
 
