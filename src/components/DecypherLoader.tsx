@@ -50,13 +50,23 @@ export default function DecypherLoader({ isReady, onComplete }: { isReady: boole
         phase === "fade" ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <MatrixRain />
-      
-      {phase !== "raining" && (
-        <div className="font-display text-2xl md:text-4xl text-primary glow tracking-widest z-10 bg-background/60 p-4 rounded backdrop-blur-sm">
-          {text}
+      <MatrixRain className="opacity-95" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.1),transparent_24%)]" />
+
+      <div className="z-10 rounded-[1.8rem] border border-primary/20 bg-background/58 px-6 py-5 text-center shadow-[var(--shadow-strong)] backdrop-blur-sm">
+        <div className="font-display text-2xl text-primary glow tracking-[0.24em] uppercase md:text-4xl">
+          {phase === "raining" ? (
+            <>
+              DECYPHERING CODE<span className="cursor-blink"></span>
+            </>
+          ) : (
+            text
+          )}
         </div>
-      )}
+        <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.32em] text-primary/45">
+          Initializing access shell
+        </div>
+      </div>
     </div>
   );
 }
