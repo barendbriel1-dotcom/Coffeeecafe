@@ -213,8 +213,8 @@ export default function Assets() {
     }
   };
 
-  const csvHeader = "Name,Division,Serial Number,Location,Description";
-  const csvSample = `${csvHeader}\nPortable Speaker,Assets,SN12345,Centurion,Sunday service speaker`;
+  const csvHeader = "Name,Tag,Status,Location,Division,Serial Number,Description";
+  const csvSample = `${csvHeader}\nPortable Speaker,,Available,Centurion,Assets,SN12345,Sunday service speaker`;
 
   const downloadTemplate = () => {
     const blob = new Blob([csvSample], { type: "text/csv" });
@@ -331,16 +331,70 @@ export default function Assets() {
       defaultItemTypeId = createdDefault.id;
     }
 
+    const missingDivisionNames = Array.from(
+      new Set(
+        previewRows
+          .map((row) => (row.division ?? "").trim())
+          .filter(Boolean)
+          .filter((divisionName) => !divisionByName.has(divisionName.toLowerCase())),
+      ),
+    );
+
+    if (missingDivisionNames.length > 0) {
+      const existingCodes = new Set(divisions.map((division) => division.code ?? ""));
+      const newDivisionRows = missingDivisionNames.map((divisionName) => {
+        const code = generateNameCode(divisionName, existingCodes, 4);
+        existingCodes.add(code);
+        return { name: divisionName, code };
+      });
+
+      const { data: createdDivisions, error: createDivisionError } = await supabase
+        .from("divisions")
+        .insert(newDivisionRows)
+        .select("id, code, name");
+
+      if (createDivisionError) {
+        setImporting(false);
+        toast.error(createDivisionError.message);
+        return;
+      }
+
+      (createdDivisions ?? []).forEach((division) => {
+        divisionByName.set(division.name.toLowerCase(), division);
+      });
+
+      setDivisions((current) =>
+        [...current, ...((createdDivisions ?? []) as DivisionRow[])].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+    }
+
     previewRows.forEach((row, index) => {
       const lineNo = index + 2;
       const assetName = row.name || row.item_name || row.description || "Unknown Asset";
       const location = locationByName.get((row.location ?? "").toLowerCase());
       const division = divisionByName.get((row.division ?? "").toLowerCase());
+      const normalizedStatus = normalizeAssetStatus(
+        ((row.status ?? "").trim().toLowerCase() || "available").replace(/[\s-]+/g, "_"),
+      );
+      const requestedCode = (row.tag ?? row.asset_code ?? "").trim().toUpperCase();
 
       if (!location || !division) {
         errors.push(`Line ${lineNo}: location or division could not be matched.`);
         return;
       }
+
+      if (normalizedStatus === "signed_out") {
+        errors.push(`Line ${lineNo}: signed out assets must go through the sign out workflow.`);
+        return;
+      }
+
+      if (requestedCode && usedCodes.has(requestedCode)) {
+        errors.push(`Line ${lineNo}: tag ${requestedCode} already exists.`);
+        return;
+      }
+
+      const finalCode = requestedCode || generateAssetTag(division.name, assetName, usedCodes);
+      usedCodes.add(finalCode);
 
       validRows.push({
         name: assetName.slice(0, 120),
@@ -350,8 +404,8 @@ export default function Assets() {
         division_id: division.id,
         item_type_id: defaultItemTypeId,
         current_location_id: location.id,
-        code: row.tag || row.asset_code || generateAssetTag(division.name, assetName, usedCodes),
-        status: "available",
+        code: finalCode,
+        status: normalizedStatus,
       });
     });
 
@@ -505,7 +559,7 @@ export default function Assets() {
                   <div className="rounded-[1.35rem] border border-primary/12 bg-secondary/80 p-4 text-sm text-muted-foreground">
                     <div className="app-kicker">Expected columns</div>
                     <div className="mt-2">
-                      Name, Division, Serial Number, Location, Description
+                      Name, Tag, Status, Location, Division, Serial Number, Description
                     </div>
                   </div>
 
@@ -546,6 +600,8 @@ export default function Assets() {
                           <thead className="bg-primary/6 text-muted-foreground">
                             <tr>
                               <th className="px-2 py-2 text-left">Name</th>
+                              <th className="px-2 py-2 text-left">Tag</th>
+                              <th className="px-2 py-2 text-left">Status</th>
                               <th className="px-2 py-2 text-left">Location</th>
                               <th className="px-2 py-2 text-left">Division</th>
                               <th className="px-2 py-2 text-left">Serial</th>
@@ -555,6 +611,8 @@ export default function Assets() {
                             {previewRows.slice(0, 50).map((row, index) => (
                               <tr key={`${row.name}-${index}`} className="border-t border-primary/10">
                                 <td className="px-2 py-2 text-foreground/80">{row.name || row.description}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.tag || row.asset_code || "Auto"}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.status || "Available"}</td>
                                 <td className="px-2 py-2 text-foreground/80">{row.location}</td>
                                 <td className="px-2 py-2 text-foreground/80">{row.division}</td>
                                 <td className="px-2 py-2 text-foreground/80">{row.serial_number}</td>
