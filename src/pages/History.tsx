@@ -117,11 +117,7 @@ export default function History() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <div className="app-kicker">Asset history</div>
-          <h1 className="mt-2 font-display text-3xl text-foreground glow-soft">Track sign-outs, sign-ins, and admin decisions.</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            History now keeps the admin who processed the action and the user who had the asset.
-          </p>
+          <h1 className="font-display text-3xl text-foreground glow-soft">History</h1>
         </div>
 
         <Button onClick={exportCSV} variant="outline">

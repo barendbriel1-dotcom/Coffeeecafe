@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -274,13 +273,9 @@ export default function AppLayout() {
       </div>
 
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        <DialogContent className="rounded-[1.8rem] border-primary/18 bg-background/96 shadow-[var(--shadow-strong)]">
+        <DialogContent className="rounded-[1.8rem] border-primary/18 bg-card shadow-[var(--shadow-strong)]">
           <DialogHeader>
-            <div className="app-kicker">Profile</div>
-            <DialogTitle className="font-display text-3xl text-foreground glow-soft">Your operator profile</DialogTitle>
-            <DialogDescription className="leading-6">
-              Update the details attached to your signed-in account.
-            </DialogDescription>
+            <DialogTitle className="font-display text-3xl text-foreground glow-soft">Profile</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleProfileSave} className="space-y-4">

@@ -196,11 +196,7 @@ export default function SignIn() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <div className="app-kicker">Asset sign in</div>
-        <h1 className="mt-2 font-display text-3xl text-foreground glow-soft">Sign assets back in and approve their next status.</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Every sign-in is completed by an admin, records the user who had the asset, and assigns the item back to a chosen location.
-        </p>
+        <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
       </div>
 
       {loading ? (

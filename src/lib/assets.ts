@@ -15,6 +15,8 @@ export const LOCATION_NAMES = [
   "Traveling",
 ] as const;
 
+export const DEFAULT_ASSET_TYPE_NAME = "General";
+
 export const STATUS_LABELS: Record<string, string> = {
   available: "Available",
   signed_out: "Signed Out",

@@ -8,14 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { generateNameCode, generateSingleCharacterCode } from "@/lib/assets";
+import { generateNameCode } from "@/lib/assets";
 
 type Role = "admin" | "staff" | "volunteer";
 
 interface Profile { id: string; display_name: string; email: string | null; }
 interface UserRole { user_id: string; role: Role; }
 interface Loc { id: string; code: string; name: string; }
-interface Department { id: string; code: string; name: string; }
 interface Division { id: string; code: string | null; name: string; }
 
 export default function Admin() {
@@ -23,25 +22,21 @@ export default function Admin() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [locs, setLocs] = useState<Loc[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [newLocCode, setNewLocCode] = useState("");
   const [newLocName, setNewLocName] = useState("");
-  const [newDepartmentName, setNewDepartmentName] = useState("");
   const [newDivisionName, setNewDivisionName] = useState("");
 
   const load = async () => {
-    const [{ data: p }, { data: r }, { data: l }, { data: departmentRows }, { data: divisionRows }] = await Promise.all([
+    const [{ data: p }, { data: r }, { data: l }, { data: divisionRows }] = await Promise.all([
       supabase.from("profiles").select("id, display_name, email").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
       supabase.from("locations").select("*").order("name"),
-      supabase.from("item_types").select("*").order("name"),
       supabase.from("divisions").select("*").order("name"),
     ]);
     setProfiles(p ?? []);
     setUserRoles((r ?? []) as UserRole[]);
     setLocs(l ?? []);
-    setDepartments((departmentRows ?? []) as Department[]);
     setDivisions((divisionRows ?? []) as Division[]);
   };
 
@@ -74,22 +69,6 @@ export default function Admin() {
     setNewLocCode("");
     setNewLocName("");
     load();
-  };
-
-  const addDepartment = async () => {
-    const trimmedName = newDepartmentName.trim();
-    if (!trimmedName) return toast.error("Department name required");
-
-    try {
-      const code = generateSingleCharacterCode(trimmedName, departments.map((department) => department.code));
-      const { error } = await supabase.from("item_types").insert({ code, name: trimmedName });
-      if (error) throw error;
-      toast.success("Department added");
-      setNewDepartmentName("");
-      load();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to add department");
-    }
   };
 
   const addDivision = async () => {
@@ -125,7 +104,6 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="users" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Users & Roles</TabsTrigger>
           <TabsTrigger value="locs" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Locations</TabsTrigger>
-          <TabsTrigger value="departments" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Departments</TabsTrigger>
           <TabsTrigger value="divisions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Divisions</TabsTrigger>
         </TabsList>
 
@@ -217,29 +195,6 @@ export default function Admin() {
               <Card key={location.id} className="bg-card/30 border-primary/20 p-3 flex items-center gap-3">
                 <span className="font-display text-2xl text-primary glow w-10 text-center">{location.code}</span>
                 <span className="text-sm">{location.name}</span>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="departments" className="space-y-3 mt-4">
-          <Card className="bg-card/40 border-primary/30 p-4 space-y-2">
-            <h3 className="font-display text-primary text-sm uppercase">Add Department</h3>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Label>Name</Label>
-                <Input value={newDepartmentName} onChange={(e) => setNewDepartmentName(e.target.value)} maxLength={80} />
-              </div>
-              <div className="self-end">
-                <Button onClick={addDepartment} className="bg-primary text-primary-foreground">Add</Button>
-              </div>
-            </div>
-          </Card>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {departments.map((department) => (
-              <Card key={department.id} className="bg-card/30 border-primary/20 p-3 flex items-center gap-3">
-                <span className="font-display text-2xl text-primary glow w-10 text-center">{department.code}</span>
-                <span className="text-sm">{department.name}</span>
               </Card>
             ))}
           </div>
