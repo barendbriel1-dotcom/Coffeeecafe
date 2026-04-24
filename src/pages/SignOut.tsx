@@ -6,13 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
+import {
+  buildSearchBlob,
+  getAssetStatusLabel,
+  getStatusBadgeClass,
+  groupAssetsByName,
+  LOCATION_NAMES,
+  normalizeAssetStatus,
+} from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface Asset {
@@ -23,6 +31,7 @@ interface Asset {
   department_id: string;
   current_location_id: string | null;
   division_id: string | null;
+  serial_number: string | null;
 }
 
 interface Loc {
@@ -47,10 +56,14 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [filterStatus, setFilterStatus] = useState("available");
   const [filterLocation, setFilterLocation] = useState("all");
   const [filterDivision, setFilterDivision] = useState("all");
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 
   const load = async () => {
     const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
-      supabase.from("assets").select("id, code, name, status, department_id, current_location_id, division_id").order("name"),
+      supabase
+        .from("assets")
+        .select("id, code, name, status, department_id, current_location_id, division_id, serial_number")
+        .order("name"),
       supabase.from("locations").select("id, name"),
       supabase.from("divisions").select("id, name"),
     ]);
@@ -74,18 +87,46 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
 
-  const filteredAssets = available.filter((asset) => {
-    const normalizedStatus = normalizeAssetStatus(asset.status);
-    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
-    const locationName = locationMap[effectiveLocationId] ?? "";
-    const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-    const searchBlob = buildSearchBlob([asset.code, asset.name, locationName, divisionName, getAssetStatusLabel(normalizedStatus)]);
-    const matchesQuery = !q.trim() || searchBlob.includes(q.trim().toLowerCase());
-    const matchesStatus = filterStatus === "all" || normalizedStatus === filterStatus;
-    const matchesLocation = filterLocation === "all" || effectiveLocationId === filterLocation;
-    const matchesDivision = filterDivision === "all" || asset.division_id === filterDivision;
-    return matchesQuery && matchesStatus && matchesLocation && matchesDivision;
-  });
+  const groupedAssets = useMemo(
+    () =>
+      groupAssetsByName(available, (asset) => {
+        const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+        return locationMap[effectiveLocationId] ?? "";
+      }),
+    [available, locationMap],
+  );
+
+  const filteredGroups = useMemo(() => {
+    const normalizedQuery = q.trim().toLowerCase();
+
+    return groupedAssets.filter((group) =>
+      group.items.some((asset) => {
+        const normalizedStatus = normalizeAssetStatus(asset.status);
+        const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+        const locationName = locationMap[effectiveLocationId] ?? "";
+        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+        const searchBlob = buildSearchBlob([
+          group.name,
+          asset.code,
+          asset.serial_number,
+          locationName,
+          divisionName,
+          getAssetStatusLabel(normalizedStatus),
+        ]);
+
+        const matchesQuery = !normalizedQuery || searchBlob.includes(normalizedQuery);
+        const matchesStatus = filterStatus === "all" || normalizedStatus === filterStatus;
+        const matchesLocation = filterLocation === "all" || effectiveLocationId === filterLocation;
+        const matchesDivision = filterDivision === "all" || asset.division_id === filterDivision;
+        return matchesQuery && matchesStatus && matchesLocation && matchesDivision;
+      }),
+    );
+  }, [divisionMap, filterDivision, filterLocation, filterStatus, groupedAssets, locationMap, q]);
+
+  const activeGroup = useMemo(
+    () => groupedAssets.find((group) => group.key === activeGroupKey) ?? null,
+    [activeGroupKey, groupedAssets],
+  );
 
   const toggle = (id: string) => {
     const asset = available.find((entry) => entry.id === id);
@@ -160,6 +201,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       toast.success(`Signed out ${ids.length} asset(s). Location moved to Traveling.`);
       setSelected(new Set());
       setNotes("");
+      setActiveGroupKey(null);
       load();
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to sign out the selected assets.");
@@ -175,7 +217,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       <Card className="space-y-5 bg-card/40 p-4 sm:p-5">
         <div className="relative">
           <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
-          <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by tag, name, division, location..." className="pl-9" />
+          <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by item name, tag, serial, division, location..." className="pl-9" />
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -217,53 +259,50 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
         <div className="space-y-4 rounded-[1.5rem] border border-primary/12 bg-card p-4">
           <div className="flex items-center justify-between border-b border-primary/10 pb-3">
-            <h2 className="font-display text-sm uppercase tracking-[0.2em] text-primary">Assets</h2>
+            <h2 className="font-display text-sm uppercase tracking-[0.2em] text-primary">Items</h2>
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              {filteredAssets.length} item{filteredAssets.length === 1 ? "" : "s"} found
+              {filteredGroups.length} group{filteredGroups.length === 1 ? "" : "s"} found | {selected.size} selected
             </div>
           </div>
 
           <div className="grid max-h-[420px] grid-cols-1 gap-2 overflow-auto pr-1 md:grid-cols-2">
-            {filteredAssets.length === 0 && (
+            {filteredGroups.length === 0 && (
               <div className="col-span-full py-12 text-center font-mono text-sm text-muted-foreground/60">
-                No matching assets were found.
+                No matching items were found.
               </div>
             )}
 
-            {filteredAssets.map((asset) => (
-              <label
-                key={asset.id}
-                className={cn(
-                  "relative flex cursor-pointer items-center gap-3 rounded-[1.2rem] border p-3 transition-all",
-                  selected.has(asset.id)
-                    ? "border-primary/35 bg-primary/10 shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
-                    : normalizeAssetStatus(asset.status) === "available"
-                      ? "border-primary/10 bg-primary/5 hover:border-primary/24 hover:bg-primary/8"
-                      : "cursor-not-allowed border-primary/10 bg-card/90 opacity-60",
-                )}
-              >
-                <Checkbox
-                  checked={selected.has(asset.id)}
-                  disabled={normalizeAssetStatus(asset.status) !== "available"}
-                  onCheckedChange={() => toggle(asset.id)}
-                />
+            {filteredGroups.map((group) => {
+              const selectedCount = group.items.filter((item) => selected.has(item.id)).length;
 
-                <div className="min-w-0 flex-1">
-                  <div className={cn("font-display text-sm tracking-[0.14em]", selected.has(asset.id) ? "text-primary glow-soft" : "text-foreground")}>
-                    {asset.code}
-                  </div>
-                  <div className="truncate text-sm text-foreground/85">{asset.name}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(asset.status))}>
-                      {getAssetStatusLabel(asset.status)}
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => setActiveGroupKey(group.key)}
+                  className={cn(
+                    "rounded-[1.2rem] border p-4 text-left transition-all",
+                    selectedCount > 0
+                      ? "border-primary/30 bg-primary/10 shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
+                      : "border-primary/10 bg-primary/5 hover:border-primary/24 hover:bg-primary/8",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-display text-base text-foreground glow-soft">{group.name}</div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        <span>{group.totalUnits} total</span>
+                        <span>{group.availableUnits} available</span>
+                        <span>{group.locationSummary}</span>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", selectedCount > 0 ? getStatusBadgeClass("available") : "border-primary/12 bg-card text-muted-foreground")}>
+                      {selectedCount > 0 ? `${selectedCount} selected` : "Open"}
                     </Badge>
-                    <span className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                      {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"} | {locationMap[asset.current_location_id ?? asset.department_id] ?? "Location"}
-                    </span>
                   </div>
-                </div>
-              </label>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -276,6 +315,82 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
           {busy ? "Processing..." : `Confirm sign out (${selected.size})`}
         </Button>
       </Card>
+
+      <Dialog open={!!activeGroup} onOpenChange={(open) => !open && setActiveGroupKey(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">
+              {activeGroup?.name ?? "Item instances"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {activeGroup && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total units</div>
+                  <div className="mt-1 font-display text-xl text-foreground glow-soft">{activeGroup.totalUnits}</div>
+                </div>
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Available units</div>
+                  <div className="mt-1 font-display text-xl text-primary glow-soft">{activeGroup.availableUnits}</div>
+                </div>
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Selected</div>
+                  <div className="mt-1 font-display text-xl text-foreground glow-soft">
+                    {activeGroup.items.filter((item) => selected.has(item.id)).length}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {activeGroup.items.map((asset) => {
+                  const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+                  const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division";
+                  const locationName = locationMap[effectiveLocationId] ?? "Location";
+                  const normalizedStatus = normalizeAssetStatus(asset.status);
+                  const disabled = normalizedStatus !== "available";
+
+                  return (
+                    <label
+                      key={asset.id}
+                      className={cn(
+                        "flex items-start gap-3 rounded-[1.2rem] border p-4 transition-all",
+                        selected.has(asset.id)
+                          ? "border-primary/30 bg-primary/10"
+                          : disabled
+                            ? "cursor-not-allowed border-primary/10 bg-card opacity-70"
+                            : "cursor-pointer border-primary/10 bg-background hover:border-primary/24 hover:bg-primary/8",
+                      )}
+                    >
+                      <Checkbox
+                        checked={selected.has(asset.id)}
+                        disabled={disabled}
+                        onCheckedChange={() => toggle(asset.id)}
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="font-display text-base text-foreground glow-soft">{asset.code}</div>
+                          <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                            {getAssetStatusLabel(normalizedStatus)}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 text-sm text-foreground/85">{asset.name}</div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <span>Serial: {asset.serial_number || "-"}</span>
+                          <span>{divisionName}</span>
+                          <span>{locationName}</span>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

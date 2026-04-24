@@ -61,6 +61,79 @@ export function buildSearchBlob(parts: Array<string | null | undefined>) {
     .toLowerCase();
 }
 
+export interface GroupedAsset<T> {
+  key: string;
+  name: string;
+  items: T[];
+  totalUnits: number;
+  availableUnits: number;
+  locationSummary: string;
+}
+
+export function normalizeAssetGroupKey(name?: string | null) {
+  return (name ?? "").trim().toLowerCase();
+}
+
+export function summarizeLocationNames(names: Array<string | null | undefined>, maxVisible = 2) {
+  const uniqueNames = Array.from(
+    new Set(
+      names
+        .map((name) => (name ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (uniqueNames.length === 0) return "-";
+  if (uniqueNames.length <= maxVisible) return uniqueNames.join(" | ");
+  return `${uniqueNames.slice(0, maxVisible).join(" | ")} +${uniqueNames.length - maxVisible}`;
+}
+
+export function groupAssetsByName<T extends { name: string; status: string }>(
+  items: T[],
+  getLocationName?: (item: T) => string | null | undefined,
+) {
+  const grouped = new Map<string, GroupedAsset<T>>();
+
+  for (const item of items) {
+    const key = normalizeAssetGroupKey(item.name);
+    const existing = grouped.get(key);
+
+    if (existing) {
+      existing.items.push(item);
+      existing.totalUnits += 1;
+      if (normalizeAssetStatus(item.status) === "available") {
+        existing.availableUnits += 1;
+      }
+      existing.locationSummary = summarizeLocationNames(
+        existing.items.map((entry) => (getLocationName ? getLocationName(entry) : null)),
+      );
+      continue;
+    }
+
+    grouped.set(key, {
+      key,
+      name: item.name.trim(),
+      items: [item],
+      totalUnits: 1,
+      availableUnits: normalizeAssetStatus(item.status) === "available" ? 1 : 0,
+      locationSummary: summarizeLocationNames([getLocationName ? getLocationName(item) : null]),
+    });
+  }
+
+  return Array.from(grouped.values())
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((a, b) => {
+        const nameCompare = (a.name ?? "").localeCompare(b.name ?? "");
+        if (nameCompare !== 0) return nameCompare;
+        return buildSearchBlob([(a as { code?: string }).code]).localeCompare(
+          buildSearchBlob([(b as { code?: string }).code]),
+        );
+      }),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function getTagPrefix(divisionName?: string | null, assetName?: string | null) {
   const divisionChar = firstTagCharacter(divisionName);
   const assetChar = firstTagCharacter(assetName);

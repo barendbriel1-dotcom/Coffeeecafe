@@ -5,13 +5,14 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
+import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, groupAssetsByName, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface BulkPacketRow {
@@ -106,6 +107,7 @@ export default function BulkSignOut() {
   const [editorNotes, setEditorNotes] = useState("");
   const [editorItems, setEditorItems] = useState<BulkPacketItemDraft[]>([EMPTY_ITEM()]);
   const [activeEditorSearchId, setActiveEditorSearchId] = useState<string | null>(null);
+  const [activeAssignmentLineId, setActiveAssignmentLineId] = useState<string | null>(null);
 
   const [recipientId, setRecipientId] = useState("");
   const [signoutNotes, setSignoutNotes] = useState("");
@@ -233,6 +235,15 @@ export default function BulkSignOut() {
     [assets],
   );
 
+  const groupedAssets = useMemo(
+    () =>
+      groupAssetsByName(assets, (asset) => {
+        const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+        return locationMap[effectiveLocationId] ?? "";
+      }),
+    [assets, locationMap],
+  );
+
   const normalizedEditorItems = useMemo(
     () =>
       editorItems.map((item, index) => ({
@@ -275,27 +286,26 @@ export default function BulkSignOut() {
   const activePacketForSignout = activeSavedPacket;
 
   const candidateAssetsForLine = (item: BulkPacketItemDraft) => {
-    const lineLabel = item.line_label.trim().toLowerCase();
-    const assignedElsewhere = new Set(
-      Object.entries(assignments)
-        .filter(([lineId, assetId]) => lineId !== item.id && assetId)
-        .map(([, assetId]) => assetId),
-    );
+    const normalizedLineLabel = item.line_label.trim().toLowerCase();
+    if (!normalizedLineLabel) return [];
 
-    return [...availableAssets]
-      .filter((asset) => !assignedElsewhere.has(asset.id))
+    const matchingByName = assets.filter((asset) => asset.name.trim().toLowerCase() === normalizedLineLabel);
+    const basePool =
+      normalizedLineLabel && matchingByName.length > 0
+        ? matchingByName
+        : assets.filter((asset) => buildSearchBlob([asset.name, asset.code, asset.serial_number]).includes(normalizedLineLabel));
+
+    return [...basePool]
       .filter((asset) => (item.division_id ? asset.division_id === item.division_id : true))
       .filter((asset) => {
         const effectiveLocationId = asset.current_location_id ?? asset.department_id;
         return item.location_id ? effectiveLocationId === item.location_id : true;
       })
       .sort((a, b) => {
-        const aBlob = buildSearchBlob([a.code, a.name]);
-        const bBlob = buildSearchBlob([b.code, b.name]);
-        const aMatch = lineLabel && aBlob.includes(lineLabel) ? 0 : 1;
-        const bMatch = lineLabel && bBlob.includes(lineLabel) ? 0 : 1;
-        if (aMatch !== bMatch) return aMatch - bMatch;
-        return a.name.localeCompare(b.name);
+        const aAvailable = normalizeAssetStatus(a.status) === "available" ? 0 : 1;
+        const bAvailable = normalizeAssetStatus(b.status) === "available" ? 0 : 1;
+        if (aAvailable !== bAvailable) return aAvailable - bAvailable;
+        return a.code.localeCompare(b.code);
       });
   };
 
@@ -309,39 +319,70 @@ export default function BulkSignOut() {
 
     const normalizedQuery = buildSearchBlob([query]);
 
-    return [...availableAssets]
-      .filter((asset) => {
-        const locationName = asset.current_location_id ? locationMap[asset.current_location_id] ?? "" : "";
-        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-        const searchBlob = buildSearchBlob([
-          asset.name,
-          asset.code,
-          asset.serial_number,
-          asset.description,
-          locationName,
-          divisionName,
-        ]);
-        return searchBlob.includes(normalizedQuery);
-      })
+    return groupedAssets
+      .filter((group) =>
+        group.items.some((asset) => {
+          const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+          const locationName = locationMap[effectiveLocationId] ?? "";
+          const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+          const searchBlob = buildSearchBlob([
+            group.name,
+            asset.name,
+            asset.code,
+            asset.serial_number,
+            asset.description,
+            locationName,
+            divisionName,
+          ]);
+          return searchBlob.includes(normalizedQuery);
+        }),
+      )
       .sort((a, b) => {
-        const aExact = a.name.toLowerCase() === query.toLowerCase() || a.code.toLowerCase() === query.toLowerCase() ? 0 : 1;
-        const bExact = b.name.toLowerCase() === query.toLowerCase() || b.code.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        const aExact = a.name.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        const bExact = b.name.toLowerCase() === query.toLowerCase() ? 0 : 1;
         if (aExact !== bExact) return aExact - bExact;
         return a.name.localeCompare(b.name);
       })
       .slice(0, 8);
   };
 
-  const assignTemplateAsset = (itemId: string, asset: Asset) => {
-    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+  const assignTemplateAssetGroup = (itemId: string, groupName: string) => {
+    const matchingGroup = groupedAssets.find((group) => group.name.trim().toLowerCase() === groupName.trim().toLowerCase());
+    const divisionIds = Array.from(new Set((matchingGroup?.items ?? []).map((asset) => asset.division_id).filter(Boolean)));
+    const locationIds = Array.from(
+      new Set(
+        (matchingGroup?.items ?? [])
+          .map((asset) => asset.current_location_id ?? asset.department_id)
+          .filter(Boolean),
+      ),
+    );
+
     updateEditorItem(itemId, {
-      line_label: asset.name,
-      division_id: asset.division_id ?? null,
-      location_id: locationMap[effectiveLocationId] ? effectiveLocationId : null,
-      notes: "",
+      line_label: groupName,
+      division_id: divisionIds.length === 1 ? divisionIds[0] ?? null : null,
+      location_id: locationIds.length === 1 ? locationIds[0] ?? null : null,
     });
     setActiveEditorSearchId(null);
   };
+
+  const activeAssignmentLine = useMemo(
+    () => activePacketForSignout?.items.find((item) => item.id === activeAssignmentLineId) ?? null,
+    [activeAssignmentLineId, activePacketForSignout],
+  );
+
+  const assignmentCandidates = activeAssignmentLine ? candidateAssetsForLine(activeAssignmentLine) : [];
+
+  const activeAssignedAssetId = activeAssignmentLine ? assignments[activeAssignmentLine.id] ?? "" : "";
+
+  const assignedElsewhereIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(assignments)
+          .filter(([lineId, assetId]) => lineId !== activeAssignmentLineId && assetId)
+          .map(([, assetId]) => assetId),
+      ),
+    [assignments, activeAssignmentLineId],
+  );
 
   const updateEditorItem = (id: string, patch: Partial<BulkPacketItemDraft>) => {
     setEditorItems((current) =>
@@ -733,26 +774,26 @@ export default function BulkSignOut() {
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                {getEditorSuggestions(item).map((asset) => {
-                                  const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+                                {getEditorSuggestions(item).map((group) => {
                                   return (
                                     <button
-                                      key={asset.id}
+                                      key={group.key}
                                       type="button"
                                       onMouseDown={(event) => {
                                         event.preventDefault();
-                                        assignTemplateAsset(item.id, asset);
+                                        assignTemplateAssetGroup(item.id, group.name);
                                       }}
                                       className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
                                     >
                                       <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-display text-sm text-foreground glow-soft">{asset.name}</span>
-                                        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">{asset.code}</span>
+                                        <span className="font-display text-sm text-foreground glow-soft">{group.name}</span>
+                                        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">
+                                          {group.totalUnits} unit{group.totalUnits === 1 ? "" : "s"}
+                                        </span>
                                       </div>
                                       <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                        {asset.serial_number && <span>Serial: {asset.serial_number}</span>}
-                                        {asset.division_id && <span>{divisionMap[asset.division_id] ?? "Division"}</span>}
-                                        {locationMap[effectiveLocationId] && <span>{locationMap[effectiveLocationId]}</span>}
+                                        <span>{group.availableUnits} available</span>
+                                        <span>{group.locationSummary}</span>
                                       </div>
                                     </button>
                                   );
@@ -860,7 +901,9 @@ export default function BulkSignOut() {
                 const selectedAssetUnavailable = Boolean(
                   selectedAsset && normalizeAssetStatus(selectedAsset.status) !== "available",
                 );
-                const candidates = candidateAssetsForLine(item);
+                const selectedBlockedByOtherLine =
+                  selectedAssetId !== "" &&
+                  Object.entries(assignments).some(([lineId, assetId]) => lineId !== item.id && assetId === selectedAssetId);
 
                 return (
                   <div
@@ -897,29 +940,30 @@ export default function BulkSignOut() {
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                      <Select value={selectedAssetId || "unassigned"} onValueChange={(value) => updateAssignment(item.id, value)}>
-                        <SelectTrigger><SelectValue placeholder="Choose asset for this line" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {candidates.map((asset) => (
-                            <SelectItem key={asset.id} value={asset.id}>
-                              {asset.code} | {asset.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="justify-start border-primary/12 bg-background text-left text-foreground hover:bg-primary/8"
+                        onClick={() => setActiveAssignmentLineId(item.id)}
+                      >
+                        {selectedAsset ? `Choose item | ${selectedAsset.code}${selectedAsset.serial_number ? ` | ${selectedAsset.serial_number}` : ""}` : "Choose exact item"}
+                      </Button>
 
                       {selectedAsset && (
                         <div className="rounded-[1.1rem] border border-primary/12 bg-background/90 px-3 py-2 text-sm">
                           <div className="font-display text-foreground glow-soft">{selectedAsset.code}</div>
-                          <div className="truncate text-[11px] text-muted-foreground">{selectedAsset.name}</div>
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            {selectedAsset.serial_number || "No serial"} | {selectedAsset.name}
+                          </div>
                         </div>
                       )}
                     </div>
 
-                    {selectedAssetUnavailable && (
+                    {(selectedAssetUnavailable || selectedBlockedByOtherLine) && (
                       <div className="text-sm text-amber-200">
-                        This assigned asset is no longer available. Replace it before completing the group.
+                        {selectedBlockedByOtherLine
+                          ? "This item is already assigned to another line in the same group. Choose a different unit."
+                          : "This assigned asset is no longer available. Replace it before completing the group."}
                       </div>
                     )}
                   </div>
@@ -938,6 +982,80 @@ export default function BulkSignOut() {
           </>
         )}
       </Card>
+
+      <Dialog open={!!activeAssignmentLine} onOpenChange={(open) => !open && setActiveAssignmentLineId(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">
+              {activeAssignmentLine ? `Choose exact unit | ${activeAssignmentLine.line_label}` : "Choose exact unit"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {activeAssignmentLine && (
+            <div className="space-y-4">
+              <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3 text-sm text-muted-foreground">
+                Choose the exact physical unit by tag and serial number. Unavailable units stay visible but cannot be selected.
+              </div>
+
+              {assignmentCandidates.length === 0 ? (
+                <div className="rounded-[1.2rem] border border-primary/12 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+                  No matching units were found for this group line.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {assignmentCandidates.map((asset) => {
+                    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+                    const normalizedStatus = normalizeAssetStatus(asset.status);
+                    const blockedByOtherLine = assignedElsewhereIds.has(asset.id);
+                    const unavailable = normalizedStatus !== "available";
+                    const disabled = blockedByOtherLine || unavailable;
+
+                    return (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          updateAssignment(activeAssignmentLine.id, asset.id);
+                          setActiveAssignmentLineId(null);
+                        }}
+                        className={cn(
+                          "w-full rounded-[1.2rem] border p-4 text-left transition-all",
+                          activeAssignedAssetId === asset.id
+                            ? "border-primary/30 bg-primary/10"
+                            : disabled
+                              ? "cursor-not-allowed border-primary/10 bg-card opacity-70"
+                              : "border-primary/10 bg-background hover:border-primary/24 hover:bg-primary/8",
+                        )}
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-display text-base text-foreground glow-soft">{asset.code}</span>
+                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                                {getAssetStatusLabel(normalizedStatus)}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-foreground/85">{asset.name}</div>
+                            <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                              <span>Serial: {asset.serial_number || "-"}</span>
+                              <span>{asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}</span>
+                              <span>{locationMap[effectiveLocationId] ?? "Location"}</span>
+                            </div>
+                          </div>
+                          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                            {blockedByOtherLine ? "Already assigned" : unavailable ? "Unavailable" : "Selectable"}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

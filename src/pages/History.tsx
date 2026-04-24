@@ -18,7 +18,7 @@ interface HistoryRecord {
   performed_by: string | null;
   from_user: string | null;
   to_user: string | null;
-  asset: { code: string; name: string };
+  asset: { code: string; name: string; serial_number: string | null };
 }
 
 export default function History() {
@@ -39,7 +39,7 @@ export default function History() {
         .from("asset_history")
         .select(`
           id, action, created_at, notes, performed_by, from_user, to_user,
-          asset:assets(code, name)
+          asset:assets(code, name, serial_number)
         `)
         .order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, display_name").order("display_name"),
@@ -61,6 +61,7 @@ export default function History() {
       const searchBlob = [
         row.asset.code,
         row.asset.name,
+        row.asset.serial_number ?? "",
         row.action,
         userMap[row.performed_by ?? ""] ?? "",
         userMap[row.from_user ?? ""] ?? "",
@@ -200,6 +201,9 @@ export default function History() {
                     <td className="px-4 py-3">
                       <div className="font-display text-foreground glow-soft">{row.asset.code}</div>
                       <div className="max-w-[180px] truncate text-[11px] text-muted-foreground">{row.asset.name}</div>
+                      <div className="max-w-[180px] truncate font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80">
+                        {row.asset.serial_number || "No serial"}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span

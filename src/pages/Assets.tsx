@@ -20,6 +20,7 @@ import {
   getAssetStatusLabel,
   getStatusBadgeClass,
   getTagPrefix,
+  groupAssetsByName,
   LOCATION_NAMES,
   normalizeAssetStatus,
 } from "@/lib/assets";
@@ -74,6 +75,7 @@ export default function Assets() {
   const [divisionId, setDivisionId] = useState("");
   const [newDivisionName, setNewDivisionName] = useState("");
   const [addingDivision, setAddingDivision] = useState(false);
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 
   const load = async () => {
     const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
@@ -106,26 +108,47 @@ export default function Assets() {
     }
   }, [initialStatus, searchParams]);
 
-  const filtered = assets.filter((asset) => {
-    const normalizedStatus = normalizeAssetStatus(asset.status);
-    const currentLocationId = asset.current_location_id ?? asset.department_id;
-    const currentLocationName = locationMap[currentLocationId] ?? "";
-    const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-    const searchBlob = buildSearchBlob([
-      asset.name,
-      asset.code,
-      currentLocationName,
-      divisionName,
-      getAssetStatusLabel(normalizedStatus),
-      asset.description,
-      asset.serial_number,
-    ]);
+  const groupedAssets = useMemo(
+    () =>
+      groupAssetsByName(assets, (asset) => {
+        const currentLocationId = asset.current_location_id ?? asset.department_id;
+        return locationMap[currentLocationId] ?? "";
+      }),
+    [assets, locationMap],
+  );
 
-    const matchesQuery = !q.trim() || searchBlob.includes(q.trim().toLowerCase());
-    const matchesStatus = statusFilter === "all" || normalizedStatus === statusFilter;
-    const matchesLocation = locationFilter === "all" || currentLocationId === locationFilter;
-    return matchesQuery && matchesStatus && matchesLocation;
-  });
+  const filteredGroups = useMemo(() => {
+    const normalizedQuery = q.trim().toLowerCase();
+
+    return groupedAssets.filter((group) =>
+      group.items.some((asset) => {
+        const normalizedStatus = normalizeAssetStatus(asset.status);
+        const currentLocationId = asset.current_location_id ?? asset.department_id;
+        const currentLocationName = locationMap[currentLocationId] ?? "";
+        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+        const searchBlob = buildSearchBlob([
+          group.name,
+          asset.name,
+          asset.code,
+          currentLocationName,
+          divisionName,
+          getAssetStatusLabel(normalizedStatus),
+          asset.description,
+          asset.serial_number,
+        ]);
+
+        const matchesQuery = !normalizedQuery || searchBlob.includes(normalizedQuery);
+        const matchesStatus = statusFilter === "all" || normalizedStatus === statusFilter;
+        const matchesLocation = locationFilter === "all" || currentLocationId === locationFilter;
+        return matchesQuery && matchesStatus && matchesLocation;
+      }),
+    );
+  }, [divisionMap, groupedAssets, locationMap, q, statusFilter, locationFilter]);
+
+  const activeGroup = useMemo(
+    () => groupedAssets.find((group) => group.key === activeGroupKey) ?? null,
+    [activeGroupKey, groupedAssets],
+  );
 
   const create = async () => {
     if (!name || !locationId || !divisionId) {
@@ -677,52 +700,118 @@ export default function Assets() {
             <thead>
               <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 <th className="px-4 py-3 font-normal">Item Name</th>
-                <th className="px-4 py-3 font-normal">Tag</th>
-                <th className="px-4 py-3 font-normal">Location</th>
-                <th className="px-4 py-3 font-normal">Status</th>
-                <th className="px-4 py-3 font-normal">Division</th>
-                <th className="px-4 py-3 font-normal">Serial Number</th>
+                <th className="px-4 py-3 font-normal">Total Units</th>
+                <th className="px-4 py-3 font-normal">Available</th>
+                <th className="px-4 py-3 font-normal">Locations</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-primary/10">
-              {filtered.length === 0 && (
+              {filteredGroups.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground/70">
+                  <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground/70">
                     No assets matched your search or filters.
                   </td>
                 </tr>
               )}
 
-              {filtered.map((asset) => {
-                const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "-" : "-";
-                const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "-";
-                const normalizedStatus = normalizeAssetStatus(asset.status);
-
-                return (
-                  <tr key={asset.id} className="group transition-colors hover:bg-primary/5">
-                    <td className="max-w-[260px] truncate px-4 py-3 text-foreground">
-                      <Link to={`/assets/${asset.id}`} className="flex items-center gap-2 hover:text-primary">
-                        {asset.name}
-                        <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-50" />
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-foreground/80">{asset.code}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
-                        {getAssetStatusLabel(normalizedStatus)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{divisionName}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{asset.serial_number || "-"}</td>
-                  </tr>
-                );
-              })}
+              {filteredGroups.map((group) => (
+                <tr
+                  key={group.key}
+                  className="group cursor-pointer transition-colors hover:bg-primary/5"
+                  onClick={() => setActiveGroupKey(group.key)}
+                >
+                  <td className="max-w-[320px] px-4 py-3 text-foreground">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate">{group.name}</span>
+                      <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-50" />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-foreground/80">{group.totalUnits}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", group.availableUnits > 0 ? getStatusBadgeClass("available") : getStatusBadgeClass("signed_out"))}>
+                      {group.availableUnits}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{group.locationSummary}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      <Dialog open={!!activeGroup} onOpenChange={(open) => !open && setActiveGroupKey(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">
+              {activeGroup?.name ?? "Asset instances"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {activeGroup && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total units</div>
+                  <div className="mt-1 font-display text-xl text-foreground glow-soft">{activeGroup.totalUnits}</div>
+                </div>
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Available units</div>
+                  <div className="mt-1 font-display text-xl text-primary glow-soft">{activeGroup.availableUnits}</div>
+                </div>
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Locations</div>
+                  <div className="mt-1 text-sm text-foreground">{activeGroup.locationSummary}</div>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[1.4rem] border border-primary/12">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        <th className="px-4 py-3 font-normal">Tag</th>
+                        <th className="px-4 py-3 font-normal">Serial Number</th>
+                        <th className="px-4 py-3 font-normal">Division</th>
+                        <th className="px-4 py-3 font-normal">Location</th>
+                        <th className="px-4 py-3 font-normal">Status</th>
+                        <th className="px-4 py-3 font-normal">Open</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-primary/10">
+                      {activeGroup.items.map((asset) => {
+                        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "-" : "-";
+                        const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "-";
+                        const normalizedStatus = normalizeAssetStatus(asset.status);
+
+                        return (
+                          <tr key={asset.id} className="transition-colors hover:bg-primary/5">
+                            <td className="px-4 py-3 font-mono text-foreground/85">{asset.code}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{asset.serial_number || "-"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{divisionName}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
+                            <td className="px-4 py-3">
+                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                                {getAssetStatusLabel(normalizedStatus)}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Link to={`/assets/${asset.id}`} className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80" onClick={() => setActiveGroupKey(null)}>
+                                View <ExternalLink size={12} />
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

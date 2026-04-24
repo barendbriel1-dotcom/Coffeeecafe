@@ -11,13 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES } from "@/lib/assets";
+import { getAssetStatusLabel, getStatusBadgeClass, groupAssetsByName, LOCATION_NAMES } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface AssetReturn {
   id: string;
   code: string;
   name: string;
+  serial_number: string | null;
   holder_id: string | null;
   holder_name: string;
   signout_item_id: string | null;
@@ -46,6 +47,7 @@ export default function SignIn() {
   const [decision, setDecision] = useState<ReturnDecision | null>(null);
   const [returnLocationId, setReturnLocationId] = useState("");
   const [decisionNotes, setDecisionNotes] = useState("");
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -55,7 +57,7 @@ export default function SignIn() {
         supabase
           .from("assets")
           .select(`
-            id, code, name, status, current_holder,
+            id, code, name, status, current_holder, serial_number,
             signout_items(
               id, returned, signout_id,
               signout:signouts(
@@ -86,6 +88,7 @@ export default function SignIn() {
           id: asset.id,
           code: asset.code,
           name: asset.name,
+          serial_number: asset.serial_number ?? null,
           holder_id: holderId,
           holder_name: profileMap[holderId ?? ""] || "Unknown user",
           signout_item_id: activeItem?.id ?? null,
@@ -108,6 +111,16 @@ export default function SignIn() {
   useEffect(() => {
     load();
   }, []);
+
+  const groupedReturns = useMemo(
+    () => groupAssetsByName(rows, (item) => item.holder_name),
+    [rows],
+  );
+
+  const activeGroup = useMemo(
+    () => groupedReturns.find((group) => group.key === activeGroupKey) ?? null,
+    [activeGroupKey, groupedReturns],
+  );
 
   const locationOptions = useMemo(() => locations.filter((location) => location.name !== "Traveling"), [locations]);
 
@@ -183,6 +196,7 @@ export default function SignIn() {
       setDecision(null);
       setDecisionNotes("");
       setReturnLocationId("");
+      setActiveGroupKey(null);
       load();
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to complete sign-in.");
@@ -203,48 +217,104 @@ export default function SignIn() {
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-primary/70">
           Loading signed-out assets...
         </div>
-      ) : rows.length === 0 ? (
+      ) : groupedReturns.length === 0 ? (
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-muted-foreground/70">
           No signed-out assets are waiting for sign-in.
         </div>
       ) : (
         <div className="grid gap-4">
-          {rows.map((item) => (
-            <Card key={item.id} className="space-y-4 bg-card/40 p-5">
+          {groupedReturns.map((group) => (
+            <Card
+              key={group.key}
+              className="cursor-pointer space-y-4 bg-card/40 p-5 transition-colors hover:bg-primary/5"
+              onClick={() => setActiveGroupKey(group.key)}
+            >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <LogIn size={18} className="text-primary" />
-                    <h2 className="font-display text-xl text-foreground glow-soft">{item.code}</h2>
+                    <h2 className="font-display text-xl text-foreground glow-soft">{group.name}</h2>
                     <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass("signed_out"))}>
                       Signed Out
                     </Badge>
                   </div>
-                  <div className="text-sm text-foreground/85">{item.name}</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    <span className="flex items-center gap-1.5"><User size={12} /> Used by {item.holder_name}</span>
-                    {item.created_at && <span>Signed out {new Date(item.created_at).toLocaleString()}</span>}
-                    {item.package_name && <span>Package: {item.package_name}</span>}
+                    <span>{group.totalUnits} signed-out unit{group.totalUnits === 1 ? "" : "s"}</span>
+                    <span>{group.locationSummary}</span>
                   </div>
-                  {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button disabled={processing === item.id} onClick={() => openDecision(item, "available")} className="gap-1.5">
-                    <Check size={14} /> Sign in as Available
-                  </Button>
-                  <Button disabled={processing === item.id} variant="outline" onClick={() => openDecision(item, "out_for_repairs")} className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200">
-                    <Wrench size={14} /> Out for Repairs
-                  </Button>
-                  <Button disabled={processing === item.id} variant="outline" onClick={() => openDecision(item, "damaged")} className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200">
-                    <XCircle size={14} /> Damaged
-                  </Button>
-                </div>
+                <Badge variant="outline" className="w-fit border-primary/20 bg-primary/10 px-3 py-1.5 font-mono text-primary">
+                  Choose unit
+                </Badge>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={!!activeGroup} onOpenChange={(open) => !open && setActiveGroupKey(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card/95 sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">
+              {activeGroup?.name ?? "Signed-out units"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {activeGroup && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Signed-out units</div>
+                  <div className="mt-1 font-display text-xl text-foreground glow-soft">{activeGroup.totalUnits}</div>
+                </div>
+                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Users</div>
+                  <div className="mt-1 text-sm text-foreground">{activeGroup.locationSummary}</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {activeGroup.items.map((item) => (
+                  <div key={item.id} className="space-y-4 rounded-[1.3rem] border border-primary/12 bg-card p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="font-display text-lg text-foreground glow-soft">{item.code}</div>
+                          <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass("signed_out"))}>
+                            Signed Out
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-foreground/85">{item.name}</div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                          <span className="flex items-center gap-1.5"><User size={12} /> Used by {item.holder_name}</span>
+                          <span>Tag {item.code}</span>
+                          <span>Serial {item.serial_number || "-"}</span>
+                          {item.created_at && <span>Signed out {new Date(item.created_at).toLocaleString()}</span>}
+                          {item.package_name && <span>Group: {item.package_name}</span>}
+                        </div>
+                        {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button disabled={processing === item.id} onClick={() => openDecision(item, "available")} className="gap-1.5">
+                          <Check size={14} /> Sign in as Available
+                        </Button>
+                        <Button disabled={processing === item.id} variant="outline" onClick={() => openDecision(item, "out_for_repairs")} className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200">
+                          <Wrench size={14} /> Out for Repairs
+                        </Button>
+                        <Button disabled={processing === item.id} variant="outline" onClick={() => openDecision(item, "damaged")} className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200">
+                          <XCircle size={14} /> Damaged
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!decision} onOpenChange={(open) => !open && setDecision(null)}>
         <DialogContent className="bg-card/95">
