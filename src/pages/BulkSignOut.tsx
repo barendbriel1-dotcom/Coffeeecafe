@@ -80,6 +80,11 @@ interface DivisionRow {
   name: string;
 }
 
+interface EditorGroupSelectionState {
+  lineId: string;
+  groupKey: string;
+}
+
 const EMPTY_ITEM = (): BulkPacketItemDraft => ({
   id: `draft-${crypto.randomUUID()}`,
   line_label: "",
@@ -88,6 +93,28 @@ const EMPTY_ITEM = (): BulkPacketItemDraft => ({
   notes: "",
   sort_order: 0,
 });
+
+const PREFERRED_UNIT_PREFIX = "Preferred unit:";
+
+const stripPreferredUnitNote = (notes: string) =>
+  notes
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(PREFERRED_UNIT_PREFIX))
+    .join("\n")
+    .trim();
+
+const buildPreferredUnitNote = (notes: string, asset: Asset) => {
+  const cleanedNotes = stripPreferredUnitNote(notes);
+  const preferredLine = `${PREFERRED_UNIT_PREFIX} ${asset.code}${asset.serial_number ? ` | ${asset.serial_number}` : ""}`;
+  return cleanedNotes ? `${preferredLine}\n${cleanedNotes}` : preferredLine;
+};
+
+const readPreferredUnitNote = (notes: string) =>
+  notes
+    .split("\n")
+    .find((line) => line.trim().startsWith(PREFERRED_UNIT_PREFIX))
+    ?.replace(PREFERRED_UNIT_PREFIX, "")
+    .trim() ?? "";
 
 export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings" | "signouts" }) {
   const { user, isAdmin } = useAuth();
@@ -107,6 +134,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const [editorNotes, setEditorNotes] = useState("");
   const [editorItems, setEditorItems] = useState<BulkPacketItemDraft[]>([EMPTY_ITEM()]);
   const [activeEditorSearchId, setActiveEditorSearchId] = useState<string | null>(null);
+  const [activeEditorGroupSelection, setActiveEditorGroupSelection] = useState<EditorGroupSelectionState | null>(null);
   const [activeAssignmentLineId, setActiveAssignmentLineId] = useState<string | null>(null);
 
   const [recipientId, setRecipientId] = useState("");
@@ -358,21 +386,16 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       .slice(0, 8);
   };
 
-  const assignTemplateAssetGroup = (itemId: string, groupName: string) => {
-    const matchingGroup = groupedAssets.find((group) => group.name.trim().toLowerCase() === groupName.trim().toLowerCase());
-    const divisionIds = Array.from(new Set((matchingGroup?.items ?? []).map((asset) => asset.division_id).filter(Boolean)));
-    const locationIds = Array.from(
-      new Set(
-        (matchingGroup?.items ?? [])
-          .map((asset) => asset.current_location_id ?? asset.department_id)
-          .filter(Boolean),
-      ),
-    );
-
+  const assignTemplateAssetUnit = (itemId: string, asset: Asset) => {
+    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
     updateEditorItem(itemId, {
-      line_label: groupName,
-      division_id: divisionIds.length === 1 ? divisionIds[0] ?? null : null,
-      location_id: locationIds.length === 1 ? locationIds[0] ?? null : null,
+      line_label: asset.name,
+      division_id: asset.division_id ?? null,
+      location_id: effectiveLocationId ?? null,
+      notes: buildPreferredUnitNote(
+        editorItems.find((entry) => entry.id === itemId)?.notes ?? "",
+        asset,
+      ),
     });
 
     setEditorItems((current) => {
@@ -382,11 +405,20 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     });
 
     setActiveEditorSearchId(null);
+    setActiveEditorGroupSelection(null);
   };
 
   const activeAssignmentLine = useMemo(
     () => activePacketForSignout?.items.find((item) => item.id === activeAssignmentLineId) ?? null,
     [activeAssignmentLineId, activePacketForSignout],
+  );
+
+  const activeEditorSelectionGroup = useMemo(
+    () =>
+      activeEditorGroupSelection
+        ? groupedAssets.find((group) => group.key === activeEditorGroupSelection.groupKey) ?? null
+        : null,
+    [activeEditorGroupSelection, groupedAssets],
   );
 
   const assignmentCandidates = activeAssignmentLine ? candidateAssetsForLine(activeAssignmentLine) : [];
@@ -783,10 +815,11 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                               <div className="font-display text-sm text-foreground glow-soft">{item.trimmedLabel}</div>
                               <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                                 <span>Line {item.displayIndex}</span>
+                                {readPreferredUnitNote(item.notes) && <span>{readPreferredUnitNote(item.notes)}</span>}
                                 {item.division_id && <span>{divisionMap[item.division_id] ?? "Division"}</span>}
                                 {item.location_id && <span>{locationMap[item.location_id] ?? "Location"}</span>}
                               </div>
-                              {item.notes && <div className="mt-1 text-[11px] text-muted-foreground">{item.notes}</div>}
+                              {stripPreferredUnitNote(item.notes) && <div className="mt-1 text-[11px] text-muted-foreground">{stripPreferredUnitNote(item.notes)}</div>}
                             </div>
 
                             <Button
@@ -872,7 +905,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                                         type="button"
                                         onMouseDown={(event) => {
                                           event.preventDefault();
-                                          assignTemplateAssetGroup(item.id, group.name);
+                                          setActiveEditorGroupSelection({ lineId: item.id, groupKey: group.key });
                                         }}
                                         className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
                                       >
@@ -1089,6 +1122,63 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
           </>
         )}
       </Card>
+      )}
+
+      {showGroupings && (
+      <Dialog open={!!activeEditorSelectionGroup} onOpenChange={(open) => !open && setActiveEditorGroupSelection(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">
+              {activeEditorSelectionGroup ? `Choose exact item | ${activeEditorSelectionGroup.name}` : "Choose exact item"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {activeEditorSelectionGroup && activeEditorGroupSelection && (
+            <div className="space-y-4">
+              <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3 text-sm text-muted-foreground">
+                This item name has multiple physical units. Choose the exact one you want to add to the group by tag and serial number.
+              </div>
+
+              <div className="space-y-3">
+                {activeEditorSelectionGroup.items
+                  .slice()
+                  .sort((a, b) => a.code.localeCompare(b.code))
+                  .map((asset) => {
+                    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+                    const normalizedStatus = normalizeAssetStatus(asset.status);
+
+                    return (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        onClick={() => assignTemplateAssetUnit(activeEditorGroupSelection.lineId, asset)}
+                        className="w-full rounded-[1.2rem] border border-primary/10 bg-background p-4 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-display text-base text-foreground glow-soft">{asset.code}</span>
+                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                                {getAssetStatusLabel(normalizedStatus)}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-foreground/85">{asset.name}</div>
+                            <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                              <span>Serial: {asset.serial_number || "-"}</span>
+                              <span>{asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}</span>
+                              <span>{locationMap[effectiveLocationId] ?? "Location"}</span>
+                            </div>
+                          </div>
+                          <div className="text-xs uppercase tracking-[0.16em] text-primary">Add this item</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       )}
 
       {showSignouts && (
