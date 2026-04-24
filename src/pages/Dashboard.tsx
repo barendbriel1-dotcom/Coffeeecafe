@@ -59,7 +59,7 @@ export default function Dashboard() {
     { label: "Available now", value: stats.available, icon: PackageCheck, accent: "border-emerald-500/24 bg-emerald-500/10 text-emerald-300", to: "/assets?status=available" },
     { label: "Signed out", value: stats.signedOut, icon: AlertTriangle, accent: "border-amber-500/24 bg-amber-500/10 text-amber-300", to: "/assets?status=signed_out" },
     { label: "Damaged", value: stats.damaged, icon: XCircle, accent: "border-rose-500/24 bg-rose-500/10 text-rose-300", to: "/assets?status=damaged" },
-    { label: "Open sign-outs", value: stats.activeSignouts, icon: History, accent: "border-cyan-500/24 bg-cyan-500/10 text-cyan-300", to: "/history" },
+    { label: "History", value: stats.activeSignouts, icon: History, accent: "border-cyan-500/24 bg-cyan-500/10 text-cyan-300", to: "/history" },
   ] as const;
 
   return (

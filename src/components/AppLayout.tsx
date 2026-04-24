@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   ArrowLeftRight,
@@ -13,17 +13,40 @@ import {
   LogOut,
   Menu,
   Package,
+  PencilLine,
   Shield,
-  Terminal,
   Users as UsersIcon,
   X,
 } from "lucide-react";
 
 import MatrixRain from "@/components/MatrixRain";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+}
 
 export default function AppLayout() {
   const { user, isAdmin, isStaff, signOut } = useAuth();
@@ -32,6 +55,12 @@ export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [now, setNow] = useState(new Date());
   const [displayName, setDisplayName] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileDepartmentId, setProfileDepartmentId] = useState("none");
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -41,17 +70,60 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user) return;
 
-    supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => setDisplayName(data?.display_name ?? user.email ?? ""));
+    (async () => {
+      const [{ data: profile }, { data: departmentRows }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("display_name, phone, department_id")
+          .eq("id", user.id)
+          .single(),
+        supabase.from("departments").select("id, name").order("name"),
+      ]);
+
+      const nextName = profile?.display_name ?? user.email ?? "";
+      setDisplayName(nextName);
+      setProfileName(nextName);
+      setProfilePhone(profile?.phone ?? "");
+      setProfileDepartmentId(profile?.department_id ?? "none");
+      setDepartments(departmentRows ?? []);
+    })();
   }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/login", { replace: true });
+  };
+
+  const handleProfileSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!user || profileSaving) return;
+
+    const trimmedName = profileName.trim();
+    if (!trimmedName) {
+      toast.error("Display name is required");
+      return;
+    }
+
+    setProfileSaving(true);
+
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
+      email: user.email ?? null,
+      display_name: trimmedName,
+      phone: profilePhone.trim() || null,
+      department_id: profileDepartmentId === "none" ? null : profileDepartmentId,
+    });
+
+    setProfileSaving(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setDisplayName(trimmedName);
+    setProfileOpen(false);
+    toast.success("Profile updated");
   };
 
   const nav = [
@@ -73,13 +145,12 @@ export default function AppLayout() {
 
   const SidebarInner = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
-      <div className={cn("flex items-center gap-3 border-b border-primary/12 p-5", collapsed && "justify-center px-3")}>
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.18)]">
-          <Terminal size={18} />
-        </div>
-        {!collapsed && (
+      <div className={cn("border-b border-primary/12 p-5", collapsed ? "px-3 text-center" : "px-5")}>
+        {collapsed ? (
+          <div className="font-display text-2xl font-semibold tracking-tight text-foreground glow-soft">A</div>
+        ) : (
           <div className="min-w-0">
-            <div className="font-display text-base font-semibold tracking-tight text-foreground glow-soft">ASSETS HUB</div>
+            <div className="font-display text-lg font-semibold tracking-tight text-foreground glow-soft">ASSETS</div>
             <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary/52">Inventory operations</div>
           </div>
         )}
@@ -97,7 +168,9 @@ export default function AppLayout() {
               cn(
                 "group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all",
                 collapsed && "justify-center px-3",
-                isActive ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]" : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
+                isActive
+                  ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
+                  : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
               )
             }
           >
@@ -148,8 +221,8 @@ export default function AppLayout() {
               </button>
 
               <div className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/75">Operations overview</div>
-                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
+                <div className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-primary/80 sm:text-base">Operations overview</div>
+                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground sm:text-base">
                   <Clock size={14} className="opacity-70" />
                   <span className="tabular-nums">{timeStr}</span>
                   <span className="hidden text-primary/35 sm:inline">•</span>
@@ -162,19 +235,31 @@ export default function AppLayout() {
               <span
                 className={cn(
                   "hidden rounded-full border px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] sm:inline-flex",
-                  isAdmin ? "border-primary/30 bg-primary/10 text-primary" : isStaff ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-primary/14 bg-muted/80 text-muted-foreground",
+                  isAdmin
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : isStaff
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                      : "border-primary/14 bg-muted/80 text-muted-foreground",
                 )}
               >
                 <Shield size={12} className="mr-1.5 opacity-80" />
                 {roleLabel}
               </span>
 
-              <span className="hidden max-w-[220px] items-center gap-2 truncate rounded-full border border-primary/12 bg-card/80 px-3 py-1.5 text-sm text-foreground/80 md:inline-flex">
-                <Terminal size={14} className="text-primary/70" />
-                {displayName}
-              </span>
+              <button
+                type="button"
+                onClick={() => setProfileOpen(true)}
+                className="hidden max-w-[220px] items-center truncate rounded-full border border-primary/12 bg-card/80 px-4 py-1.5 text-sm text-foreground transition-colors hover:border-primary/24 hover:bg-primary/10 md:inline-flex"
+              >
+                <span className="truncate">{displayName}</span>
+              </button>
 
-              <Button variant="outline" size="sm" onClick={handleSignOut} className="gap-1.5 border-destructive/25 bg-card/70 text-destructive hover:bg-destructive/10 hover:text-destructive">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSignOut}
+                className="gap-1.5 border-destructive/25 bg-card/70 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
                 <LogOut size={14} /> Logout
               </Button>
             </div>
@@ -187,6 +272,83 @@ export default function AppLayout() {
           </div>
         </main>
       </div>
+
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="rounded-[1.8rem] border-primary/18 bg-background/96 shadow-[var(--shadow-strong)]">
+          <DialogHeader>
+            <div className="app-kicker">Profile</div>
+            <DialogTitle className="font-display text-3xl text-foreground glow-soft">Your operator profile</DialogTitle>
+            <DialogDescription className="leading-6">
+              Update the details attached to your signed-in account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleProfileSave} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="profile-name" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                Display name
+              </Label>
+              <Input
+                id="profile-name"
+                value={profileName}
+                onChange={(event) => setProfileName(event.target.value)}
+                placeholder="Your name"
+                maxLength={80}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="profile-email" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                Email address
+              </Label>
+              <Input id="profile-email" value={user?.email ?? ""} readOnly className="text-muted-foreground" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="profile-phone" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                Phone number
+              </Label>
+              <Input
+                id="profile-phone"
+                value={profilePhone}
+                onChange={(event) => setProfilePhone(event.target.value)}
+                placeholder="Add your contact number"
+                maxLength={30}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                Home base
+              </Label>
+              <Select value={profileDepartmentId} onValueChange={setProfileDepartmentId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a base location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not set</SelectItem>
+                  {departments.map((department) => (
+                    <SelectItem key={department.id} value={department.id}>
+                      {department.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button type="button" variant="outline" onClick={() => setProfileOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={profileSaving} className="gap-2">
+                <PencilLine size={16} />
+                {profileSaving ? "Saving..." : "Save profile"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
