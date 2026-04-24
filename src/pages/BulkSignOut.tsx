@@ -89,7 +89,7 @@ const EMPTY_ITEM = (): BulkPacketItemDraft => ({
   sort_order: 0,
 });
 
-export default function BulkSignOut() {
+export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings" | "signouts" }) {
   const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingPacket, setSavingPacket] = useState(false);
@@ -183,7 +183,7 @@ export default function BulkSignOut() {
 
       setActivePacketId(nextActivePacketId);
     } catch (error: any) {
-      toast.error(error?.message ?? "Failed to load bulk signout data.");
+      toast.error(error?.message ?? "Failed to load group data.");
     } finally {
       setLoading(false);
     }
@@ -649,7 +649,7 @@ export default function BulkSignOut() {
       setAssignments({});
       await load(activePacketForSignout.id);
     } catch (error: any) {
-      toast.error(error?.message ?? "Failed to complete bulk signout.");
+      toast.error(error?.message ?? "Failed to complete group signout.");
     } finally {
       setSubmitting(false);
     }
@@ -657,10 +657,16 @@ export default function BulkSignOut() {
 
   if (!isAdmin) return null;
 
+  const showGroupings = mode === "groupings";
+  const showSignouts = mode === "signouts";
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="font-display text-3xl text-foreground glow-soft">Bulk sign out</h1>
+      <h1 className="font-display text-3xl text-foreground glow-soft">
+        {showGroupings ? "Groupings" : "Group signout"}
+      </h1>
 
+      {showGroupings && (
       <Card className="space-y-5 bg-card/40 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -933,7 +939,9 @@ export default function BulkSignOut() {
           </div>
         </div>
       </Card>
+      )}
 
+      {showSignouts && (
       <Card className="space-y-5 bg-card/40 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -949,20 +957,33 @@ export default function BulkSignOut() {
 
         {!activePacketForSignout ? (
           <div className="rounded-[1.5rem] border border-primary/12 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
-            Save or select a group first to start bulk signout.
+            Save or select a group first to start group signout.
           </div>
         ) : (
           <>
             {packetDirty && (
               <div className="rounded-[1.2rem] border border-amber-500/24 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                Save your group changes before using this group in bulk signout.
+                Save your group changes before using this group in group signout.
               </div>
             )}
 
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group</Label>
-                <Input value={activePacketForSignout.name} readOnly className="text-muted-foreground" />
+                <Select value={activePacketId ?? "none"} onValueChange={(value) => setActivePacketId(value === "none" ? null : value)}>
+                  <SelectTrigger><SelectValue placeholder="Choose saved group" /></SelectTrigger>
+                  <SelectContent>
+                    {packets.length === 0 ? (
+                      <SelectItem value="none">No saved groups</SelectItem>
+                    ) : (
+                      packets.map((packet) => (
+                        <SelectItem key={packet.id} value={packet.id}>
+                          {packet.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -1068,7 +1089,9 @@ export default function BulkSignOut() {
           </>
         )}
       </Card>
+      )}
 
+      {showSignouts && (
       <Dialog open={!!activeAssignmentLine} onOpenChange={(open) => !open && setActiveAssignmentLineId(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
           <DialogHeader>
@@ -1142,6 +1165,7 @@ export default function BulkSignOut() {
           )}
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }

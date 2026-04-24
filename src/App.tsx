@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import Assets from "./pages/Assets";
 import AssetDetail from "./pages/AssetDetail";
 import SignOut from "./pages/SignOut";
 import BulkSignOut from "./pages/BulkSignOut";
+import GroupSignouts from "./pages/GroupSignouts";
 import Handover from "./pages/Handover";
 import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
@@ -39,7 +40,9 @@ const App = () => (
               <Route path="/assets" element={<Assets />} />
               <Route path="/assets/:id" element={<AssetDetail />} />
               <Route path="/signout" element={<ProtectedRoute requireRole="staff"><SignOut /></ProtectedRoute>} />
-              <Route path="/signout/bulk" element={<ProtectedRoute requireRole="admin"><BulkSignOut /></ProtectedRoute>} />
+              <Route path="/groupings" element={<ProtectedRoute requireRole="admin"><BulkSignOut /></ProtectedRoute>} />
+              <Route path="/group-signouts" element={<ProtectedRoute requireRole="admin"><GroupSignouts /></ProtectedRoute>} />
+              <Route path="/signout/bulk" element={<Navigate to="/groupings" replace />} />
               <Route path="/signin" element={<ProtectedRoute requireRole="admin"><SignIn /></ProtectedRoute>} />
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
