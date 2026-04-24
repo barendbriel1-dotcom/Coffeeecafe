@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Assets from "./pages/Assets";
 import AssetDetail from "./pages/AssetDetail";
 import SignOut from "./pages/SignOut";
+import BulkSignOut from "./pages/BulkSignOut";
 import Handover from "./pages/Handover";
 import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
@@ -38,7 +39,7 @@ const App = () => (
               <Route path="/assets" element={<Assets />} />
               <Route path="/assets/:id" element={<AssetDetail />} />
               <Route path="/signout" element={<ProtectedRoute requireRole="staff"><SignOut /></ProtectedRoute>} />
-              <Route path="/signout/bulk" element={<ProtectedRoute requireRole="staff"><SignOut bulk /></ProtectedRoute>} />
+              <Route path="/signout/bulk" element={<ProtectedRoute requireRole="admin"><BulkSignOut /></ProtectedRoute>} />
               <Route path="/signin" element={<ProtectedRoute requireRole="admin"><SignIn /></ProtectedRoute>} />
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />

@@ -108,6 +108,74 @@ export type Database = {
           },
         ]
       }
+      bulk_packet_items: {
+        Row: {
+          created_at: string
+          division_id: string | null
+          id: string
+          line_label: string
+          location_id: string | null
+          notes: string | null
+          packet_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          division_id?: string | null
+          id?: string
+          line_label: string
+          location_id?: string | null
+          notes?: string | null
+          packet_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          division_id?: string | null
+          id?: string
+          line_label?: string
+          location_id?: string | null
+          notes?: string | null
+          packet_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_packet_items_packet_id_fkey"
+            columns: ["packet_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_packets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bulk_packets: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           code: string

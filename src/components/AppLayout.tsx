@@ -205,16 +205,16 @@ export default function AppLayout() {
   };
 
   const nav = [
-    { to: "/", label: "Dashboard", icon: LayoutGrid, show: true },
-    { to: "/assets", label: "Assets", icon: Package, show: true },
-    { to: "/signout", label: "Sign out", icon: LogOut, show: isStaff },
-    { to: "/signout/bulk", label: "Bulk sign out", icon: Layers, show: isStaff },
-    { to: "/signin", label: "Sign in", icon: LogIn, show: isAdmin },
-    { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true },
-    { to: "/requests", label: "Requests", icon: Inbox, show: true },
-    { to: "/history", label: "History", icon: History, show: true },
-    { to: "/admin", label: "Admin", icon: Shield, show: isAdmin },
-    { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin },
+    { to: "/", label: "Dashboard", icon: LayoutGrid, show: true, exact: true },
+    { to: "/assets", label: "Assets", icon: Package, show: true, exact: false },
+    { to: "/signout", label: "Sign out", icon: LogOut, show: isStaff, exact: true },
+    { to: "/signout/bulk", label: "Bulk sign out", icon: Layers, show: isAdmin, exact: true },
+    { to: "/signin", label: "Sign in", icon: LogIn, show: isAdmin, exact: true },
+    { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true, exact: true },
+    { to: "/requests", label: "Requests", icon: Inbox, show: true, exact: true },
+    { to: "/history", label: "History", icon: History, show: true, exact: true },
+    { to: "/admin", label: "Admin", icon: Shield, show: isAdmin, exact: true },
+    { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin, exact: true },
   ].filter((entry) => entry.show);
 
   const roleLabel = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "VOLUNTEER";
@@ -239,7 +239,7 @@ export default function AppLayout() {
           <NavLink
             key={entry.to}
             to={entry.to}
-            end={entry.to === "/"}
+            end={entry.exact}
             onClick={onNavigate}
             title={collapsed ? entry.label : undefined}
             className={({ isActive }) =>
