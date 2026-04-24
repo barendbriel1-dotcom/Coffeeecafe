@@ -58,6 +58,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [headerHidden, setHeaderHidden] = useState(false);
   const [now, setNow] = useState(new Date());
   const [displayName, setDisplayName] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -75,6 +76,17 @@ export default function AppLayout() {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const syncHeaderVisibility = () => {
+      setHeaderHidden(window.scrollY > 20);
+    };
+
+    syncHeaderVisibility();
+    window.addEventListener("scroll", syncHeaderVisibility, { passive: true });
+
+    return () => window.removeEventListener("scroll", syncHeaderVisibility);
   }, []);
 
   useEffect(() => {
@@ -315,7 +327,12 @@ export default function AppLayout() {
           </div>
         )}
 
-        <header className="sticky top-0 z-30 px-4 py-4 sm:px-6">
+        <header
+          className={cn(
+            "sticky top-0 z-30 px-4 py-4 transition-all duration-300 sm:px-6",
+            headerHidden ? "pointer-events-none -translate-y-6 opacity-0" : "translate-y-0 opacity-100",
+          )}
+        >
           <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/92 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
             <div className="flex min-w-0 items-center gap-3">
               <button className="text-foreground md:hidden" onClick={() => setMobileOpen((value) => !value)} aria-label="menu">
