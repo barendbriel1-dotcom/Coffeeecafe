@@ -380,7 +380,7 @@ export default function BulkSignOut() {
 
       if (insertItemsError) throw insertItemsError;
 
-      toast.success(packetId === activePacketId ? "Packet updated." : "Packet created.");
+      toast.success(packetId === activePacketId ? "Group updated." : "Group created.");
       await load(packetId);
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to save packet.");
@@ -531,13 +531,13 @@ export default function BulkSignOut() {
         action: "signed_out",
         performed_by: user.id,
         to_user: recipientId,
-        notes: `Packet: ${activePacketForSignout.name} | Line: ${item.line_label}${signoutNotes.trim() ? ` | ${signoutNotes.trim()}` : ""}`,
+        notes: `Group: ${activePacketForSignout.name} | Line: ${item.line_label}${signoutNotes.trim() ? ` | ${signoutNotes.trim()}` : ""}`,
       }));
 
       const { error: historyError } = await supabase.from("asset_history").insert(historyRows);
       if (historyError) throw historyError;
 
-      toast.success(`Packet "${activePacketForSignout.name}" signed out to ${profileMap[recipientId] ?? "selected user"}.`);
+      toast.success(`Group "${activePacketForSignout.name}" signed out to ${profileMap[recipientId] ?? "selected user"}.`);
       setRecipientId("");
       setSignoutNotes("");
       setAssignments({});
@@ -558,18 +558,18 @@ export default function BulkSignOut() {
       <Card className="space-y-5 bg-card/40 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="font-display text-lg text-foreground glow-soft">Packet management</div>
-            <div className="text-sm text-muted-foreground">Create reusable packet templates, then edit or remove them anytime.</div>
+            <div className="font-display text-lg text-foreground glow-soft">Group management</div>
+            <div className="text-sm text-muted-foreground">Create reusable groups, then edit or remove them anytime.</div>
           </div>
           <Button type="button" onClick={createNewPacket} className="gap-2">
-            <PackagePlus size={16} /> New packet
+            <PackagePlus size={16} /> New group
           </Button>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="space-y-3 rounded-[1.5rem] border border-primary/12 bg-card p-4">
             <div className="flex items-center justify-between border-b border-primary/10 pb-3">
-              <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Saved packets</div>
+              <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Saved groups</div>
               <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 {packets.length}
               </Badge>
@@ -578,11 +578,11 @@ export default function BulkSignOut() {
             <div className="space-y-2">
               {loading ? (
                 <div className="rounded-[1.2rem] border border-primary/10 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-                  Loading packets...
+                  Loading groups...
                 </div>
               ) : packets.length === 0 ? (
                 <div className="rounded-[1.2rem] border border-primary/10 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-                  No packets saved yet.
+                  No groups saved yet.
                 </div>
               ) : (
                 packets.map((packet) => (
@@ -611,33 +611,33 @@ export default function BulkSignOut() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">
-                  {activePacketId === "new" ? "Create packet" : "Edit packet"}
+                  {activePacketId === "new" ? "Create group" : "Edit group"}
                 </div>
                 <div className="mt-1 text-sm text-muted-foreground">
-                  Packets are reusable checklist templates. Admins assign the real assets later when signing out.
+                  Groups are reusable checklist templates. Admins assign the real assets later when signing out.
                 </div>
               </div>
               {activeSavedPacket && (
                 <Button type="button" variant="outline" onClick={deletePacket} disabled={deletingPacket} className="gap-2 border-destructive/25 text-destructive hover:bg-destructive/10 hover:text-destructive">
-                  <Trash2 size={14} /> {deletingPacket ? "Deleting..." : "Delete packet"}
+                  <Trash2 size={14} /> {deletingPacket ? "Deleting..." : "Delete group"}
                 </Button>
               )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Packet name</Label>
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group name</Label>
                 <Input value={editorName} onChange={(event) => setEditorName(event.target.value)} placeholder="Camera 5 Wireless Kit" maxLength={120} />
               </div>
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Packet notes</Label>
-                <Input value={editorNotes} onChange={(event) => setEditorNotes(event.target.value)} placeholder="Optional packet notes" maxLength={160} />
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group notes</Label>
+                <Input value={editorNotes} onChange={(event) => setEditorNotes(event.target.value)} placeholder="Optional group notes" maxLength={160} />
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Packet lines</div>
+                <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Group lines</div>
                 <Button type="button" variant="outline" onClick={addEditorItem}>Add line</Button>
               </div>
 
@@ -703,7 +703,7 @@ export default function BulkSignOut() {
             </div>
 
             <Button type="button" onClick={savePacket} disabled={savingPacket} className="gap-2">
-              <Save size={16} /> {savingPacket ? "Saving..." : activePacketId === "new" ? "Create packet" : "Save packet"}
+              <Save size={16} /> {savingPacket ? "Saving..." : activePacketId === "new" ? "Create group" : "Save group"}
             </Button>
           </div>
         </div>
@@ -712,8 +712,8 @@ export default function BulkSignOut() {
       <Card className="space-y-5 bg-card/40 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="font-display text-lg text-foreground glow-soft">Packet signout</div>
-            <div className="text-sm text-muted-foreground">Choose a saved packet, assign one real asset to each line, and sign the full packet out to one user.</div>
+            <div className="font-display text-lg text-foreground glow-soft">Group signout</div>
+            <div className="text-sm text-muted-foreground">Choose a saved group, assign one real asset to each line, and sign the full group out to one user.</div>
           </div>
           {activePacketForSignout && (
             <Badge variant="outline" className="border-primary/20 bg-card px-3 py-1.5 font-mono text-primary">
@@ -724,24 +724,24 @@ export default function BulkSignOut() {
 
         {!activePacketForSignout ? (
           <div className="rounded-[1.5rem] border border-primary/12 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
-            Save or select a packet first to start bulk signout.
+            Save or select a group first to start bulk signout.
           </div>
         ) : (
           <>
             {packetDirty && (
               <div className="rounded-[1.2rem] border border-amber-500/24 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                Save your packet changes before using this packet in bulk signout.
+                Save your group changes before using this group in bulk signout.
               </div>
             )}
 
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Packet</Label>
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Group</Label>
                 <Input value={activePacketForSignout.name} readOnly className="text-muted-foreground" />
               </div>
 
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">User receiving packet</Label>
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">User receiving group</Label>
                 <Select value={recipientId} onValueChange={setRecipientId}>
                   <SelectTrigger><SelectValue placeholder="Choose user" /></SelectTrigger>
                   <SelectContent>
@@ -831,11 +831,11 @@ export default function BulkSignOut() {
 
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Signout notes</Label>
-              <Textarea value={signoutNotes} onChange={(event) => setSignoutNotes(event.target.value)} placeholder="Optional notes for this packet signout..." />
+              <Textarea value={signoutNotes} onChange={(event) => setSignoutNotes(event.target.value)} placeholder="Optional notes for this group signout..." />
             </div>
 
             <Button type="button" onClick={submitBulkSignout} disabled={submitting || packetDirty} className="gap-2">
-              <User2 size={16} /> {submitting ? "Processing..." : `Sign out packet (${activePacketForSignout.items.length})`}
+              <User2 size={16} /> {submitting ? "Processing..." : `Sign out group (${activePacketForSignout.items.length})`}
             </Button>
           </>
         )}
