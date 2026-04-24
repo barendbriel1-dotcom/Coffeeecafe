@@ -24,6 +24,7 @@ export default function Login() {
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || "/";
   const isResetRecovery = new URLSearchParams(location.search).get("reset") === "true";
+  const appUrl = (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, "");
 
   const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">(isResetRecovery ? "reset" : "signin");
   const [email, setEmail] = useState("");
@@ -90,7 +91,7 @@ export default function Login() {
         }
 
         const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-          redirectTo: `${window.location.origin}/login?reset=true`,
+          redirectTo: `${appUrl}/login?reset=true`,
         });
         if (error) throw error;
 
@@ -128,7 +129,7 @@ export default function Login() {
           email: email.toLowerCase(),
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/`,
+            emailRedirectTo: `${appUrl}/`,
             data: { display_name: displayName },
           },
         });
