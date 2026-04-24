@@ -15,8 +15,8 @@ export default function ApprovalPending({
 }: ApprovalPendingProps) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <MatrixRain interactive className="opacity-90" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.12),transparent_35%),linear-gradient(180deg,rgba(2,8,5,0.24),rgba(2,8,5,0.7))]" />
+      <MatrixRain interactive className="opacity-100" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.14),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.08),transparent_24%),linear-gradient(180deg,rgba(2,8,5,0.18),rgba(2,8,5,0.58))]" />
 
       <section className="scanlines relative z-10 w-full max-w-xl overflow-hidden rounded-[2rem] border border-primary/20 bg-background/95 p-8 text-center shadow-[var(--shadow-strong)] sm:p-10">
         <div className="absolute inset-x-0 top-0 h-px bg-primary/30" />

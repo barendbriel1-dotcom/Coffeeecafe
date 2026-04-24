@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Encounter Church Assets
 
-TODO: Document your project here
+Assets management app for inventory, sign-outs, approvals, and returns.

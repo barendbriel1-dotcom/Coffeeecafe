@@ -18,6 +18,8 @@ export default function MatrixRain({
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
     const fontSize = 16;
+    const pauseRadius = 120;
+    const fullStopRadius = 36;
     let columns = Math.floor(width / fontSize);
     let drops: number[] = Array(columns).fill(1).map(() => Math.random() * -50);
     const mouse = { x: -9999, y: -9999, active: false };
@@ -69,48 +71,31 @@ export default function MatrixRain({
         const text = chars[Math.floor(Math.random() * chars.length)];
         const x = i * fontSize;
         const baseY = drops[i] * fontSize;
-        let drawX = x;
-        let drawY = baseY;
+        let speed = 1;
 
         if (interactive && mouse.active) {
-          const dx = drawX - mouse.x;
-          const dy = drawY - mouse.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          const radius = 120;
-
-          if (distance < radius) {
-            const breakStrength = (radius - distance) / radius;
-            drawX += (Math.random() - 0.5) * 18 * breakStrength;
-            drawY -= Math.random() * 30 * breakStrength;
-            if (Math.random() < 0.3) {
-              drops[i] = Math.max(0, drops[i] - breakStrength * 3);
-            }
+          const distanceToMouseColumn = Math.abs(x - mouse.x);
+          if (distanceToMouseColumn < pauseRadius) {
+            speed = Math.max(
+              0,
+              (distanceToMouseColumn - fullStopRadius) / (pauseRadius - fullStopRadius),
+            );
           }
         }
 
         ctx.fillStyle = "#CCFFCC";
         ctx.shadowColor = "#00FF41";
         ctx.shadowBlur = 8;
-        ctx.fillText(text, drawX, drawY);
+        ctx.fillText(text, x, baseY);
 
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#00B82D";
-        ctx.fillText(text, drawX, drawY - fontSize);
+        ctx.fillText(text, x, baseY - fontSize);
 
-        if (baseY > height && Math.random() > 0.975) drops[i] = 0;
-        drops[i]++;
-      }
-
-      if (interactive && mouse.active) {
-        for (let index = 0; index < 18; index += 1) {
-          const scatterChar = chars[Math.floor(Math.random() * chars.length)];
-          const angle = Math.random() * Math.PI * 2;
-          const radius = Math.random() * 70;
-          const scatterX = mouse.x + Math.cos(angle) * radius;
-          const scatterY = mouse.y + Math.sin(angle) * radius;
-          ctx.fillStyle = "rgba(0, 255, 65, 0.18)";
-          ctx.fillText(scatterChar, scatterX, scatterY);
+        if (baseY > height && Math.random() > 0.975 && speed > 0.1) {
+          drops[i] = 0;
         }
+        drops[i] += speed;
       }
     };
     raf = requestAnimationFrame(draw);
