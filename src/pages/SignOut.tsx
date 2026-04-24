@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Package } from "lucide-react";
+import { Package, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSearchBlob, LOCATION_NAMES } from "@/lib/assets";
+import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface Asset {
@@ -21,12 +21,8 @@ interface Asset {
   name: string;
   status: string;
   department_id: string;
+  current_location_id: string | null;
   division_id: string | null;
-}
-
-interface Profile {
-  id: string;
-  display_name: string;
 }
 
 interface Loc {
@@ -42,18 +38,18 @@ interface Div {
 export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const { user, isStaff } = useAuth();
   const [available, setAvailable] = useState<Asset[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [locations, setLocations] = useState<Loc[]>([]);
   const [divisions, setDivisions] = useState<Div[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [toUser, setToUser] = useState("");
+  const [recipientName, setRecipientName] = useState("");
   const [packageName, setPackageName] = useState("");
   const [notes, setNotes] = useState("");
-  const [expectedReturn, setExpectedReturn] = useState("");
+  const [signOutAt, setSignOutAt] = useState(() => new Date());
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
+  const [filterStatus, setFilterStatus] = useState("available");
   const [filterLocation, setFilterLocation] = useState("all");
-  const [multiSearch, setMultiSearch] = useState("");
+  const [filterDivision, setFilterDivision] = useState("all");
 
   const KIT_TEMPLATES = [
     { name: "Camera 5 (Wireless)", items: ["Camera 5", "Lens", "Charger", "Battery", "Wireless", "SD", "Cable"] },
@@ -63,9 +59,9 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   ];
 
   const load = async () => {
-    const [{ data: assetRows }, { data: profileRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
-      supabase.from("assets").select("id, code, name, status, department_id, division_id").eq("status", "available").order("name"),
-      supabase.from("profiles").select("id, display_name").order("display_name"),
+    const [{ data: assetRows }, { data: profileRow }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
+      supabase.from("assets").select("id, code, name, status, department_id, current_location_id, division_id").order("name"),
+      supabase.from("profiles").select("display_name").eq("id", user?.id).maybeSingle(),
       supabase.from("locations").select("id, name"),
       supabase.from("divisions").select("id, name"),
     ]);
@@ -77,53 +73,44 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     });
 
     setAvailable(assetRows ?? []);
-    setProfiles(profileRows ?? []);
     setLocations(orderedLocations);
     setDivisions(divisionRows ?? []);
+    setRecipientName(profileRow?.display_name ?? user?.email ?? "Current user");
   };
 
   useEffect(() => {
+    if (!user) return;
     load();
+  }, [user]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setSignOutAt(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
 
   const filteredAssets = available.filter((asset) => {
-    const locationName = locationMap[asset.department_id] ?? "";
+    const normalizedStatus = normalizeAssetStatus(asset.status);
+    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+    const locationName = locationMap[effectiveLocationId] ?? "";
     const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-    const searchBlob = buildSearchBlob([asset.code, asset.name, locationName, divisionName]);
+    const searchBlob = buildSearchBlob([asset.code, asset.name, locationName, divisionName, getAssetStatusLabel(normalizedStatus)]);
     const matchesQuery = !q.trim() || searchBlob.includes(q.trim().toLowerCase());
-    const matchesLocation = filterLocation === "all" || asset.department_id === filterLocation;
-    return matchesQuery && matchesLocation;
+    const matchesStatus = filterStatus === "all" || normalizedStatus === filterStatus;
+    const matchesLocation = filterLocation === "all" || effectiveLocationId === filterLocation;
+    const matchesDivision = filterDivision === "all" || asset.division_id === filterDivision;
+    return matchesQuery && matchesStatus && matchesLocation && matchesDivision;
   });
 
   const toggle = (id: string) => {
+    const asset = available.find((entry) => entry.id === id);
+    if (!asset || normalizeAssetStatus(asset.status) !== "available") return;
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelected(next);
-  };
-
-  const applyMultiSearch = () => {
-    const codes = multiSearch
-      .split(/[\s,]+/)
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean);
-
-    if (codes.length === 0) return;
-
-    const matchedIds = available.filter((asset) => codes.includes(asset.code.toUpperCase())).map((asset) => asset.id);
-    if (matchedIds.length === 0) {
-      toast.error("No matching available assets were found.");
-      return;
-    }
-
-    const next = new Set(selected);
-    matchedIds.forEach((id) => next.add(id));
-    setSelected(next);
-    setMultiSearch("");
-    toast.success(`Added ${matchedIds.length} asset(s) from rapid entry.`);
   };
 
   const submit = async () => {
@@ -134,11 +121,6 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
     if (selected.size === 0) {
       toast.error("Select at least one asset.");
-      return;
-    }
-
-    if (!toUser) {
-      toast.error("Choose the user receiving the asset.");
       return;
     }
 
@@ -155,11 +137,11 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
         .from("signouts")
         .insert({
           signed_out_by: user!.id,
-          signed_out_to: toUser,
+          signed_out_to: user!.id,
           to_department_id: traveling.id,
           package_name: bulk ? (packageName || "Bulk package") : null,
           notes: notes || null,
-          expected_return: expectedReturn ? new Date(expectedReturn).toISOString() : null,
+          expected_return: signOutAt.toISOString(),
         })
         .select("id")
         .single();
@@ -174,7 +156,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
         .from("assets")
         .update({
           status: "signed_out",
-          current_holder: toUser,
+          current_holder: user!.id,
           current_location_id: traveling.id,
         } as any)
         .in("id", ids);
@@ -186,17 +168,16 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
           asset_id,
           action: "signed_out",
           performed_by: user!.id,
-          to_user: toUser,
+          to_user: user!.id,
           notes: bulk ? `Bulk package: ${packageName}` : "Location moved to Traveling.",
         })),
       );
 
       toast.success(`Signed out ${ids.length} asset(s). Location moved to Traveling.`);
       setSelected(new Set());
-      setToUser("");
       setPackageName("");
       setNotes("");
-      setExpectedReturn("");
+      setSignOutAt(new Date());
       load();
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to sign out the selected assets.");
@@ -232,21 +213,12 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">User receiving the item</Label>
-              <Select value={toUser} onValueChange={setToUser}>
-                <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
-                <SelectContent>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input value={recipientName} readOnly className="text-muted-foreground" />
             </div>
 
             <div className="space-y-2">
-              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Expected return</Label>
-              <Input type="datetime-local" value={expectedReturn} onChange={(event) => setExpectedReturn(event.target.value)} className="calendar-icon-green" />
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Sign-out date and time</Label>
+              <Input value={signOutAt.toLocaleString()} readOnly className="text-muted-foreground" />
             </div>
 
             <div className="space-y-2">
@@ -285,38 +257,42 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
         <div className="space-y-4 lg:col-span-2">
           <Card className="space-y-4 bg-card/40 p-4">
-            <div className="space-y-2 border-b border-primary/10 pb-4">
-              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Rapid entry (asset tags)</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={multiSearch}
-                  onChange={(event) => setMultiSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      applyMultiSearch();
-                    }
-                  }}
-                  placeholder="AP431, WK205, PH118..."
-                  className="font-mono uppercase"
-                />
-                <Button onClick={applyMultiSearch}>Add</Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_220px_220px_220px]">
               <div className="relative">
                 <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
                 <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by tag, name, division, location..." className="pl-9" />
               </div>
 
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="signed_out">Signed Out</SelectItem>
+                  <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
+                  <SelectItem value="damaged">Damaged</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={filterLocation} onValueChange={setFilterLocation}>
                 <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All locations</SelectItem>
-                  {locations.filter((location) => location.name !== "Traveling").map((location) => (
+                  {locations.map((location) => (
                     <SelectItem key={location.id} value={location.id}>
                       {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterDivision} onValueChange={setFilterDivision}>
+                <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All divisions</SelectItem>
+                  {divisions.map((division) => (
+                    <SelectItem key={division.id} value={division.id}>
+                      {division.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -326,7 +302,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
           <Card className="min-h-[400px] bg-card/40 p-4">
             <div className="mb-4 flex items-center justify-between border-b border-primary/10 pb-2">
-              <h2 className="font-display text-sm uppercase tracking-[0.2em] text-primary">Available assets</h2>
+              <h2 className="font-display text-sm uppercase tracking-[0.2em] text-primary">Assets</h2>
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                 {filteredAssets.length} item{filteredAssets.length === 1 ? "" : "s"} found
               </div>
@@ -346,18 +322,29 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                     "relative flex cursor-pointer items-center gap-3 rounded-[1.2rem] border p-3 transition-all",
                     selected.has(asset.id)
                       ? "border-primary/35 bg-primary/10 shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
-                      : "border-primary/10 bg-primary/5 hover:border-primary/24 hover:bg-primary/8",
+                      : normalizeAssetStatus(asset.status) === "available"
+                        ? "border-primary/10 bg-primary/5 hover:border-primary/24 hover:bg-primary/8"
+                        : "cursor-not-allowed border-primary/10 bg-card/90 opacity-60",
                   )}
                 >
-                  <Checkbox checked={selected.has(asset.id)} onCheckedChange={() => toggle(asset.id)} />
+                  <Checkbox
+                    checked={selected.has(asset.id)}
+                    disabled={normalizeAssetStatus(asset.status) !== "available"}
+                    onCheckedChange={() => toggle(asset.id)}
+                  />
 
                   <div className="min-w-0 flex-1">
                     <div className={cn("font-display text-sm tracking-[0.14em]", selected.has(asset.id) ? "text-primary glow-soft" : "text-foreground")}>
                       {asset.code}
                     </div>
                     <div className="truncate text-sm text-foreground/85">{asset.name}</div>
-                    <div className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                      {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"} | {locationMap[asset.department_id] ?? "Location"}
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(asset.status))}>
+                        {getAssetStatusLabel(asset.status)}
+                      </Badge>
+                      <span className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"} | {locationMap[asset.current_location_id ?? asset.department_id] ?? "Location"}
+                      </span>
                     </div>
                   </div>
                 </label>
