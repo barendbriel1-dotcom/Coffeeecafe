@@ -256,6 +256,18 @@ export default function BulkSignOut() {
     [editorItems],
   );
 
+  const selectedGroupItems = useMemo(
+    () =>
+      editorItems
+        .map((item, index) => ({
+          ...item,
+          displayIndex: index + 1,
+          trimmedLabel: item.line_label.trim(),
+        }))
+        .filter((item) => item.trimmedLabel),
+    [editorItems],
+  );
+
   const packetDirty = useMemo(() => {
     if (activePacketId === "new") {
       return Boolean(
@@ -362,6 +374,13 @@ export default function BulkSignOut() {
       division_id: divisionIds.length === 1 ? divisionIds[0] ?? null : null,
       location_id: locationIds.length === 1 ? locationIds[0] ?? null : null,
     });
+
+    setEditorItems((current) => {
+      const hasEmptyLine = current.some((entry) => !entry.line_label.trim() && entry.id !== itemId);
+      if (hasEmptyLine) return current;
+      return [...current, { ...EMPTY_ITEM(), sort_order: current.length }];
+    });
+
     setActiveEditorSearchId(null);
   };
 
@@ -726,6 +745,59 @@ export default function BulkSignOut() {
               <div className="flex items-center justify-between">
                 <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Group lines</div>
                 <Button type="button" variant="outline" onClick={addEditorItem}>Add line</Button>
+              </div>
+
+              <div className="overflow-hidden rounded-[1.3rem] border border-primary/12 bg-card">
+                <div className="flex items-center justify-between border-b border-primary/10 bg-primary/8 px-4 py-3">
+                  <div>
+                    <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Items Added To Group</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Selected search results collect here before you save the group.
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    {selectedGroupItems.length}
+                  </Badge>
+                </div>
+
+                <div className="p-3">
+                  {selectedGroupItems.length === 0 ? (
+                    <div className="rounded-[1rem] border border-primary/10 bg-background px-3 py-5 text-sm text-muted-foreground">
+                      Search for an item above and choose it to add it into this group.
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {selectedGroupItems.map((item) => (
+                        <div
+                          key={`group-item-${item.id}`}
+                          className="rounded-[1rem] border border-primary/10 bg-background px-3 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-display text-sm text-foreground glow-soft">{item.trimmedLabel}</div>
+                              <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                <span>Line {item.displayIndex}</span>
+                                {item.division_id && <span>{divisionMap[item.division_id] ?? "Division"}</span>}
+                                {item.location_id && <span>{locationMap[item.location_id] ?? "Location"}</span>}
+                              </div>
+                              {item.notes && <div className="mt-1 text-[11px] text-muted-foreground">{item.notes}</div>}
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeEditorItem(item.id)}
+                              className="shrink-0"
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-3">
