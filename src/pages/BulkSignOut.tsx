@@ -767,39 +767,53 @@ export default function BulkSignOut() {
                         </div>
 
                         {activeEditorSearchId === item.id && item.line_label.trim() && (
-                          <div className="max-h-64 overflow-y-auto rounded-[1.1rem] border border-primary/12 bg-card p-2">
-                            {getEditorSuggestions(item).length === 0 ? (
-                              <div className="px-3 py-4 text-sm text-muted-foreground">
-                                No matching assets found. You can still type your own group line name manually.
+                          <div className="overflow-hidden rounded-[1.2rem] border border-primary/14 bg-card shadow-[0_0_28px_hsl(var(--primary)/0.08)]">
+                            <div className="flex items-center justify-between border-b border-primary/10 bg-primary/8 px-4 py-3">
+                              <div>
+                                <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Matching Items</div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Choose a result below to fill this line.
+                                </div>
                               </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {getEditorSuggestions(item).map((group) => {
-                                  return (
-                                    <button
-                                      key={group.key}
-                                      type="button"
-                                      onMouseDown={(event) => {
-                                        event.preventDefault();
-                                        assignTemplateAssetGroup(item.id, group.name);
-                                      }}
-                                      className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
-                                    >
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-display text-sm text-foreground glow-soft">{group.name}</span>
-                                        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">
-                                          {group.totalUnits} unit{group.totalUnits === 1 ? "" : "s"}
-                                        </span>
-                                      </div>
-                                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                        <span>{group.availableUnits} available</span>
-                                        <span>{group.locationSummary}</span>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
+                              <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                {getEditorSuggestions(item).length}
+                              </Badge>
+                            </div>
+
+                            <div className="max-h-72 overflow-y-auto p-2">
+                              {getEditorSuggestions(item).length === 0 ? (
+                                <div className="rounded-[1rem] border border-primary/10 bg-background px-3 py-4 text-sm text-muted-foreground">
+                                  No matching items found. You can still type your own group line name manually.
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {getEditorSuggestions(item).map((group) => {
+                                    return (
+                                      <button
+                                        key={group.key}
+                                        type="button"
+                                        onMouseDown={(event) => {
+                                          event.preventDefault();
+                                          assignTemplateAssetGroup(item.id, group.name);
+                                        }}
+                                        className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
+                                      >
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-display text-sm text-foreground glow-soft">{group.name}</span>
+                                          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">
+                                            {group.totalUnits} unit{group.totalUnits === 1 ? "" : "s"}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                          <span>{group.availableUnits} available</span>
+                                          <span>{group.locationSummary}</span>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
