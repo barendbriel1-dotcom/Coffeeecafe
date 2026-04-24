@@ -35,7 +35,7 @@ interface Loc {
   name: string;
 }
 
-interface ItemType {
+interface DepartmentRow {
   id: string;
   name: string;
 }
@@ -50,7 +50,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [available, setAvailable] = useState<Asset[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [locations, setLocations] = useState<Loc[]>([]);
-  const [categories, setCategories] = useState<ItemType[]>([]);
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [divisions, setDivisions] = useState<Div[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toUser, setToUser] = useState("");
@@ -70,7 +70,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   ];
 
   const load = async () => {
-    const [{ data: assetRows }, { data: profileRows }, { data: locationRows }, { data: categoryRows }, { data: divisionRows }] = await Promise.all([
+    const [{ data: assetRows }, { data: profileRows }, { data: locationRows }, { data: departmentRows }, { data: divisionRows }] = await Promise.all([
       supabase.from("assets").select("id, code, name, status, department_id, item_type_id, division_id").eq("status", "available").order("name"),
       supabase.from("profiles").select("id, display_name").order("display_name"),
       supabase.from("locations").select("id, name"),
@@ -87,7 +87,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     setAvailable(assetRows ?? []);
     setProfiles(profileRows ?? []);
     setLocations(orderedLocations);
-    setCategories(categoryRows ?? []);
+    setDepartments(departmentRows ?? []);
     setDivisions(divisionRows ?? []);
   };
 
@@ -95,15 +95,15 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     load();
   }, []);
 
-  const categoryMap = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, category.name])), [categories]);
+  const departmentMap = useMemo(() => Object.fromEntries(departments.map((department) => [department.id, department.name])), [departments]);
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
 
   const filteredAssets = available.filter((asset) => {
     const locationName = locationMap[asset.department_id] ?? "";
-    const categoryName = categoryMap[asset.item_type_id] ?? "";
+    const departmentName = departmentMap[asset.item_type_id] ?? "";
     const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-    const searchBlob = buildSearchBlob([asset.code, asset.name, locationName, categoryName, divisionName]);
+    const searchBlob = buildSearchBlob([asset.code, asset.name, locationName, departmentName, divisionName]);
     const matchesQuery = !q.trim() || searchBlob.includes(q.trim().toLowerCase());
     const matchesLocation = filterLocation === "all" || asset.department_id === filterLocation;
     return matchesQuery && matchesLocation;
@@ -322,7 +322,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
               <div className="relative">
                 <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
-                <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by tag, name, category, division, location..." className="pl-9" />
+                <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by tag, name, department, division, location..." className="pl-9" />
               </div>
 
               <Select value={filterLocation} onValueChange={setFilterLocation}>
@@ -372,7 +372,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                     </div>
                     <div className="truncate text-sm text-foreground/85">{asset.name}</div>
                     <div className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                      {categoryMap[asset.item_type_id] ?? "Category"} | {locationMap[asset.department_id] ?? "Location"}
+                      {departmentMap[asset.item_type_id] ?? "Department"} | {locationMap[asset.department_id] ?? "Location"}
                     </div>
                   </div>
                 </label>

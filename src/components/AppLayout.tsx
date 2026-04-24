@@ -43,7 +43,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-interface DepartmentOption {
+interface LocationOption {
   id: string;
   name: string;
 }
@@ -60,7 +60,7 @@ export default function AppLayout() {
   const [profileName, setProfileName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [profileDepartmentId, setProfileDepartmentId] = useState("none");
-  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [locations, setLocations] = useState<LocationOption[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -71,13 +71,13 @@ export default function AppLayout() {
     if (!user) return;
 
     (async () => {
-      const [{ data: profile }, { data: departmentRows }] = await Promise.all([
+      const [{ data: profile }, { data: locationRows }] = await Promise.all([
         supabase
           .from("profiles")
           .select("display_name, phone, department_id")
           .eq("id", user.id)
           .single(),
-        supabase.from("departments").select("id, name").order("name"),
+        supabase.from("locations").select("id, name").order("name"),
       ]);
 
       const nextName = profile?.display_name ?? user.email ?? "";
@@ -85,7 +85,7 @@ export default function AppLayout() {
       setProfileName(nextName);
       setProfilePhone(profile?.phone ?? "");
       setProfileDepartmentId(profile?.department_id ?? "none");
-      setDepartments(departmentRows ?? []);
+      setLocations(locationRows ?? []);
     })();
   }, [user]);
 
@@ -328,9 +328,9 @@ export default function AppLayout() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Not set</SelectItem>
-                  {departments.map((department) => (
-                    <SelectItem key={department.id} value={department.id}>
-                      {department.name}
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -12,7 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, getTagPrefix, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
+import {
+  buildSearchBlob,
+  generateAssetTag,
+  generateNameCode,
+  generateSingleCharacterCode,
+  getAssetStatusLabel,
+  getStatusBadgeClass,
+  getTagPrefix,
+  LOCATION_NAMES,
+  normalizeAssetStatus,
+} from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface Asset {
@@ -29,19 +39,20 @@ interface Asset {
   current_location_id: string | null;
 }
 
-interface Loc {
+interface LocationRow {
   id: string;
   code: string;
   name: string;
   is_storage?: boolean;
 }
 
-interface Div {
+interface DivisionRow {
   id: string;
+  code: string | null;
   name: string;
 }
 
-interface ItemType {
+interface DepartmentRow {
   id: string;
   code: string;
   name: string;
@@ -51,11 +62,10 @@ export default function Assets() {
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const initialStatus = normalizeAssetStatus(searchParams.get("status") || "available") || "all";
-
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [locations, setLocations] = useState<Loc[]>([]);
-  const [divisions, setDivisions] = useState<Div[]>([]);
-  const [categories, setCategories] = useState<ItemType[]>([]);
+  const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [divisions, setDivisions] = useState<DivisionRow[]>([]);
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") ? normalizeAssetStatus(searchParams.get("status") || "") : "all");
   const [locationFilter, setLocationFilter] = useState<string>("all");
@@ -69,17 +79,21 @@ export default function Assets() {
   const [serial, setSerial] = useState("");
   const [locationId, setLocationId] = useState("");
   const [divisionId, setDivisionId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [newDivisionName, setNewDivisionName] = useState("");
+  const [newDepartmentName, setNewDepartmentName] = useState("");
+  const [addingDivision, setAddingDivision] = useState(false);
+  const [addingDepartment, setAddingDepartment] = useState(false);
 
   const load = async () => {
-    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: categoryRows }] = await Promise.all([
+    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: departmentRows }] = await Promise.all([
       supabase.from("assets").select("*").order("name"),
       supabase.from("locations").select("*"),
       supabase.from("divisions").select("*").order("name"),
       supabase.from("item_types").select("*").order("name"),
     ]);
 
-    const orderedLocations = (locationRows ?? []).sort((a: Loc, b: Loc) => {
+    const orderedLocations = (locationRows ?? []).sort((a: LocationRow, b: LocationRow) => {
       const aIndex = LOCATION_NAMES.indexOf(a.name as (typeof LOCATION_NAMES)[number]);
       const bIndex = LOCATION_NAMES.indexOf(b.name as (typeof LOCATION_NAMES)[number]);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
@@ -88,7 +102,7 @@ export default function Assets() {
     setAssets(assetRows ?? []);
     setLocations(orderedLocations);
     setDivisions(divisionRows ?? []);
-    setCategories(categoryRows ?? []);
+    setDepartments((departmentRows ?? []) as DepartmentRow[]);
   };
 
   useEffect(() => {
@@ -96,20 +110,26 @@ export default function Assets() {
   }, []);
 
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
-  const categoryMap = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, category.name])), [categories]);
+  const departmentMap = useMemo(() => Object.fromEntries(departments.map((department) => [department.id, department.name])), [departments]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
+
+  useEffect(() => {
+    if (searchParams.get("status")) {
+      setStatusFilter(initialStatus);
+    }
+  }, [initialStatus, searchParams]);
 
   const filtered = assets.filter((asset) => {
     const normalizedStatus = normalizeAssetStatus(asset.status);
     const currentLocationId = asset.current_location_id ?? asset.department_id;
     const currentLocationName = locationMap[currentLocationId] ?? "";
     const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-    const categoryName = categoryMap[asset.item_type_id] ?? "";
+    const departmentName = departmentMap[asset.item_type_id] ?? "";
     const searchBlob = buildSearchBlob([
       asset.name,
       asset.code,
-      categoryName,
       currentLocationName,
+      departmentName,
       divisionName,
       getAssetStatusLabel(normalizedStatus),
       asset.description,
@@ -123,41 +143,103 @@ export default function Assets() {
   });
 
   const create = async () => {
-    if (!name || !locationId || !categoryId || !divisionId) {
-      toast.error("Name, location, division, and category are required.");
+    if (!name || !locationId || !departmentId || !divisionId) {
+      toast.error("Name, location, department, and division are required.");
       return;
     }
 
-    const { error } = await supabase.from("assets").insert({
-      name: name.trim(),
-      description: description.trim() || null,
-      serial_number: serial.trim() || null,
-      department_id: locationId,
-      item_type_id: categoryId,
-      division_id: divisionId,
-      current_location_id: locationId,
-      code: "",
-      status: "available",
-    } as any);
+    try {
+      const usedCodes = new Set(assets.map((asset) => asset.code));
+      const nextCode = generateAssetTag(divisionMap[divisionId], name, usedCodes);
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      const { error } = await supabase.from("assets").insert({
+        name: name.trim(),
+        description: description.trim() || null,
+        serial_number: serial.trim() || null,
+        department_id: locationId,
+        item_type_id: departmentId,
+        division_id: divisionId,
+        current_location_id: locationId,
+        code: nextCode,
+        status: "available",
+      } as any);
+
+      if (error) throw error;
+
+      toast.success("Asset registered.");
+      setOpen(false);
+      setName("");
+      setDescription("");
+      setSerial("");
+      setLocationId("");
+      setDivisionId("");
+      setDepartmentId("");
+      load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to register asset.");
     }
-
-    toast.success("Asset registered.");
-    setOpen(false);
-    setName("");
-    setDescription("");
-    setSerial("");
-    setLocationId("");
-    setDivisionId("");
-    setCategoryId("");
-    load();
   };
 
-  const csvHeader = "Asset Code,Division,Description,Serial Number,Location,Category,Image URL";
-  const csvSample = `${csvHeader}\nAP431,Assets,Portable speaker,SN12345,Centurion,Speaker,/assets/photos/sample.jpg`;
+  const addDepartment = async () => {
+    const trimmedName = newDepartmentName.trim();
+    if (!trimmedName) {
+      toast.error("Department name is required.");
+      return;
+    }
+
+    try {
+      setAddingDepartment(true);
+      const code = generateSingleCharacterCode(trimmedName, departments.map((department) => department.code));
+      const { data, error } = await supabase
+        .from("item_types")
+        .insert({ name: trimmedName, code })
+        .select("id, code, name")
+        .single();
+
+      if (error) throw error;
+
+      setDepartments((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setDepartmentId(data.id);
+      setNewDepartmentName("");
+      toast.success("Department added.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to add department.");
+    } finally {
+      setAddingDepartment(false);
+    }
+  };
+
+  const addDivision = async () => {
+    const trimmedName = newDivisionName.trim();
+    if (!trimmedName) {
+      toast.error("Division name is required.");
+      return;
+    }
+
+    try {
+      setAddingDivision(true);
+      const code = generateNameCode(trimmedName, divisions.map((division) => division.code ?? ""), 4);
+      const { data, error } = await supabase
+        .from("divisions")
+        .insert({ name: trimmedName, code })
+        .select("id, code, name")
+        .single();
+
+      if (error) throw error;
+
+      setDivisions((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setDivisionId(data.id);
+      setNewDivisionName("");
+      toast.success("Division added.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to add division.");
+    } finally {
+      setAddingDivision(false);
+    }
+  };
+
+  const csvHeader = "Name,Division,Serial Number,Location,Department,Description";
+  const csvSample = `${csvHeader}\nPortable Speaker,Assets,SN12345,Centurion,Audio,Sunday service speaker`;
 
   const downloadTemplate = () => {
     const blob = new Blob([csvSample], { type: "text/csv" });
@@ -245,31 +327,33 @@ export default function Assets() {
 
     const locationByName = new Map(locations.map((location) => [location.name.toLowerCase(), location]));
     const divisionByName = new Map(divisions.map((division) => [division.name.toLowerCase(), division]));
-    const categoryByName = new Map(categories.map((category) => [category.name.toLowerCase(), category]));
+    const departmentByName = new Map(departments.map((department) => [department.name.toLowerCase(), department]));
+    const usedCodes = new Set(assets.map((asset) => asset.code));
     const errors: string[] = [];
     const validRows: any[] = [];
 
     previewRows.forEach((row, index) => {
       const lineNo = index + 2;
-      const assetName = row.description || "Unknown Asset";
+      const assetName = row.name || row.item_name || row.description || "Unknown Asset";
       const location = locationByName.get((row.location ?? "").toLowerCase());
       const division = divisionByName.get((row.division ?? "").toLowerCase());
-      const category = categoryByName.get((row.category ?? "").toLowerCase());
+      const departmentName = row.department ?? row.category ?? "";
+      const department = departmentByName.get(departmentName.toLowerCase());
 
-      if (!location || !division || !category) {
-        errors.push(`Line ${lineNo}: location, division, or category could not be matched.`);
+      if (!location || !division || !department) {
+        errors.push(`Line ${lineNo}: location, division, or department could not be matched.`);
         return;
       }
 
       validRows.push({
         name: assetName.slice(0, 120),
-        description: assetName.slice(0, 500) || null,
+        description: (row.description ?? "").slice(0, 500) || null,
         serial_number: (row.serial_number ?? "").slice(0, 80) || null,
         department_id: location.id,
         division_id: division.id,
-        item_type_id: category.id,
+        item_type_id: department.id,
         current_location_id: location.id,
-        code: row.asset_code || "",
+        code: row.tag || row.asset_code || generateAssetTag(division.name, assetName, usedCodes),
         status: "available",
       });
     });
@@ -318,7 +402,7 @@ export default function Assets() {
           <div className="app-kicker">Asset registry</div>
           <h1 className="mt-2 font-display text-3xl text-foreground glow-soft sm:text-4xl">See every asset in one searchable list.</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Each row shows item name, tag, category, status, and current location.
+            Each row shows item name, tag, location, status, department, division, and serial number.
           </p>
         </div>
 
@@ -330,20 +414,15 @@ export default function Assets() {
                   <Plus size={16} className="mr-1" /> New Asset
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card/95">
+              <DialogContent className="bg-card">
                 <DialogHeader>
                   <DialogTitle className="font-display text-foreground">Register asset</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Item name</Label>
                     <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Description</Label>
-                    <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
                   </div>
 
                   <div className="space-y-2">
@@ -367,37 +446,72 @@ export default function Assets() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Division</Label>
-                      <Select value={divisionId} onValueChange={setDivisionId}>
-                        <SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger>
-                        <SelectContent>
-                          {divisions.map((division) => (
-                            <SelectItem key={division.id} value={division.id}>
-                              {division.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Status</Label>
+                      <Input value="Available" readOnly className="text-muted-foreground" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Category</Label>
-                    <Select value={categoryId} onValueChange={setCategoryId}>
-                      <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                    <Label>Department</Label>
+                    <Select value={departmentId} onValueChange={setDepartmentId}>
+                      <SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger>
                       <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
+                        {departments.map((department) => (
+                          <SelectItem key={department.id} value={department.id}>
+                            {department.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newDepartmentName}
+                        onChange={(event) => setNewDepartmentName(event.target.value)}
+                        placeholder="Add a new department"
+                        maxLength={80}
+                      />
+                      <Button type="button" variant="outline" onClick={addDepartment} disabled={addingDepartment}>
+                        {addingDepartment ? "Adding..." : "Add"}
+                      </Button>
+                    </div>
                   </div>
 
-                  <p className="font-mono text-xs text-muted-foreground">
-                    Tag preview: <span className="text-primary">{tagPreview}</span>
-                  </p>
+                  <div className="space-y-2">
+                    <Label>Division</Label>
+                    <Select value={divisionId} onValueChange={setDivisionId}>
+                      <SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger>
+                      <SelectContent>
+                        {divisions.map((division) => (
+                          <SelectItem key={division.id} value={division.id}>
+                            {division.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newDivisionName}
+                        onChange={(event) => setNewDivisionName(event.target.value)}
+                        placeholder="Add a new division"
+                        maxLength={80}
+                      />
+                      <Button type="button" variant="outline" onClick={addDivision} disabled={addingDivision}>
+                        {addingDivision ? "Adding..." : "Add"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} />
+                  </div>
+
+                  <div className="rounded-[1.25rem] border border-primary/12 bg-secondary/80 px-4 py-3">
+                    <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      Tag preview
+                    </div>
+                    <div className="mt-1 font-mono text-sm text-primary">{tagPreview}</div>
+                  </div>
 
                   <Button onClick={create} className="w-full">
                     Register asset
@@ -412,7 +526,7 @@ export default function Assets() {
                   <Upload size={16} className="mr-1" /> CSV Import
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl bg-card/95">
+              <DialogContent className="max-w-2xl bg-card">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 font-display text-foreground">
                     <FileSpreadsheet size={18} /> Bulk import assets
@@ -420,10 +534,10 @@ export default function Assets() {
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <div className="rounded-[1.35rem] border border-primary/12 bg-secondary/65 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-[1.35rem] border border-primary/12 bg-secondary/80 p-4 text-sm text-muted-foreground">
                     <div className="app-kicker">Expected columns</div>
                     <div className="mt-2">
-                      Asset Code, Division, Description, Serial Number, Location, Category, Image URL
+                      Name, Division, Serial Number, Location, Department, Description
                     </div>
                   </div>
 
@@ -463,21 +577,21 @@ export default function Assets() {
                         <table className="w-full font-mono text-xs">
                           <thead className="bg-primary/6 text-muted-foreground">
                             <tr>
-                              <th className="px-2 py-2 text-left">Code</th>
-                              <th className="px-2 py-2 text-left">Description</th>
+                              <th className="px-2 py-2 text-left">Name</th>
                               <th className="px-2 py-2 text-left">Location</th>
+                              <th className="px-2 py-2 text-left">Department</th>
                               <th className="px-2 py-2 text-left">Division</th>
-                              <th className="px-2 py-2 text-left">Category</th>
+                              <th className="px-2 py-2 text-left">Serial</th>
                             </tr>
                           </thead>
                           <tbody>
                             {previewRows.slice(0, 50).map((row, index) => (
-                              <tr key={`${row.asset_code}-${index}`} className="border-t border-primary/10">
-                                <td className="px-2 py-2 text-primary">{row.asset_code}</td>
-                                <td className="px-2 py-2 text-foreground/80">{row.description}</td>
+                              <tr key={`${row.name}-${index}`} className="border-t border-primary/10">
+                                <td className="px-2 py-2 text-foreground/80">{row.name || row.description}</td>
                                 <td className="px-2 py-2 text-foreground/80">{row.location}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.department || row.category}</td>
                                 <td className="px-2 py-2 text-foreground/80">{row.division}</td>
-                                <td className="px-2 py-2 text-foreground/80">{row.category}</td>
+                                <td className="px-2 py-2 text-foreground/80">{row.serial_number}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -503,7 +617,7 @@ export default function Assets() {
             <Input
               value={q}
               onChange={(event) => setQ(event.target.value)}
-              placeholder="Search by item name, tag, category, status, location..."
+              placeholder="Search by name, tag, location, status, department, division, serial..."
               className="pl-9"
             />
           </div>
@@ -540,23 +654,26 @@ export default function Assets() {
               <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 <th className="px-4 py-3 font-normal">Item Name</th>
                 <th className="px-4 py-3 font-normal">Tag</th>
-                <th className="px-4 py-3 font-normal">Category</th>
-                <th className="px-4 py-3 font-normal">Status</th>
                 <th className="px-4 py-3 font-normal">Location</th>
+                <th className="px-4 py-3 font-normal">Status</th>
+                <th className="px-4 py-3 font-normal">Department</th>
+                <th className="px-4 py-3 font-normal">Division</th>
+                <th className="px-4 py-3 font-normal">Serial Number</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-primary/10">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground/70">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground/70">
                     No assets matched your search or filters.
                   </td>
                 </tr>
               )}
 
               {filtered.map((asset) => {
-                const categoryName = categoryMap[asset.item_type_id] ?? "-";
+                const departmentName = departmentMap[asset.item_type_id] ?? "-";
+                const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "-" : "-";
                 const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "-";
                 const normalizedStatus = normalizeAssetStatus(asset.status);
 
@@ -569,13 +686,15 @@ export default function Assets() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 font-mono text-foreground/80">{asset.code}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{categoryName}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
                         {getAssetStatusLabel(normalizedStatus)}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{departmentName}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{divisionName}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{asset.serial_number || "-"}</td>
                   </tr>
                 );
               })}

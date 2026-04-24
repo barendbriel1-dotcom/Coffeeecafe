@@ -65,6 +65,80 @@ export function getTagPrefix(divisionName?: string | null, assetName?: string | 
   return `${divisionChar}${assetChar}`;
 }
 
+export function generateAssetTag(divisionName: string | null | undefined, assetName: string | null | undefined, usedCodes: Set<string>) {
+  const prefix = getTagPrefix(divisionName, assetName);
+
+  for (let attempt = 0; attempt < 2000; attempt += 1) {
+    const suffix = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+    const candidate = `${prefix}${suffix}`;
+    if (!usedCodes.has(candidate)) {
+      usedCodes.add(candidate);
+      return candidate;
+    }
+  }
+
+  for (let suffix = 0; suffix < 1000; suffix += 1) {
+    const candidate = `${prefix}${suffix.toString().padStart(3, "0")}`;
+    if (!usedCodes.has(candidate)) {
+      usedCodes.add(candidate);
+      return candidate;
+    }
+  }
+
+  throw new Error(`No more tag codes available for prefix ${prefix}`);
+}
+
+export function generateSingleCharacterCode(name: string, usedCodes: Iterable<string>) {
+  const taken = new Set(Array.from(usedCodes, (code) => (code ?? "").toUpperCase()));
+  const cleaned = (name ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  for (const char of cleaned) {
+    if (!taken.has(char)) return char;
+  }
+
+  const fallback = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  for (const char of fallback) {
+    if (!taken.has(char)) return char;
+  }
+
+  throw new Error("No single-character codes are available.");
+}
+
+export function generateNameCode(name: string, usedCodes: Iterable<string>, maxLength = 4) {
+  const taken = new Set(Array.from(usedCodes, (code) => (code ?? "").toUpperCase()));
+  const words = (name ?? "")
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean);
+
+  const candidates = new Set<string>();
+  if (words.length > 1) {
+    candidates.add(words.map((word) => word[0]).join("").slice(0, maxLength));
+  }
+
+  if (words.length > 0) {
+    candidates.add(words[0].slice(0, maxLength));
+  }
+
+  const compact = words.join("");
+  if (compact) {
+    candidates.add(compact.slice(0, maxLength));
+  }
+
+  for (const candidate of candidates) {
+    if (candidate && !taken.has(candidate)) return candidate;
+  }
+
+  const base = compact.slice(0, Math.max(1, maxLength - 1)) || "X";
+  for (let index = 1; index <= 99; index += 1) {
+    const suffix = index.toString();
+    const candidate = `${base}${suffix}`.slice(0, maxLength);
+    if (!taken.has(candidate)) return candidate;
+  }
+
+  throw new Error("No code could be generated for this name.");
+}
+
 function firstTagCharacter(value?: string | null) {
   const cleaned = (value ?? "").replace(/[^A-Za-z0-9]/g, "");
   return cleaned ? cleaned[0].toUpperCase() : "X";

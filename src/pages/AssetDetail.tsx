@@ -67,7 +67,7 @@ export default function AssetDetail() {
         .select(`
           *,
           base_location:locations!assets_department_id_fkey(name),
-          item_type:item_types!assets_item_type_id_fkey(name),
+          department:item_types!assets_item_type_id_fkey(name),
           current_location:locations!assets_current_location_id_fkey(name),
           division:divisions(name)
         `)
@@ -266,10 +266,10 @@ export default function AssetDetail() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Equipment Category</div>
+                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Department</div>
                   <div className="font-mono text-foreground flex items-center gap-2">
                     <div className="size-1.5 bg-primary rounded-full" />
-                    {(asset as any).item_type?.name}
+                    {(asset as any).department?.name}
                   </div>
                 </div>
                 <div className="space-y-1">
