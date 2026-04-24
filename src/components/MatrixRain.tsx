@@ -3,9 +3,11 @@ import { useEffect, useRef } from "react";
 export default function MatrixRain({
   className = "",
   interactive = false,
+  mode = "default",
 }: {
   className?: string;
   interactive?: boolean;
+  mode?: "default" | "loader";
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -17,7 +19,8 @@ export default function MatrixRain({
 
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
-    const fontSize = 16;
+    const isLoader = mode === "loader";
+    const fontSize = isLoader ? 14 : 16;
     const pauseRadius = 120;
     const fullStopRadius = 36;
     let columns = Math.floor(width / fontSize);
@@ -54,7 +57,7 @@ export default function MatrixRain({
 
     let raf = 0;
     let last = 0;
-    const fps = 24;
+    const fps = isLoader ? 36 : 24;
     const interval = 1000 / fps;
 
     const draw = (now: number) => {
@@ -62,7 +65,7 @@ export default function MatrixRain({
       if (now - last < interval) return;
       last = now;
 
-      ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
+      ctx.fillStyle = isLoader ? "rgba(0, 0, 0, 0.05)" : "rgba(0, 0, 0, 0.09)";
       ctx.fillRect(0, 0, width, height);
 
       ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
@@ -83,19 +86,19 @@ export default function MatrixRain({
           }
         }
 
-        ctx.fillStyle = "#CCFFCC";
+        ctx.fillStyle = isLoader ? "#E7FFE7" : "#CCFFCC";
         ctx.shadowColor = "#00FF41";
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = isLoader ? 12 : 8;
         ctx.fillText(text, x, baseY);
 
         ctx.shadowBlur = 0;
-        ctx.fillStyle = "#00B82D";
+        ctx.fillStyle = isLoader ? "#00D74B" : "#00B82D";
         ctx.fillText(text, x, baseY - fontSize);
 
         if (baseY > height && Math.random() > 0.975 && speed > 0.1) {
           drops[i] = 0;
         }
-        drops[i] += speed;
+        drops[i] += speed * (isLoader ? 1.35 : 1);
       }
     };
     raf = requestAnimationFrame(draw);
@@ -108,7 +111,7 @@ export default function MatrixRain({
         window.removeEventListener("pointerleave", handlePointerLeave);
       }
     };
-  }, [interactive]);
+  }, [interactive, mode]);
 
   return (
     <canvas
