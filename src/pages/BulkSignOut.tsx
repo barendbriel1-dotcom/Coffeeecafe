@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, PackagePlus, Save, Search, Trash2, User2 } from "lucide-react";
+import { PackagePlus, Save, Search, Trash2, User2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -80,11 +80,6 @@ interface DivisionRow {
   name: string;
 }
 
-interface EditorGroupSelectionState {
-  lineId: string;
-  groupKey: string;
-}
-
 const EMPTY_ITEM = (): BulkPacketItemDraft => ({
   id: `draft-${crypto.randomUUID()}`,
   line_label: "",
@@ -133,11 +128,13 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const [editorName, setEditorName] = useState("");
   const [editorNotes, setEditorNotes] = useState("");
   const [editorItems, setEditorItems] = useState<BulkPacketItemDraft[]>([EMPTY_ITEM()]);
-  const [activeEditorSearchId, setActiveEditorSearchId] = useState<string | null>(null);
-  const [activeEditorGroupSelection, setActiveEditorGroupSelection] = useState<EditorGroupSelectionState | null>(null);
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [activeEditorGroupKey, setActiveEditorGroupKey] = useState<string | null>(null);
   const [activeAssignmentLineId, setActiveAssignmentLineId] = useState<string | null>(null);
 
   const [recipientId, setRecipientId] = useState("");
+  const [groupSignoutDivisionId, setGroupSignoutDivisionId] = useState("all");
+  const [groupSignoutLocationId, setGroupSignoutLocationId] = useState("all");
   const [signoutNotes, setSignoutNotes] = useState("");
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
@@ -232,6 +229,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       setEditorName("");
       setEditorNotes("");
       setEditorItems([EMPTY_ITEM()]);
+      setGroupSearchQuery("");
+      setGroupSignoutDivisionId("all");
+      setGroupSignoutLocationId("all");
       setAssignments({});
       return;
     }
@@ -240,6 +240,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       setEditorName("");
       setEditorNotes("");
       setEditorItems([EMPTY_ITEM()]);
+      setGroupSearchQuery("");
+      setGroupSignoutDivisionId("all");
+      setGroupSignoutLocationId("all");
       setAssignments({});
       return;
     }
@@ -251,6 +254,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         ? activeSavedPacket.items.map((item, index) => ({ ...item, notes: item.notes ?? "", sort_order: index }))
         : [EMPTY_ITEM()],
     );
+    setGroupSearchQuery("");
+    setGroupSignoutDivisionId("all");
+    setGroupSignoutLocationId("all");
     setAssignments({});
   }, [activePacketId, activeSavedPacket]);
 
@@ -276,8 +282,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     () =>
       editorItems.map((item, index) => ({
         line_label: item.line_label.trim(),
-        division_id: item.division_id ?? null,
-        location_id: item.location_id ?? null,
+        division_id: null,
+        location_id: null,
         notes: item.notes.trim(),
         sort_order: index,
       })),
@@ -289,8 +295,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       editorItems
         .map((item, index) => ({
           ...item,
-          displayIndex: index + 1,
           trimmedLabel: item.line_label.trim(),
+          sort_order: index,
         }))
         .filter((item) => item.trimmedLabel),
     [editorItems],
@@ -301,7 +307,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       return Boolean(
         editorName.trim() ||
           editorNotes.trim() ||
-          normalizedEditorItems.some((item) => item.line_label || item.notes || item.division_id || item.location_id),
+          normalizedEditorItems.some((item) => item.line_label || item.notes),
       );
     }
 
@@ -314,8 +320,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         JSON.stringify(
           activeSavedPacket.items.map((item, index) => ({
             line_label: item.line_label.trim(),
-            division_id: item.division_id ?? null,
-            location_id: item.location_id ?? null,
+            division_id: null,
+            location_id: null,
             notes: (item.notes ?? "").trim(),
             sort_order: index,
           })),
@@ -336,10 +342,10 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         : assets.filter((asset) => buildSearchBlob([asset.name, asset.code, asset.serial_number]).includes(normalizedLineLabel));
 
     return [...basePool]
-      .filter((asset) => (item.division_id ? asset.division_id === item.division_id : true))
+      .filter((asset) => (groupSignoutDivisionId !== "all" ? asset.division_id === groupSignoutDivisionId : true))
       .filter((asset) => {
         const effectiveLocationId = asset.current_location_id ?? asset.department_id;
-        return item.location_id ? effectiveLocationId === item.location_id : true;
+        return groupSignoutLocationId !== "all" ? effectiveLocationId === groupSignoutLocationId : true;
       })
       .sort((a, b) => {
         const aAvailable = normalizeAssetStatus(a.status) === "available" ? 0 : 1;
@@ -353,8 +359,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     setActivePacketId("new");
   };
 
-  const getEditorSuggestions = (item: BulkPacketItemDraft) => {
-    const query = item.line_label.trim();
+  const getGroupSearchSuggestions = (query: string) => {
     if (!query) return [];
 
     const normalizedQuery = buildSearchBlob([query]);
@@ -386,26 +391,23 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       .slice(0, 8);
   };
 
-  const assignTemplateAssetUnit = (itemId: string, asset: Asset) => {
-    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
-    updateEditorItem(itemId, {
-      line_label: asset.name,
-      division_id: asset.division_id ?? null,
-      location_id: effectiveLocationId ?? null,
-      notes: buildPreferredUnitNote(
-        editorItems.find((entry) => entry.id === itemId)?.notes ?? "",
-        asset,
-      ),
-    });
-
+  const appendGroupingItem = (asset: Asset) => {
     setEditorItems((current) => {
-      const hasEmptyLine = current.some((entry) => !entry.line_label.trim() && entry.id !== itemId);
-      if (hasEmptyLine) return current;
-      return [...current, { ...EMPTY_ITEM(), sort_order: current.length }];
+      const normalizedCurrent = current.filter((entry) => entry.line_label.trim());
+      return [
+        ...normalizedCurrent,
+        {
+          id: `draft-${crypto.randomUUID()}`,
+          line_label: asset.name,
+          division_id: null,
+          location_id: null,
+          notes: buildPreferredUnitNote("", asset),
+          sort_order: normalizedCurrent.length,
+        },
+      ];
     });
-
-    setActiveEditorSearchId(null);
-    setActiveEditorGroupSelection(null);
+    setGroupSearchQuery("");
+    setActiveEditorGroupKey(null);
   };
 
   const activeAssignmentLine = useMemo(
@@ -414,11 +416,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   );
 
   const activeEditorSelectionGroup = useMemo(
-    () =>
-      activeEditorGroupSelection
-        ? groupedAssets.find((group) => group.key === activeEditorGroupSelection.groupKey) ?? null
-        : null,
-    [activeEditorGroupSelection, groupedAssets],
+    () => (activeEditorGroupKey ? groupedAssets.find((group) => group.key === activeEditorGroupKey) ?? null : null),
+    [activeEditorGroupKey, groupedAssets],
   );
 
   const assignmentCandidates = activeAssignmentLine ? candidateAssetsForLine(activeAssignmentLine) : [];
@@ -434,27 +433,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       ),
     [assignments, activeAssignmentLineId],
   );
-
-  const updateEditorItem = (id: string, patch: Partial<BulkPacketItemDraft>) => {
-    setEditorItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    );
-  };
-
-  const addEditorItem = () => {
-    setEditorItems((current) => [...current, { ...EMPTY_ITEM(), sort_order: current.length }]);
-  };
-
-  const moveEditorItem = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= editorItems.length) return;
-
-    setEditorItems((current) => {
-      const next = [...current];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      return next.map((item, itemIndex) => ({ ...item, sort_order: itemIndex }));
-    });
-  };
 
   const removeEditorItem = (id: string) => {
     setEditorItems((current) => {
@@ -475,7 +453,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     }
 
     if (validItems.length === 0) {
-      toast.error("Add at least one group line.");
+      toast.error("Add at least one item to this group.");
       return;
     }
 
@@ -509,8 +487,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         validItems.map((item, index) => ({
           packet_id: packetId!,
           line_label: item.line_label,
-          division_id: item.division_id,
-          location_id: item.location_id,
+          division_id: null,
+          location_id: null,
           notes: item.notes || null,
           sort_order: index,
         })),
@@ -743,7 +721,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                   >
                     <div className="font-display text-sm text-foreground glow-soft">{packet.name}</div>
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      {packet.items.length} line{packet.items.length === 1 ? "" : "s"}
+                      {packet.items.length} item{packet.items.length === 1 ? "" : "s"}
                     </div>
                   </button>
                 ))
@@ -758,7 +736,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                   {activePacketId === "new" ? "Create group" : "Edit group"}
                 </div>
                 <div className="mt-1 text-sm text-muted-foreground">
-                  Groups are reusable checklist templates. Admins assign the real assets later when signing out.
+                  Groups are reusable item sets. Admins assign the real assets later when signing out.
                 </div>
               </div>
               {activeSavedPacket && (
@@ -780,9 +758,74 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Group lines</div>
-                <Button type="button" variant="outline" onClick={addEditorItem}>Add line</Button>
+              <div className="font-display text-sm uppercase tracking-[0.2em] text-primary">Add items to group</div>
+
+              <div className="overflow-hidden rounded-[1.3rem] border border-primary/12 bg-card">
+                <div className="border-b border-primary/10 bg-primary/8 px-4 py-3">
+                  <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Search items</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Search for an item, then choose the exact unit you want to add to this group.
+                  </div>
+                </div>
+
+                <div className="space-y-3 p-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={groupSearchQuery}
+                      onChange={(event) => setGroupSearchQuery(event.target.value)}
+                      className="pl-10"
+                      placeholder="Search asset by name, tag, or serial number"
+                      maxLength={120}
+                    />
+                  </div>
+
+                  {groupSearchQuery.trim() && (
+                    <div className="overflow-hidden rounded-[1.2rem] border border-primary/14 bg-card shadow-[0_0_28px_hsl(var(--primary)/0.08)]">
+                      <div className="flex items-center justify-between border-b border-primary/10 bg-primary/8 px-4 py-3">
+                        <div>
+                          <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Matching Items</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Choose a result below and then select the exact unit.
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                          {getGroupSearchSuggestions(groupSearchQuery).length}
+                        </Badge>
+                      </div>
+
+                      <div className="max-h-72 overflow-y-auto p-2">
+                        {getGroupSearchSuggestions(groupSearchQuery).length === 0 ? (
+                          <div className="rounded-[1rem] border border-primary/10 bg-background px-3 py-4 text-sm text-muted-foreground">
+                            No matching items found.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {getGroupSearchSuggestions(groupSearchQuery).map((group) => (
+                              <button
+                                key={group.key}
+                                type="button"
+                                onClick={() => setActiveEditorGroupKey(group.key)}
+                                className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-display text-sm text-foreground glow-soft">{group.name}</span>
+                                  <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">
+                                    {group.totalUnits} unit{group.totalUnits === 1 ? "" : "s"}
+                                  </span>
+                                </div>
+                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                  <span>{group.availableUnits} available</span>
+                                  <span>{group.locationSummary}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-hidden rounded-[1.3rem] border border-primary/12 bg-card">
@@ -814,10 +857,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                             <div className="min-w-0 flex-1">
                               <div className="font-display text-sm text-foreground glow-soft">{item.trimmedLabel}</div>
                               <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                <span>Line {item.displayIndex}</span>
                                 {readPreferredUnitNote(item.notes) && <span>{readPreferredUnitNote(item.notes)}</span>}
-                                {item.division_id && <span>{divisionMap[item.division_id] ?? "Division"}</span>}
-                                {item.location_id && <span>{locationMap[item.location_id] ?? "Location"}</span>}
                               </div>
                               {stripPreferredUnitNote(item.notes) && <div className="mt-1 text-[11px] text-muted-foreground">{stripPreferredUnitNote(item.notes)}</div>}
                             </div>
@@ -837,132 +877,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                {editorItems.map((item, index) => (
-                  <div key={item.id} className="space-y-3 rounded-[1.3rem] border border-primary/12 bg-background/90 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Line {index + 1}</div>
-                      <div className="flex gap-1">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => moveEditorItem(index, -1)} disabled={index === 0}>
-                          <ArrowUp size={14} />
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => moveEditorItem(index, 1)} disabled={index === editorItems.length - 1}>
-                          <ArrowDown size={14} />
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeEditorItem(item.id)} disabled={editorItems.length === 1}>
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <Label className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/72">Search and add item</Label>
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            value={item.line_label}
-                            onChange={(event) => updateEditorItem(item.id, { line_label: event.target.value })}
-                            onFocus={() => setActiveEditorSearchId(item.id)}
-                            onBlur={() => {
-                              window.setTimeout(() => {
-                                setActiveEditorSearchId((current) => (current === item.id ? null : current));
-                              }, 120);
-                            }}
-                            className="pl-10"
-                            placeholder="Search asset by name, tag, or serial number"
-                            maxLength={120}
-                          />
-                        </div>
-
-                        {activeEditorSearchId === item.id && item.line_label.trim() && (
-                          <div className="overflow-hidden rounded-[1.2rem] border border-primary/14 bg-card shadow-[0_0_28px_hsl(var(--primary)/0.08)]">
-                            <div className="flex items-center justify-between border-b border-primary/10 bg-primary/8 px-4 py-3">
-                              <div>
-                                <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Matching Items</div>
-                                <div className="mt-1 text-xs text-muted-foreground">
-                                  Choose a result below to fill this line.
-                                </div>
-                              </div>
-                              <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                                {getEditorSuggestions(item).length}
-                              </Badge>
-                            </div>
-
-                            <div className="max-h-72 overflow-y-auto p-2">
-                              {getEditorSuggestions(item).length === 0 ? (
-                                <div className="rounded-[1rem] border border-primary/10 bg-background px-3 py-4 text-sm text-muted-foreground">
-                                  No matching items found. You can still type your own group line name manually.
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  {getEditorSuggestions(item).map((group) => {
-                                    return (
-                                      <button
-                                        key={group.key}
-                                        type="button"
-                                        onMouseDown={(event) => {
-                                          event.preventDefault();
-                                          setActiveEditorGroupSelection({ lineId: item.id, groupKey: group.key });
-                                        }}
-                                        className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
-                                      >
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <span className="font-display text-sm text-foreground glow-soft">{group.name}</span>
-                                          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">
-                                            {group.totalUnits} unit{group.totalUnits === 1 ? "" : "s"}
-                                          </span>
-                                        </div>
-                                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                          <span>{group.availableUnits} available</span>
-                                          <span>{group.locationSummary}</span>
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                        <Select value={item.division_id ?? "any"} onValueChange={(value) => updateEditorItem(item.id, { division_id: value === "any" ? null : value })}>
-                          <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="any">Any division</SelectItem>
-                            {divisions.map((division) => (
-                              <SelectItem key={division.id} value={division.id}>
-                                {division.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Select value={item.location_id ?? "any"} onValueChange={(value) => updateEditorItem(item.id, { location_id: value === "any" ? null : value })}>
-                          <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="any">Any location</SelectItem>
-                            {locations.map((location) => (
-                              <SelectItem key={location.id} value={location.id}>
-                                {location.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <Textarea
-                      value={item.notes}
-                      onChange={(event) => updateEditorItem(item.id, { notes: event.target.value })}
-                      placeholder="Optional line notes"
-                    />
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -1034,6 +948,38 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
               </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Division for this group</Label>
+                <Select value={groupSignoutDivisionId} onValueChange={setGroupSignoutDivisionId}>
+                  <SelectTrigger><SelectValue placeholder="All divisions" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All divisions</SelectItem>
+                    {divisions.map((division) => (
+                      <SelectItem key={division.id} value={division.id}>
+                        {division.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Location for this group</Label>
+                <Select value={groupSignoutLocationId} onValueChange={setGroupSignoutLocationId}>
+                  <SelectTrigger><SelectValue placeholder="All locations" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All locations</SelectItem>
+                    {locations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-3">
               {activePacketForSignout.items.map((item, index) => {
                 const selectedAssetId = assignments[item.id] ?? "";
@@ -1061,9 +1007,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                           {index + 1}. {item.line_label}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                          {item.division_id && <span>{divisionMap[item.division_id] ?? "Division"}</span>}
-                          {item.location_id && <span>{locationMap[item.location_id] ?? "Location"}</span>}
-                          {item.notes && <span>{item.notes}</span>}
+                          {readPreferredUnitNote(item.notes) && <span>{readPreferredUnitNote(item.notes)}</span>}
+                          {stripPreferredUnitNote(item.notes) && <span>{stripPreferredUnitNote(item.notes)}</span>}
                         </div>
                       </div>
                       <Badge
@@ -1125,7 +1070,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       )}
 
       {showGroupings && (
-      <Dialog open={!!activeEditorSelectionGroup} onOpenChange={(open) => !open && setActiveEditorGroupSelection(null)}>
+      <Dialog open={!!activeEditorSelectionGroup} onOpenChange={(open) => !open && setActiveEditorGroupKey(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">
@@ -1133,7 +1078,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
             </DialogTitle>
           </DialogHeader>
 
-          {activeEditorSelectionGroup && activeEditorGroupSelection && (
+          {activeEditorSelectionGroup && (
             <div className="space-y-4">
               <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3 text-sm text-muted-foreground">
                 This item name has multiple physical units. Choose the exact one you want to add to the group by tag and serial number.
@@ -1151,7 +1096,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                       <button
                         key={asset.id}
                         type="button"
-                        onClick={() => assignTemplateAssetUnit(activeEditorGroupSelection.lineId, asset)}
+                        onClick={() => appendGroupingItem(asset)}
                         className="w-full rounded-[1.2rem] border border-primary/10 bg-background p-4 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
