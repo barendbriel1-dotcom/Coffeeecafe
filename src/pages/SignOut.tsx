@@ -18,6 +18,7 @@ import {
   getAssetStatusLabel,
   getStatusBadgeClass,
   groupAssetsByName,
+  isAssetLocked,
   LOCATION_NAMES,
   normalizeAssetStatus,
 } from "@/lib/assets";
@@ -32,6 +33,8 @@ interface Asset {
   current_location_id: string | null;
   division_id: string | null;
   serial_number: string | null;
+  locked_by?: string | null;
+  locked_at?: string | null;
 }
 
 interface Loc {
@@ -62,7 +65,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
       supabase
         .from("assets")
-        .select("id, code, name, status, department_id, current_location_id, division_id, serial_number")
+        .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, locked_by, locked_at")
         .order("name"),
       supabase.from("locations").select("id, name"),
       supabase.from("divisions").select("id, name"),
@@ -130,7 +133,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
   const toggle = (id: string) => {
     const asset = available.find((entry) => entry.id === id);
-    if (!asset || normalizeAssetStatus(asset.status) !== "available") return;
+    if (!asset || normalizeAssetStatus(asset.status) !== "available" || isAssetLocked(asset.locked_by, asset.locked_at, user?.id ?? "")) return;
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -349,7 +352,8 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                   const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division";
                   const locationName = locationMap[effectiveLocationId] ?? "Location";
                   const normalizedStatus = normalizeAssetStatus(asset.status);
-                  const disabled = normalizedStatus !== "available";
+                  const isLocked = isAssetLocked(asset.locked_by, asset.locked_at, user?.id ?? "");
+                  const disabled = normalizedStatus !== "available" || isLocked;
 
                   return (
                     <label
@@ -372,9 +376,15 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="font-display text-base text-foreground glow-soft">{asset.code}</div>
-                          <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
-                            {getAssetStatusLabel(normalizedStatus)}
-                          </Badge>
+                          {isLocked ? (
+                            <Badge variant="outline" className="uppercase tracking-[0.16em] border-amber-500/35 bg-amber-500/12 text-amber-300">
+                              LOCKED FOR GROUP
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                              {getAssetStatusLabel(normalizedStatus)}
+                            </Badge>
+                          )}
                         </div>
                         <div className="mt-1 text-sm text-foreground/85">{asset.name}</div>
                         <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">

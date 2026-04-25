@@ -102,6 +102,7 @@ export default function Assets() {
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [divisions, setDivisions] = useState<DivisionRow[]>([]);
   const [pendingDeleteRequests, setPendingDeleteRequests] = useState<AssetDeleteRequestRow[]>([]);
+  const isSuperAdmin = user?.email === "barend@encounterchurch.co.za";
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") ? normalizeAssetStatus(searchParams.get("status") || "") : "all");
   const [locationFilter, setLocationFilter] = useState<string>("all");
@@ -284,7 +285,7 @@ export default function Assets() {
   };
 
   const approveDeleteRequests = async (assetIds: string[]) => {
-    if (!isAdmin || assetIds.length === 0) return;
+    if (!isSuperAdmin || assetIds.length === 0) return;
 
     setApprovingDelete(true);
     try {
@@ -607,11 +608,6 @@ export default function Assets() {
         return;
       }
 
-      if (normalizedStatus === "signed_out") {
-        errors.push(`Line ${lineNo}: signed out assets must go through the sign out workflow.`);
-        return;
-      }
-
       if (requestedCode && usedCodes.has(requestedCode)) {
         errors.push(`Line ${lineNo}: tag ${requestedCode} already exists.`);
         return;
@@ -629,7 +625,7 @@ export default function Assets() {
         item_type_id: defaultItemTypeId,
         current_location_id: location.id,
         code: finalCode,
-        status: normalizedStatus,
+        status: "available",
       });
     });
 
@@ -953,17 +949,19 @@ export default function Assets() {
             <div>
               <div className="app-kicker">Pending Delete Approvals</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Review the requested assets below and approve each one when you are ready to remove it from the app.
+                Review the requested assets below. Only barend@encounterchurch.co.za can approve the final deletion.
               </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => approveDeleteRequests(pendingDeleteDetails.map((request) => request.asset_id))}
-              disabled={pendingDeleteDetails.length === 0 || approvingDelete}
-            >
-              {approvingDelete ? "Approving..." : "Approve all pending"}
-            </Button>
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => approveDeleteRequests(pendingDeleteDetails.map((request) => request.asset_id))}
+                disabled={pendingDeleteDetails.length === 0 || approvingDelete}
+              >
+                {approvingDelete ? "Approving..." : "Approve all pending"}
+              </Button>
+            )}
           </div>
 
           {pendingDeleteDetails.length === 0 ? (
@@ -1002,14 +1000,16 @@ export default function Assets() {
                           <td className="px-4 py-3 text-muted-foreground">{requestedLabel}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => approveDeleteRequests([asset.id])}
-                                disabled={approvingDelete}
-                              >
-                                Approve delete
-                              </Button>
+                              {isSuperAdmin && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => approveDeleteRequests([asset.id])}
+                                  disabled={approvingDelete}
+                                >
+                                  Approve delete
+                                </Button>
+                              )}
                               <Button
                                 type="button"
                                 size="sm"

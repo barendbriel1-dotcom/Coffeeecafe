@@ -189,6 +189,16 @@ export default function Admin() {
       return;
     }
 
+    const originalLocation = locs.find(l => l.id === locationId);
+    if (originalLocation?.name.toLowerCase() === FALLBACK_NAME.toLowerCase() && draft.name.trim().toLowerCase() !== FALLBACK_NAME.toLowerCase()) {
+      toast.error(`The ${FALLBACK_NAME} location cannot be renamed.`);
+      return;
+    }
+    if (originalLocation?.name.toLowerCase() === "traveling" && draft.name.trim().toLowerCase() !== "traveling") {
+      toast.error("The Traveling location cannot be renamed as it is required for the sign-out workflow.");
+      return;
+    }
+
     setBusyKey(`location-save-${locationId}`);
     const { error } = await supabase
       .from("locations")
@@ -203,7 +213,11 @@ export default function Admin() {
 
   const deleteLocation = async (location: Loc) => {
     if (location.name.toLowerCase() === FALLBACK_NAME.toLowerCase()) {
-      toast.error("The Not Assigned location cannot be deleted.");
+      toast.error(`The ${FALLBACK_NAME} location cannot be deleted.`);
+      return;
+    }
+    if (location.name.toLowerCase() === "traveling") {
+      toast.error("The Traveling location cannot be deleted as it is required for the sign-out workflow.");
       return;
     }
 

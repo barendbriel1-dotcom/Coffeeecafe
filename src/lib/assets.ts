@@ -221,3 +221,11 @@ function firstTagCharacter(value?: string | null) {
   const cleaned = (value ?? "").replace(/[^A-Za-z0-9]/g, "");
   return cleaned ? cleaned[0].toUpperCase() : "X";
 }
+
+export function isAssetLocked(lockedBy: string | null | undefined, lockedAt: string | null | undefined, currentUserId: string) {
+  if (!lockedBy || !lockedAt) return false;
+  if (lockedBy === currentUserId) return false;
+  const lockTime = new Date(lockedAt).getTime();
+  const now = new Date().getTime();
+  return now - lockTime < 15 * 60 * 1000; // 15 minutes
+}

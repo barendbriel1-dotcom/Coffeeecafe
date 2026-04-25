@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, groupAssetsByName, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
+import { buildSearchBlob, getAssetStatusLabel, getStatusBadgeClass, groupAssetsByName, isAssetLocked, LOCATION_NAMES, normalizeAssetStatus } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface BulkPacketRow {
@@ -68,6 +68,8 @@ interface Asset {
   division_id: string | null;
   serial_number: string | null;
   description: string | null;
+  locked_by?: string | null;
+  locked_at?: string | null;
 }
 
 interface LocationRow {
@@ -155,7 +157,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         supabase.from("profiles").select("id, display_name").order("display_name"),
         supabase
           .from("assets")
-          .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, description")
+          .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, description, locked_by, locked_at")
           .order("name"),
         supabase.from("locations").select("id, name"),
         supabase.from("divisions").select("id, name").order("name"),
@@ -524,11 +526,23 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     }
   };
 
-  const updateAssignment = (lineId: string, assetId: string) => {
+  const updateAssignment = async (lineId: string, assetId: string) => {
+    const oldAssetId = assignments[lineId];
+
     setAssignments((current) => ({
       ...current,
       [lineId]: assetId === "unassigned" ? "" : assetId,
     }));
+
+    if (assetId !== "unassigned" && assetId) {
+      setAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, locked_by: user!.id, locked_at: new Date().toISOString() } : asset));
+      await supabase.from("assets").update({ locked_by: user!.id, locked_at: new Date().toISOString() } as any).eq("id", assetId);
+    }
+    
+    if (oldAssetId && oldAssetId !== "unassigned") {
+      setAssets((current) => current.map((asset) => asset.id === oldAssetId ? { ...asset, locked_by: null, locked_at: null } : asset));
+      await supabase.from("assets").update({ locked_by: null, locked_at: null } as any).eq("id", oldAssetId);
+    }
   };
 
   const submitBulkSignout = async () => {
@@ -1151,8 +1165,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                     const effectiveLocationId = asset.current_location_id ?? asset.department_id;
                     const normalizedStatus = normalizeAssetStatus(asset.status);
                     const blockedByOtherLine = assignedElsewhereIds.has(asset.id);
+                    const isLocked = isAssetLocked(asset.locked_by, asset.locked_at, user!.id);
                     const unavailable = normalizedStatus !== "available";
-                    const disabled = blockedByOtherLine || unavailable;
+                    const disabled = blockedByOtherLine || unavailable || isLocked;
 
                     return (
                       <button
@@ -1188,7 +1203,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                             </div>
                           </div>
                           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                            {blockedByOtherLine ? "Already assigned" : unavailable ? "Unavailable" : "Selectable"}
+                            {blockedByOtherLine ? "Already assigned" : isLocked ? "Locked by another admin" : unavailable ? "Unavailable" : "Selectable"}
                           </div>
                         </div>
                       </button>
