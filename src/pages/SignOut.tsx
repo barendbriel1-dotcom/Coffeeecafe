@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { CheckSquare, Search, Square } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -140,6 +140,26 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     setSelected(next);
   };
 
+  const allFilteredAvailableIds = useMemo(() => {
+    return filteredGroups.flatMap(group => 
+      group.items
+        .filter(asset => normalizeAssetStatus(asset.status) === "available" && !isAssetLocked(asset.locked_by, asset.locked_at, user?.id ?? ""))
+        .map(asset => asset.id)
+    );
+  }, [filteredGroups, user]);
+
+  const allFilteredSelected = allFilteredAvailableIds.length > 0 && allFilteredAvailableIds.every(id => selected.has(id));
+
+  const toggleAllFiltered = () => {
+    const next = new Set(selected);
+    if (allFilteredSelected) {
+      allFilteredAvailableIds.forEach(id => next.delete(id));
+    } else {
+      allFilteredAvailableIds.forEach(id => next.add(id));
+    }
+    setSelected(next);
+  };
+
   const submit = async () => {
     if (!isStaff) {
       toast.error("Staff or admin access is required.");
@@ -262,7 +282,15 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
         <div className="space-y-4 rounded-[1.5rem] border border-primary/12 bg-card p-4">
           <div className="flex items-center justify-between border-b border-primary/10 pb-3">
-            <h2 className="font-display text-sm uppercase tracking-[0.2em] text-primary">Items</h2>
+            <div className="flex items-center gap-4">
+              <h2 className="font-display text-sm uppercase tracking-[0.2em] text-primary">Items</h2>
+              {allFilteredAvailableIds.length > 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={toggleAllFiltered} className="h-7 text-xs gap-1.5">
+                  {allFilteredSelected ? <CheckSquare size={13} /> : <Square size={13} />}
+                  {allFilteredSelected ? "Deselect all" : `Select all available (${allFilteredAvailableIds.length})`}
+                </Button>
+              )}
+            </div>
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               {filteredGroups.length} group{filteredGroups.length === 1 ? "" : "s"} found | {selected.size} selected
             </div>
