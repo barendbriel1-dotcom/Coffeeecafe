@@ -441,7 +441,7 @@ export default function Admin() {
                   <Button
                     type="button"
                     onClick={() => moveStatusToFallback(status)}
-                    disabled={busyKey === `status-delete-${status}` || statusCounts[status] === 0 || status === "available" || status === "signed_out"}
+                    disabled={busyKey === `status-delete-${status}` || status === "available" || status === "signed_out"}
                   >
                     {busyKey === `status-delete-${status}` ? "Deleting..." : "Delete status usage"}
                   </Button>
