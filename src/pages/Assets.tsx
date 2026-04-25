@@ -866,11 +866,6 @@ export default function Assets() {
                                 <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
                                   {getAssetStatusLabel(normalizedStatus)}
                                 </Badge>
-                                {pendingDeleteAssetIdSet.has(asset.id) && (
-                                  <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300">
-                                    Pending delete
-                                  </Badge>
-                                )}
                               </div>
                             </td>
                             <td className="px-4 py-3">
