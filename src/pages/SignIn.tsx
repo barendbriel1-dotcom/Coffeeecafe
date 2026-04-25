@@ -41,7 +41,7 @@ interface LocationRow { id: string; name: string; }
 interface DivisionRow { id: string; name: string; }
 
 export default function SignIn() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isAssetManager, assetManagerLocationId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [rows, setRows] = useState<AssetReturn[]>([]);
@@ -195,7 +195,7 @@ export default function SignIn() {
   // ── Bulk decision ──────────────────────────────────────────────
   const openBulkDecision = (items: AssetReturn[], nextStatus: "available" | "out_for_repairs" | "damaged") => {
     setBulkDecision({ items, nextStatus });
-    setReturnLocationId("");
+    setReturnLocationId(isAssetManager && assetManagerLocationId ? assetManagerLocationId : "");
     setDecisionNotes("");
   };
 
@@ -491,16 +491,22 @@ export default function SignIn() {
 
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Return location</Label>
-                <Select value={returnLocationId} onValueChange={setReturnLocationId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select the return location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locationOptions.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isAssetManager && assetManagerLocationId ? (
+                  <div className="font-mono text-sm text-primary/90 bg-primary/10 border border-primary/20 rounded-md px-3 py-2">
+                    {locationOptions.find(l => l.id === assetManagerLocationId)?.name ?? "Locked to assigned location"}
+                  </div>
+                ) : (
+                  <Select value={returnLocationId} onValueChange={setReturnLocationId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select the return location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locationOptions.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">

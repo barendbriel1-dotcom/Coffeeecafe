@@ -48,7 +48,7 @@ interface Div {
 }
 
 export default function SignOut({ bulk = false }: { bulk?: boolean }) {
-  const { user, isStaff } = useAuth();
+  const { user, isStaff, isAssetManager, assetManagerLocationId } = useAuth();
   const [available, setAvailable] = useState<Asset[]>([]);
   const [locations, setLocations] = useState<Loc[]>([]);
   const [divisions, setDivisions] = useState<Div[]>([]);
@@ -58,6 +58,12 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [q, setQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("available");
   const [filterLocation, setFilterLocation] = useState("all");
+
+  useEffect(() => {
+    if (isAssetManager && assetManagerLocationId) {
+      setFilterLocation(assetManagerLocationId);
+    }
+  }, [isAssetManager, assetManagerLocationId]);
   const [filterDivision, setFilterDivision] = useState("all");
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 
@@ -255,17 +261,23 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
             </SelectContent>
           </Select>
 
-          <Select value={filterLocation} onValueChange={setFilterLocation}>
-            <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All locations</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location.id} value={location.id}>
-                  {location.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isAssetManager && assetManagerLocationId ? (
+            <div className="font-mono text-sm text-primary/90 bg-primary/10 border border-primary/20 rounded-md px-3 py-2 h-10 flex items-center">
+              {locations.find((l) => l.id === assetManagerLocationId)?.name ?? "Locked to assigned location"}
+            </div>
+          ) : (
+            <Select value={filterLocation} onValueChange={setFilterLocation}>
+              <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All locations</SelectItem>
+                {locations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <Select value={filterDivision} onValueChange={setFilterDivision}>
             <SelectTrigger><SelectValue placeholder="Division" /></SelectTrigger>

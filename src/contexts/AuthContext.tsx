@@ -2,7 +2,7 @@ import { useEffect, useState, createContext, useContext, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "staff" | "volunteer";
+export type AppRole = "admin" | "staff" | "volunteer" | "asset_manager";
 
 interface AuthContextValue {
   session: Session | null;
@@ -11,6 +11,8 @@ interface AuthContextValue {
   isAdmin: boolean;
   isStaff: boolean;
   isVolunteer: boolean;
+  isAssetManager: boolean;
+  assetManagerLocationId: string | null;
   isApproved: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -24,10 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [assetManagerLocationId, setAssetManagerLocationId] = useState<string | null>(null);
+
   const loadRoles = async (userId: string) => {
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    const nextRoles = (data ?? []).map((row) => row.role as AppRole);
+    const [{ data: rolesData }, { data: profileData }] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", userId),
+      supabase.from("profiles").select("asset_manager_location_id").eq("id", userId).maybeSingle(),
+    ]);
+    const nextRoles = (rolesData ?? []).map((row) => row.role as AppRole);
     setRoles(nextRoles);
+    setAssetManagerLocationId(profileData?.asset_manager_location_id ?? null);
     return nextRoles;
   };
 
@@ -77,8 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         roles,
         isAdmin: roles.includes("admin"),
-        isStaff: roles.includes("staff") || roles.includes("admin"),
+        isStaff: roles.includes("staff") || roles.includes("admin") || roles.includes("asset_manager"),
         isVolunteer: roles.includes("volunteer"),
+        isAssetManager: roles.includes("asset_manager"),
+        assetManagerLocationId,
         isApproved: roles.length > 0,
         loading,
         signOut,

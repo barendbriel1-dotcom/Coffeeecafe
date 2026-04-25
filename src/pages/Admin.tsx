@@ -13,13 +13,14 @@ import { ASSET_STATUSES, generateNameCode, getAssetStatusLabel, getStatusBadgeCl
 import { cn } from "@/lib/utils";
 import { Search, Trash2, X } from "lucide-react";
 
-type Role = "admin" | "staff" | "volunteer";
+type Role = "admin" | "staff" | "volunteer" | "asset_manager";
 type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "not_assigned";
 
 interface Profile {
   id: string;
   display_name: string;
   email: string | null;
+  asset_manager_location_id: string | null;
 }
 
 interface UserRole {
@@ -92,7 +93,7 @@ export default function Admin() {
       { data: assetRows },
       { data: deleteRequestRows },
     ] = await Promise.all([
-      supabase.from("profiles").select("id, display_name, email").order("display_name"),
+      supabase.from("profiles").select("id, display_name, email, asset_manager_location_id").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
       supabase.from("locations").select("*").order("name"),
       supabase.from("divisions").select("*").order("name"),
@@ -255,8 +256,10 @@ export default function Admin() {
 
     const has = rolesFor(uid).includes(role);
     if (has) {
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", uid).eq("role", role);
-      if (error) return toast.error(error.message);
+      await Promise.all([
+        supabase.from("user_roles").delete().eq("user_id", uid).eq("role", role),
+        role === "asset_manager" ? supabase.from("profiles").update({ asset_manager_location_id: null }).eq("id", uid) : Promise.resolve()
+      ]);
     } else {
       const { error } = await supabase.from("user_roles").insert({ user_id: uid, role });
       if (error) return toast.error(error.message);
@@ -264,6 +267,13 @@ export default function Admin() {
 
     toast.success("Roles updated");
     load();
+  };
+
+  const updateAssetManagerLocation = async (userId: string, locationId: string) => {
+    setBusyKey(`loc-${userId}`);
+    await supabase.from("profiles").update({ asset_manager_location_id: locationId === "none" ? null : locationId }).eq("id", userId);
+    await load();
+    setBusyKey(null);
   };
 
   const ensureFallbackLocation = async () => {
@@ -516,23 +526,43 @@ export default function Admin() {
                 <div className="font-mono text-sm text-primary truncate">{p.display_name}</div>
                 <div className="text-xs text-muted-foreground truncate">{p.email}</div>
               </div>
-              <div className="flex gap-1 flex-wrap">
-                {(["admin", "staff", "volunteer"] as Role[]).map((r) => {
-                  const active = rolesFor(p.id).includes(r);
-                  return (
-                    <Badge
-                      key={r}
-                      variant="outline"
-                      onClick={() => toggleRole(p.id, r)}
-                      className={cn(
-                        "cursor-pointer uppercase text-[10px]",
-                        active ? "bg-primary text-primary-foreground border-primary" : "border-primary/30 text-muted-foreground",
-                      )}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-1 flex-wrap">
+                  {(["admin", "staff", "volunteer", "asset_manager"] as Role[]).map((r) => {
+                    const active = rolesFor(p.id).includes(r);
+                    return (
+                      <Badge
+                        key={r}
+                        variant="outline"
+                        onClick={() => toggleRole(p.id, r)}
+                        className={cn(
+                          "cursor-pointer uppercase text-[10px]",
+                          active ? "bg-primary text-primary-foreground border-primary" : "border-primary/30 text-muted-foreground",
+                        )}
+                      >
+                        {r.replace("_", " ")}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                {rolesFor(p.id).includes("asset_manager") && (
+                  <div className="mt-1 max-w-[200px]">
+                    <Select
+                      value={p.asset_manager_location_id ?? "none"}
+                      onValueChange={(val) => updateAssetManagerLocation(p.id, val)}
                     >
-                      {r}
-                    </Badge>
-                  );
-                })}
+                      <SelectTrigger className="h-7 text-xs bg-card/50">
+                        <SelectValue placeholder="Assign Location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Location</SelectItem>
+                        {locs.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </Card>
           ))}
