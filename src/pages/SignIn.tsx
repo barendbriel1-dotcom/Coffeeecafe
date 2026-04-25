@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Check, CheckSquare, LogIn, MapPin, Search, Square, User, Wrench, XCircle } from "lucide-react";
+import { AlertCircle, Check, CheckSquare, MapPin, Search, Square, Wrench, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getAssetStatusLabel, getStatusBadgeClass, groupAssetsByName, LOCATION_NAMES } from "@/lib/assets";
+import { getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface AssetReturn {
@@ -46,19 +45,17 @@ export default function SignIn() {
   const [rows, setRows] = useState<AssetReturn[]>([]);
   const [locations, setLocations] = useState<LocationRow[]>([]);
 
-  // Selection state
+  // Filters
+  const [searchQ, setSearchQ] = useState("");
+  const [holderFilter, setHolderFilter] = useState("all");
+
+  // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Bulk decision dialog
   const [bulkDecision, setBulkDecision] = useState<BulkDecision | null>(null);
   const [returnLocationId, setReturnLocationId] = useState("");
   const [decisionNotes, setDecisionNotes] = useState("");
-
-  // Group drill-in dialog
-  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
-
-  // Filter / search
-  const [searchQ, setSearchQ] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -93,7 +90,6 @@ export default function SignIn() {
         const activeItem = asset.signout_items?.find((item: any) => !item.returned);
         const signout = activeItem?.signout;
         const holderId = asset.current_holder || signout?.signed_out_to || null;
-
         return {
           id: asset.id,
           code: asset.code,
@@ -120,39 +116,36 @@ export default function SignIn() {
 
   useEffect(() => { load(); }, []);
 
-  const groupedReturns = useMemo(() => groupAssetsByName(rows, (item) => item.holder_name), [rows]);
-
-  // Filter groups by search
-  const filteredGroups = useMemo(() => {
-    const q = searchQ.trim().toLowerCase();
-    if (!q) return groupedReturns;
-    return groupedReturns.filter(
-      (group) =>
-        group.name.toLowerCase().includes(q) ||
-        group.items.some(
-          (item) =>
-            item.code.toLowerCase().includes(q) ||
-            item.name.toLowerCase().includes(q) ||
-            (item.serial_number ?? "").toLowerCase().includes(q) ||
-            item.holder_name.toLowerCase().includes(q)
-        )
-    );
-  }, [groupedReturns, searchQ]);
-
-  const activeGroup = useMemo(
-    () => groupedReturns.find((group) => group.key === activeGroupKey) ?? null,
-    [activeGroupKey, groupedReturns]
-  );
+  // Unique holders for the filter dropdown
+  const holderOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    rows.forEach((r) => seen.set(r.holder_name, r.holder_name));
+    return Array.from(seen.values()).sort();
+  }, [rows]);
 
   const locationOptions = useMemo(() => locations.filter((l) => l.name !== "Traveling"), [locations]);
 
-  // ── Selection helpers ──────────────────────────────────────────
-  const visibleIds = useMemo(
-    () => filteredGroups.flatMap((group) => group.items.map((item) => item.id)),
-    [filteredGroups]
-  );
+  // Only show items when a filter/search is active
+  const isFilterActive = searchQ.trim().length > 0 || holderFilter !== "all";
 
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const filteredRows = useMemo(() => {
+    if (!isFilterActive) return [];
+    const q = searchQ.trim().toLowerCase();
+    return rows.filter((item) => {
+      const matchesSearch =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        (item.serial_number ?? "").toLowerCase().includes(q) ||
+        item.holder_name.toLowerCase().includes(q);
+      const matchesHolder = holderFilter === "all" || item.holder_name === holderFilter;
+      return matchesSearch && matchesHolder;
+    });
+  }, [rows, searchQ, holderFilter, isFilterActive]);
+
+  // ── Selection helpers ──────────────────────────────────────────
+  const allFilteredSelected =
+    filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
 
   const toggleItem = (id: string) => {
     setSelectedIds((prev) => {
@@ -162,33 +155,20 @@ export default function SignIn() {
     });
   };
 
-  const toggleGroup = (ids: string[], force?: boolean) => {
+  const toggleAllFiltered = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      const allSelected = ids.every((id) => next.has(id));
-      const shouldSelect = force !== undefined ? force : !allSelected;
-      ids.forEach((id) => (shouldSelect ? next.add(id) : next.delete(id)));
-      return next;
-    });
-  };
-
-  const toggleAllVisible = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id));
+      if (allFilteredSelected) {
+        filteredRows.forEach((r) => next.delete(r.id));
       } else {
-        visibleIds.forEach((id) => next.add(id));
+        filteredRows.forEach((r) => next.add(r.id));
       }
       return next;
     });
   };
 
-  // ── Open bulk decision dialog ──────────────────────────────────
-  const openBulkDecision = (
-    items: AssetReturn[],
-    nextStatus: "available" | "out_for_repairs" | "damaged"
-  ) => {
+  // ── Bulk decision ──────────────────────────────────────────────
+  const openBulkDecision = (items: AssetReturn[], nextStatus: "available" | "out_for_repairs" | "damaged") => {
     setBulkDecision({ items, nextStatus });
     setReturnLocationId("");
     setDecisionNotes("");
@@ -200,11 +180,10 @@ export default function SignIn() {
     openBulkDecision(items, nextStatus);
   };
 
-  // ── Confirm bulk sign-in ───────────────────────────────────────
   const confirmBulkDecision = async () => {
     if (!bulkDecision) return;
     if (!returnLocationId) {
-      toast.error("Select the return location before confirming.");
+      toast.error("Select a return location before confirming.");
       return;
     }
 
@@ -212,7 +191,6 @@ export default function SignIn() {
     try {
       const { items, nextStatus } = bulkDecision;
 
-      // Update all assets in one call per item (supabase doesn't support bulk update with diff rows)
       await Promise.all(
         items.map((item) =>
           supabase
@@ -222,13 +200,11 @@ export default function SignIn() {
         )
       );
 
-      // Mark signout_items as returned
       const signoutItemIds = items.map((i) => i.signout_item_id).filter(Boolean) as string[];
       if (signoutItemIds.length > 0) {
         await supabase.from("signout_items").update({ returned: true }).in("id", signoutItemIds);
       }
 
-      // Close out signouts that have no remaining unreturned items
       const signoutIds = [...new Set(items.map((i) => i.signout_id).filter(Boolean) as string[])];
       await Promise.all(
         signoutIds.map(async (signoutId) => {
@@ -246,7 +222,6 @@ export default function SignIn() {
         })
       );
 
-      // Write history for each item
       const returnLocationName = locations.find((l) => l.id === returnLocationId)?.name ?? "Unknown location";
       const action =
         nextStatus === "available" ? "signed_in" : nextStatus === "out_for_repairs" ? "sent_for_repairs" : "marked_damaged";
@@ -264,7 +239,6 @@ export default function SignIn() {
       toast.success(`${items.length} item${items.length === 1 ? "" : "s"} signed in as ${getAssetStatusLabel(nextStatus)}.`);
       setBulkDecision(null);
       setSelectedIds(new Set());
-      setActiveGroupKey(null);
       load();
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to complete sign-in.");
@@ -281,43 +255,69 @@ export default function SignIn() {
     <div className="space-y-5 animate-fade-in">
       <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
 
-      {/* ── Top action bar ── */}
+      {/* ── Filter bar ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Search */}
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Search by name, tag, holder, serial…"
+            placeholder="Search by name, tag, serial number or holder…"
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
           />
         </div>
 
-        {/* Select-all visible */}
-        <Button
-          type="button"
-          variant="outline"
-          className="gap-2 whitespace-nowrap"
-          onClick={toggleAllVisible}
-          disabled={visibleIds.length === 0}
-        >
-          {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
-          {allVisibleSelected ? "Deselect all" : `Select all (${visibleIds.length})`}
-        </Button>
+        {/* Holder filter */}
+        <Select value={holderFilter} onValueChange={setHolderFilter}>
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue placeholder="Filter by holder" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All holders</SelectItem>
+            {holderOptions.map((name) => (
+              <SelectItem key={name} value={name}>{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Select-all toggle — only visible when results are showing */}
+        {isFilterActive && filteredRows.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 whitespace-nowrap"
+            onClick={toggleAllFiltered}
+          >
+            {allFilteredSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+            {allFilteredSelected ? "Deselect all" : `Select all (${filteredRows.length})`}
+          </Button>
+        )}
       </div>
 
-      {/* ── Sticky bulk-action bar ── */}
+      {/* ── Sticky bulk action bar ── */}
       {selectedCount > 0 && (
         <div className="sticky top-4 z-30 flex flex-wrap items-center gap-2 rounded-[1.3rem] border border-primary/30 bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
-          <span className="mr-auto font-mono text-sm text-primary">{selectedCount} item{selectedCount === 1 ? "" : "s"} selected</span>
+          <span className="mr-auto font-mono text-sm text-primary">
+            {selectedCount} item{selectedCount === 1 ? "" : "s"} selected
+          </span>
           <Button size="sm" className="gap-1.5" onClick={() => openSelectedDecision("available")}>
             <Check size={13} /> Sign in as Available
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10" onClick={() => openSelectedDecision("out_for_repairs")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+            onClick={() => openSelectedDecision("out_for_repairs")}
+          >
             <Wrench size={13} /> Out for Repairs
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => openSelectedDecision("damaged")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+            onClick={() => openSelectedDecision("damaged")}
+          >
             <XCircle size={13} /> Damaged
           </Button>
           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
@@ -326,211 +326,97 @@ export default function SignIn() {
         </div>
       )}
 
-      {/* ── Main list ── */}
+      {/* ── Content area ── */}
       {loading ? (
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-primary/70">
-          Loading signed-out assets...
+          Loading signed-out assets…
         </div>
-      ) : filteredGroups.length === 0 ? (
+
+      ) : !isFilterActive ? (
+        /* Empty state — prompt to search or filter */
+        <div className="rounded-[1.5rem] border border-primary/12 bg-card/40 px-6 py-16 text-center space-y-2">
+          <Search size={32} className="mx-auto text-primary/30" />
+          <p className="font-mono text-sm text-muted-foreground">
+            Search by name, tag, or serial number — or filter by holder above to see signed-out assets.
+          </p>
+        </div>
+
+      ) : filteredRows.length === 0 ? (
+        /* No results */
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-muted-foreground/70">
-          {searchQ ? "No results match your search." : "No signed-out assets are waiting for sign-in."}
+          No signed-out assets match your search or filter.
         </div>
+
       ) : (
-        <div className="grid gap-4">
-          {filteredGroups.map((group) => {
-            const groupIds = group.items.map((i) => i.id);
-            const allGroupSelected = groupIds.length > 0 && groupIds.every((id) => selectedIds.has(id));
-            const someGroupSelected = groupIds.some((id) => selectedIds.has(id));
-
+        /* Results as selectable bubbles */
+        <div className="flex flex-wrap gap-3">
+          {filteredRows.map((item) => {
+            const isSelected = selectedIds.has(item.id);
             return (
-              <Card
-                key={group.key}
-                className="space-y-0 bg-card/40 p-5 transition-colors hover:bg-primary/5"
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => toggleItem(item.id)}
+                className={cn(
+                  "group flex flex-col gap-1 rounded-[1.3rem] border px-4 py-3 text-left transition-all",
+                  isSelected
+                    ? "border-primary/60 bg-primary/10 shadow-[0_0_12px_rgba(0,200,100,0.15)]"
+                    : "border-primary/15 bg-card/50 hover:border-primary/35 hover:bg-primary/5"
+                )}
               >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  {/* Checkbox + info */}
-                  <div className="flex items-start gap-3">
-                    {/* Group-level checkbox */}
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(groupIds)}
-                      className="mt-1 shrink-0 text-primary/60 hover:text-primary transition-colors"
-                      aria-label={allGroupSelected ? "Deselect group" : "Select group"}
-                    >
-                      {allGroupSelected ? (
-                        <CheckSquare size={18} className="text-primary" />
-                      ) : someGroupSelected ? (
-                        <CheckSquare size={18} className="text-primary/40" />
-                      ) : (
-                        <Square size={18} />
-                      )}
-                    </button>
-
-                    <div
-                      className="flex-1 cursor-pointer space-y-2"
-                      onClick={() => setActiveGroupKey(group.key)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <LogIn size={18} className="text-primary" />
-                        <h2 className="font-display text-xl text-foreground glow-soft">{group.name}</h2>
-                        <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass("signed_out"))}>
-                          Signed Out
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                        <span>{group.totalUnits} signed-out unit{group.totalUnits === 1 ? "" : "s"}</span>
-                        <span>{group.locationSummary}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5"
-                      onClick={() => openBulkDecision(group.items, "available")}
-                    >
-                      <Check size={13} /> Sign in all
-                    </Button>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer w-fit border-primary/20 bg-primary/10 px-3 py-1.5 font-mono text-primary"
-                      onClick={() => setActiveGroupKey(group.key)}
-                    >
-                      Choose unit
-                    </Badge>
-                  </div>
+                <div className="flex items-center gap-2">
+                  {isSelected
+                    ? <CheckSquare size={14} className="shrink-0 text-primary" />
+                    : <Square size={14} className="shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground" />
+                  }
+                  <span className="font-mono text-xs text-primary/70">{item.code}</span>
+                  <Badge
+                    variant="outline"
+                    className={cn("ml-auto text-[10px] uppercase tracking-wider", getStatusBadgeClass("signed_out"))}
+                  >
+                    Signed Out
+                  </Badge>
                 </div>
-              </Card>
+                <div className="pl-5 space-y-0.5">
+                  <p className="text-sm font-medium text-foreground leading-tight">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">{item.holder_name}</p>
+                  {item.serial_number && (
+                    <p className="font-mono text-[10px] text-muted-foreground/60">{item.serial_number}</p>
+                  )}
+                </div>
+
+                {/* Quick-action buttons — shown on hover or when selected */}
+                <div className={cn(
+                  "pl-5 flex flex-wrap gap-1.5 mt-1 transition-all overflow-hidden",
+                  isSelected ? "max-h-20 opacity-100" : "max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100"
+                )}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "available"); }}
+                    className="flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <Check size={10} /> Available
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "out_for_repairs"); }}
+                    className="flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+                  >
+                    <Wrench size={10} /> Repairs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "damaged"); }}
+                    className="flex items-center gap-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 transition-colors"
+                  >
+                    <XCircle size={10} /> Damaged
+                  </button>
+                </div>
+              </button>
             );
           })}
         </div>
       )}
-
-      {/* ── Group drill-in dialog ── */}
-      <Dialog open={!!activeGroup} onOpenChange={(open) => !open && setActiveGroupKey(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card/95 sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="font-display text-foreground">
-              {activeGroup?.name ?? "Signed-out units"}
-            </DialogTitle>
-          </DialogHeader>
-
-          {activeGroup && (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Signed-out units</div>
-                  <div className="mt-1 font-display text-xl text-foreground glow-soft">{activeGroup.totalUnits}</div>
-                </div>
-                <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Users</div>
-                  <div className="mt-1 text-sm text-foreground">{activeGroup.locationSummary}</div>
-                </div>
-              </div>
-
-              {/* Select-all for this group */}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-sm text-primary/80 hover:text-primary transition-colors"
-                  onClick={() => {
-                    const ids = activeGroup.items.map((i) => i.id);
-                    const allSelected = ids.every((id) => selectedIds.has(id));
-                    toggleGroup(ids, !allSelected);
-                  }}
-                >
-                  {activeGroup.items.every((i) => selectedIds.has(i.id)) ? (
-                    <CheckSquare size={15} />
-                  ) : (
-                    <Square size={15} />
-                  )}
-                  Select all in this group
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {activeGroup.items.map((item) => {
-                  const isSelected = selectedIds.has(item.id);
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "space-y-4 rounded-[1.3rem] border p-4 transition-colors",
-                        isSelected ? "border-primary/40 bg-primary/5" : "border-primary/12 bg-card"
-                      )}
-                    >
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex items-start gap-3">
-                          {/* Per-item checkbox */}
-                          <button
-                            type="button"
-                            onClick={() => toggleItem(item.id)}
-                            className="mt-1 shrink-0 text-primary/60 hover:text-primary transition-colors"
-                            aria-label={isSelected ? `Deselect ${item.code}` : `Select ${item.code}`}
-                          >
-                            {isSelected ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
-                          </button>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <div className="font-display text-lg text-foreground glow-soft">{item.code}</div>
-                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass("signed_out"))}>
-                                Signed Out
-                              </Badge>
-                            </div>
-                            <div className="text-sm text-foreground/85">{item.name}</div>
-                            <div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                              <span className="flex items-center gap-1.5"><User size={12} /> Used by {item.holder_name}</span>
-                              <span>Tag {item.code}</span>
-                              <span>Serial {item.serial_number || "-"}</span>
-                              {item.created_at && <span>Signed out {new Date(item.created_at).toLocaleString()}</span>}
-                              {item.package_name && <span>Group: {item.package_name}</span>}
-                            </div>
-                            {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <Button disabled={processing} onClick={() => openBulkDecision([item], "available")} className="gap-1.5">
-                            <Check size={14} /> Sign in as Available
-                          </Button>
-                          <Button disabled={processing} variant="outline" onClick={() => openBulkDecision([item], "out_for_repairs")} className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200">
-                            <Wrench size={14} /> Out for Repairs
-                          </Button>
-                          <Button disabled={processing} variant="outline" onClick={() => openBulkDecision([item], "damaged")} className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200">
-                            <XCircle size={14} /> Damaged
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Bulk action bar inside dialog if items are selected */}
-              {activeGroup.items.some((i) => selectedIds.has(i.id)) && (
-                <div className="flex flex-wrap items-center gap-2 rounded-[1.2rem] border border-primary/30 bg-primary/5 px-4 py-3">
-                  <span className="mr-auto font-mono text-xs text-primary">
-                    {activeGroup.items.filter((i) => selectedIds.has(i.id)).length} selected in this group
-                  </span>
-                  <Button size="sm" className="gap-1.5" onClick={() => openSelectedDecision("available")}>
-                    <Check size={13} /> Sign in as Available
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10" onClick={() => openSelectedDecision("out_for_repairs")}>
-                    <Wrench size={13} /> Out for Repairs
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => openSelectedDecision("damaged")}>
-                    <XCircle size={13} /> Damaged
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* ── Bulk decision dialog ── */}
       <Dialog open={!!bulkDecision} onOpenChange={(open) => !open && setBulkDecision(null)}>
@@ -545,13 +431,13 @@ export default function SignIn() {
 
           {bulkDecision && (
             <div className="space-y-4">
-              {/* Item list summary */}
-              <div className="max-h-40 overflow-y-auto rounded-[1.2rem] border border-primary/12 bg-secondary/60 px-3 py-2 space-y-1">
+              {/* Items summary */}
+              <div className="max-h-44 overflow-y-auto rounded-[1.2rem] border border-primary/12 bg-secondary/60 px-3 py-2 space-y-1.5">
                 {bulkDecision.items.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 text-sm">
-                    <span className="font-mono text-xs text-primary/70">{item.code}</span>
-                    <span className="text-foreground">{item.name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{item.holder_name}</span>
+                    <span className="font-mono text-xs text-primary/70 shrink-0">{item.code}</span>
+                    <span className="text-foreground truncate">{item.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground shrink-0">{item.holder_name}</span>
                   </div>
                 ))}
               </div>
@@ -560,7 +446,7 @@ export default function SignIn() {
                 <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Return location</Label>
                 <Select value={returnLocationId} onValueChange={setReturnLocationId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select the location to return the items to" />
+                    <SelectValue placeholder="Select the return location" />
                   </SelectTrigger>
                   <SelectContent>
                     {locationOptions.map((location) => (
@@ -587,14 +473,14 @@ export default function SignIn() {
                 />
               </div>
 
-              <div className="rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm text-muted-foreground">
+              <div className="rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm text-muted-foreground space-y-2">
                 <div className="flex items-center gap-2 text-foreground">
-                  <MapPin size={14} className="text-primary" />
+                  <MapPin size={14} className="text-primary shrink-0" />
                   All selected items will be moved to the chosen return location.
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-foreground">
-                  <AlertCircle size={14} className="text-primary" />
-                  History will record both the admin completing this action and the user who last used each item.
+                <div className="flex items-center gap-2 text-foreground">
+                  <AlertCircle size={14} className="text-primary shrink-0" />
+                  History records both the admin completing this action and the last holder.
                 </div>
               </div>
             </div>
