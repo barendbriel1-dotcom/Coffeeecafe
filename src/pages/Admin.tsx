@@ -440,10 +440,11 @@ export default function Admin() {
                 <div className="flex justify-end">
                   <Button
                     type="button"
+                    variant="destructive"
                     onClick={() => moveStatusToFallback(status)}
                     disabled={busyKey === `status-delete-${status}` || status === "available" || status === "signed_out"}
                   >
-                    {busyKey === `status-delete-${status}` ? "Deleting..." : "Delete status usage"}
+                    {busyKey === `status-delete-${status}` ? "Deleting..." : "Delete"}
                   </Button>
                 </div>
               </Card>
