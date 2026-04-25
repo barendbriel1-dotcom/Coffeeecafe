@@ -881,6 +881,7 @@ export default function Assets() {
               <SelectItem value="signed_out">Signed Out</SelectItem>
               <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
               <SelectItem value="damaged">Damaged</SelectItem>
+              <SelectItem value="not_assigned">Not Assigned</SelectItem>
             </SelectContent>
           </Select>
 

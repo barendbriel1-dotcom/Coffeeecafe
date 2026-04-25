@@ -3,6 +3,7 @@ export const ASSET_STATUSES = [
   "signed_out",
   "out_for_repairs",
   "damaged",
+  "not_assigned",
 ] as const;
 
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
@@ -22,6 +23,7 @@ export const STATUS_LABELS: Record<string, string> = {
   signed_out: "Signed Out",
   out_for_repairs: "Out for Repairs",
   damaged: "Damaged",
+  not_assigned: "Not Assigned",
   in_handover: "Signed Out",
   maintenance: "Out for Repairs",
   retired: "Damaged",
@@ -33,6 +35,7 @@ export const STATUS_BADGE_CLASSES: Record<string, string> = {
   signed_out: "border-amber-500/35 bg-amber-500/12 text-amber-300",
   out_for_repairs: "border-cyan-500/35 bg-cyan-500/12 text-cyan-300",
   damaged: "border-rose-500/35 bg-rose-500/12 text-rose-300",
+  not_assigned: "border-zinc-500/35 bg-zinc-500/12 text-zinc-300",
   in_handover: "border-amber-500/35 bg-amber-500/12 text-amber-300",
   maintenance: "border-cyan-500/35 bg-cyan-500/12 text-cyan-300",
   retired: "border-rose-500/35 bg-rose-500/12 text-rose-300",

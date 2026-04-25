@@ -566,6 +566,7 @@ export type Database = {
         | "signed_out"
         | "in_handover"
         | "out_for_repairs"
+        | "not_assigned"
         | "lost"
         | "damaged"
       handover_status: "pending" | "accepted" | "rejected" | "cancelled"

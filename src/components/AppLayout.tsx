@@ -352,19 +352,28 @@ export default function AppLayout() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              <span
-                className={cn(
-                  "hidden rounded-full border px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] sm:inline-flex",
-                  isAdmin
-                    ? "border-primary/30 bg-primary/10 text-primary"
-                    : isStaff
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin")}
+                  className="hidden rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] text-primary transition-colors hover:border-primary/45 hover:bg-primary/16 sm:inline-flex"
+                >
+                  <Shield size={12} className="mr-1.5 opacity-80" />
+                  {roleLabel}
+                </button>
+              ) : (
+                <span
+                  className={cn(
+                    "hidden rounded-full border px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] sm:inline-flex",
+                    isStaff
                       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
                       : "border-primary/14 bg-muted/80 text-muted-foreground",
-                )}
-              >
-                <Shield size={12} className="mr-1.5 opacity-80" />
-                {roleLabel}
-              </span>
+                  )}
+                >
+                  <Shield size={12} className="mr-1.5 opacity-80" />
+                  {roleLabel}
+                </span>
+              )}
 
               <button
                 type="button"
