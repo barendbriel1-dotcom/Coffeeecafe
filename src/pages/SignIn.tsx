@@ -152,7 +152,6 @@ export default function SignIn() {
     packageFilter !== "all";
 
   const filteredRows = useMemo(() => {
-    if (!isFilterActive) return [];
     const q = searchQ.trim().toLowerCase();
     return rows.filter((item) => {
       const matchesSearch =
@@ -168,7 +167,7 @@ export default function SignIn() {
       const matchesPackage = packageFilter === "all" || item.package_name === packageFilter;
       return matchesSearch && matchesHolder && matchesDivision && matchesLocation && matchesPackage;
     });
-  }, [rows, searchQ, holderFilter, divisionFilter, locationFilter, packageFilter, isFilterActive]);
+  }, [rows, searchQ, holderFilter, divisionFilter, locationFilter, packageFilter]);
 
   // ── Selection helpers ──────────────────────────────────────────
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
@@ -349,7 +348,7 @@ export default function SignIn() {
         )}
 
         {/* Select-all — only when results visible */}
-        {isFilterActive && filteredRows.length > 0 && (
+        {filteredRows.length > 0 && (
           <Button
             type="button"
             variant="outline"
@@ -390,14 +389,6 @@ export default function SignIn() {
       {loading ? (
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-primary/70">
           Loading signed-out assets…
-        </div>
-
-      ) : !isFilterActive ? (
-        <div className="rounded-[1.5rem] border border-primary/12 bg-card/40 px-6 py-16 text-center space-y-3">
-          <Search size={32} className="mx-auto text-primary/30" />
-          <p className="font-mono text-sm text-muted-foreground">
-            Use the search bar or filters above to find signed-out assets.
-          </p>
         </div>
 
       ) : filteredRows.length === 0 ? (
