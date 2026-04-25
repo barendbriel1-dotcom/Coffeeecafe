@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Download, ExternalLink, FileSpreadsheet, Plus, Search, Upload } from "lucide-react";
+import { Download, ExternalLink, FileSpreadsheet, Plus, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +55,13 @@ interface DivisionRow {
   name: string;
 }
 
+interface AssetDeleteRequestRow {
+  id: string;
+  asset_id: string;
+  requested_by: string;
+  created_at: string;
+}
+
 const normalizeImportKey = (value: string) => {
   const compact = value
     .trim()
@@ -87,12 +95,13 @@ const rowsToCsv = (rows: (string | number | boolean | null | undefined)[][]) => 
 };
 
 export default function Assets() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [searchParams] = useSearchParams();
   const initialStatus = normalizeAssetStatus(searchParams.get("status") || "available") || "all";
   const [assets, setAssets] = useState<Asset[]>([]);
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [divisions, setDivisions] = useState<DivisionRow[]>([]);
+  const [pendingDeleteRequests, setPendingDeleteRequests] = useState<AssetDeleteRequestRow[]>([]);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") ? normalizeAssetStatus(searchParams.get("status") || "") : "all");
   const [locationFilter, setLocationFilter] = useState<string>("all");
@@ -109,12 +118,21 @@ export default function Assets() {
   const [newDivisionName, setNewDivisionName] = useState("");
   const [addingDivision, setAddingDivision] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [requestingDelete, setRequestingDelete] = useState(false);
+  const [approvingDelete, setApprovingDelete] = useState(false);
+  const [cancellingDeleteId, setCancellingDeleteId] = useState<string | null>(null);
 
   const load = async () => {
-    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
+    const deleteRequestsPromise = isAdmin
+      ? supabase.from("asset_delete_requests").select("id, asset_id, requested_by, created_at").order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null });
+
+    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: deleteRequestRows }] = await Promise.all([
       supabase.from("assets").select("*").order("name"),
       supabase.from("locations").select("*"),
       supabase.from("divisions").select("*").order("name"),
+      deleteRequestsPromise,
     ]);
 
     const orderedLocations = (locationRows ?? []).sort((a: LocationRow, b: LocationRow) => {
@@ -126,14 +144,23 @@ export default function Assets() {
     setAssets(assetRows ?? []);
     setLocations(orderedLocations);
     setDivisions(divisionRows ?? []);
+    setPendingDeleteRequests((deleteRequestRows ?? []) as AssetDeleteRequestRow[]);
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const existingIds = new Set(assets.map((asset) => asset.id));
+    setSelectedAssetIds((current) => current.filter((id) => existingIds.has(id)));
+  }, [assets]);
 
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
+  const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
+  const selectedAssetIdSet = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
+  const pendingDeleteAssetIdSet = useMemo(() => new Set(pendingDeleteRequests.map((request) => request.asset_id)), [pendingDeleteRequests]);
 
   useEffect(() => {
     if (searchParams.get("status")) {
@@ -182,6 +209,114 @@ export default function Assets() {
     () => groupedAssets.find((group) => group.key === activeGroupKey) ?? null,
     [activeGroupKey, groupedAssets],
   );
+
+  const pendingDeleteDetails = useMemo(
+    () =>
+      pendingDeleteRequests
+        .map((request) => ({
+          ...request,
+          asset: assetById[request.asset_id] ?? null,
+        }))
+        .filter((request) => request.asset),
+    [assetById, pendingDeleteRequests],
+  );
+
+  const filteredAssetIds = useMemo(
+    () => filteredGroups.flatMap((group) => group.items.map((asset) => asset.id)),
+    [filteredGroups],
+  );
+
+  const allVisibleSelected = filteredAssetIds.length > 0 && filteredAssetIds.every((id) => selectedAssetIdSet.has(id));
+  const someVisibleSelected = filteredAssetIds.some((id) => selectedAssetIdSet.has(id));
+
+  const setAssetSelected = (assetId: string, checked: boolean) => {
+    setSelectedAssetIds((current) => {
+      if (checked) {
+        return current.includes(assetId) ? current : [...current, assetId];
+      }
+      return current.filter((id) => id !== assetId);
+    });
+  };
+
+  const setManyAssetsSelected = (assetIds: string[], checked: boolean) => {
+    setSelectedAssetIds((current) => {
+      const next = new Set(current);
+      assetIds.forEach((id) => {
+        if (checked) next.add(id);
+        else next.delete(id);
+      });
+      return Array.from(next);
+    });
+  };
+
+  const submitDeleteRequests = async () => {
+    if (!isAdmin || !selectedAssetIds.length || !user) return;
+
+    const requestableIds = selectedAssetIds.filter((id) => !pendingDeleteAssetIdSet.has(id));
+    const skippedCount = selectedAssetIds.length - requestableIds.length;
+
+    if (requestableIds.length === 0) {
+      toast.error("The selected assets are already waiting for delete approval.");
+      return;
+    }
+
+    setRequestingDelete(true);
+    try {
+      const { error } = await supabase.from("asset_delete_requests").insert(
+        requestableIds.map((assetId) => ({
+          asset_id: assetId,
+          requested_by: user.id,
+        })),
+      );
+
+      if (error) throw error;
+
+      setSelectedAssetIds((current) => current.filter((id) => !requestableIds.includes(id)));
+      toast.success(`Sent ${requestableIds.length} asset${requestableIds.length === 1 ? "" : "s"} for delete approval.`, {
+        description: skippedCount > 0 ? `${skippedCount} already had a pending delete request.` : undefined,
+      });
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to start the delete approval process.");
+    } finally {
+      setRequestingDelete(false);
+    }
+  };
+
+  const approveDeleteRequests = async (assetIds: string[]) => {
+    if (!isAdmin || assetIds.length === 0) return;
+
+    setApprovingDelete(true);
+    try {
+      const { error } = await supabase.from("assets").delete().in("id", assetIds);
+      if (error) throw error;
+
+      setSelectedAssetIds((current) => current.filter((id) => !assetIds.includes(id)));
+      toast.success(`Deleted ${assetIds.length} asset${assetIds.length === 1 ? "" : "s"} after admin approval.`);
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to approve and delete the selected assets.");
+    } finally {
+      setApprovingDelete(false);
+    }
+  };
+
+  const cancelDeleteRequest = async (requestId: string) => {
+    if (!isAdmin) return;
+
+    setCancellingDeleteId(requestId);
+    try {
+      const { error } = await supabase.from("asset_delete_requests").delete().eq("id", requestId);
+      if (error) throw error;
+
+      toast.success("Delete request cancelled.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to cancel the delete request.");
+    } finally {
+      setCancellingDeleteId(null);
+    }
+  };
 
   const create = async () => {
     if (!name || !locationId || !divisionId) {
@@ -763,11 +898,153 @@ export default function Assets() {
         </div>
       </div>
 
+      {isAdmin && (
+        <div className="app-panel space-y-4 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="app-kicker">Asset Delete Approval</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Only admins can select assets, start the delete approval process, and approve the final deletion.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="border-primary/20 bg-card px-3 py-1 uppercase tracking-[0.16em]">
+                {selectedAssetIds.length} selected
+              </Badge>
+              <Badge variant="outline" className="border-primary/20 bg-card px-3 py-1 uppercase tracking-[0.16em]">
+                {pendingDeleteDetails.length} pending
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setManyAssetsSelected(filteredAssetIds, !allVisibleSelected)}
+              disabled={filteredAssetIds.length === 0}
+            >
+              {allVisibleSelected ? "Clear visible selection" : "Select all visible items"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSelectedAssetIds([])}
+              disabled={selectedAssetIds.length === 0}
+            >
+              Clear selected items
+            </Button>
+            <Button
+              type="button"
+              onClick={submitDeleteRequests}
+              disabled={selectedAssetIds.length === 0 || requestingDelete}
+              className="gap-2"
+            >
+              <Trash2 size={15} /> {requestingDelete ? "Starting delete approval..." : "Start delete approval"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="app-panel space-y-3 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="app-kicker">Pending Delete Approvals</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Review the requested assets below and approve each one when you are ready to remove it from the app.
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => approveDeleteRequests(pendingDeleteDetails.map((request) => request.asset_id))}
+              disabled={pendingDeleteDetails.length === 0 || approvingDelete}
+            >
+              {approvingDelete ? "Approving..." : "Approve all pending"}
+            </Button>
+          </div>
+
+          {pendingDeleteDetails.length === 0 ? (
+            <div className="rounded-[1.2rem] border border-primary/10 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
+              No assets are waiting for delete approval.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-[1.4rem] border border-primary/12">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      <th className="px-4 py-3 font-normal">Tag</th>
+                      <th className="px-4 py-3 font-normal">Item Name</th>
+                      <th className="px-4 py-3 font-normal">Serial</th>
+                      <th className="px-4 py-3 font-normal">Division</th>
+                      <th className="px-4 py-3 font-normal">Location</th>
+                      <th className="px-4 py-3 font-normal">Requested</th>
+                      <th className="px-4 py-3 font-normal">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-primary/10">
+                    {pendingDeleteDetails.map((request) => {
+                      const asset = request.asset!;
+                      const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "-" : "-";
+                      const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "-";
+                      const requestedLabel = request.requested_by === user?.id ? "You" : "Admin";
+
+                      return (
+                        <tr key={request.id} className="transition-colors hover:bg-primary/5">
+                          <td className="px-4 py-3 font-mono text-foreground/85">{asset.code}</td>
+                          <td className="px-4 py-3 text-foreground">{asset.name}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{asset.serial_number || "-"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{divisionName}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{requestedLabel}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => approveDeleteRequests([asset.id])}
+                                disabled={approvingDelete}
+                              >
+                                Approve delete
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => cancelDeleteRequest(request.id)}
+                                disabled={cancellingDeleteId === request.id}
+                              >
+                                {cancellingDeleteId === request.id ? "Cancelling..." : "Cancel"}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="app-panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {isAdmin && (
+                  <th className="w-12 px-4 py-3 font-normal">
+                    <Checkbox
+                      checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                      onCheckedChange={(checked) => setManyAssetsSelected(filteredAssetIds, checked === true)}
+                      aria-label="Select all visible assets"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-3 font-normal">Item Name</th>
                 <th className="px-4 py-3 font-normal">Total Units</th>
                 <th className="px-4 py-3 font-normal">Available</th>
@@ -778,33 +1055,54 @@ export default function Assets() {
             <tbody className="divide-y divide-primary/10">
               {filteredGroups.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground/70">
+                  <td colSpan={isAdmin ? 5 : 4} className="px-4 py-12 text-center text-muted-foreground/70">
                     No assets matched your search or filters.
                   </td>
                 </tr>
               )}
 
-              {filteredGroups.map((group) => (
-                <tr
-                  key={group.key}
-                  className="group cursor-pointer transition-colors hover:bg-primary/5"
-                  onClick={() => setActiveGroupKey(group.key)}
-                >
-                  <td className="max-w-[320px] px-4 py-3 text-foreground">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate">{group.name}</span>
-                      <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-50" />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-foreground/80">{group.totalUnits}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", group.availableUnits > 0 ? getStatusBadgeClass("available") : getStatusBadgeClass("signed_out"))}>
-                      {group.availableUnits}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{group.locationSummary}</td>
-                </tr>
-              ))}
+              {filteredGroups.map((group) => {
+                const groupAssetIds = group.items.map((asset) => asset.id);
+                const allGroupSelected = groupAssetIds.length > 0 && groupAssetIds.every((id) => selectedAssetIdSet.has(id));
+                const someGroupSelected = groupAssetIds.some((id) => selectedAssetIdSet.has(id));
+                const pendingCount = groupAssetIds.filter((id) => pendingDeleteAssetIdSet.has(id)).length;
+
+                return (
+                  <tr
+                    key={group.key}
+                    className="group cursor-pointer transition-colors hover:bg-primary/5"
+                    onClick={() => setActiveGroupKey(group.key)}
+                  >
+                    {isAdmin && (
+                      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          checked={allGroupSelected ? true : someGroupSelected ? "indeterminate" : false}
+                          onCheckedChange={(checked) => setManyAssetsSelected(groupAssetIds, checked === true)}
+                          aria-label={`Select ${group.name}`}
+                        />
+                      </td>
+                    )}
+                    <td className="max-w-[320px] px-4 py-3 text-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate">{group.name}</span>
+                        {pendingCount > 0 && (
+                          <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300">
+                            {pendingCount} pending delete
+                          </Badge>
+                        )}
+                        <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-50" />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-foreground/80">{group.totalUnits}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", group.availableUnits > 0 ? getStatusBadgeClass("available") : getStatusBadgeClass("signed_out"))}>
+                        {group.availableUnits}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{group.locationSummary}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -840,6 +1138,7 @@ export default function Assets() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        {isAdmin && <th className="px-4 py-3 font-normal">Select</th>}
                         <th className="px-4 py-3 font-normal">Tag</th>
                         <th className="px-4 py-3 font-normal">Serial Number</th>
                         <th className="px-4 py-3 font-normal">Division</th>
@@ -856,14 +1155,30 @@ export default function Assets() {
 
                         return (
                           <tr key={asset.id} className="transition-colors hover:bg-primary/5">
+                            {isAdmin && (
+                              <td className="px-4 py-3">
+                                <Checkbox
+                                  checked={selectedAssetIdSet.has(asset.id)}
+                                  onCheckedChange={(checked) => setAssetSelected(asset.id, checked === true)}
+                                  aria-label={`Select ${asset.code}`}
+                                />
+                              </td>
+                            )}
                             <td className="px-4 py-3 font-mono text-foreground/85">{asset.code}</td>
                             <td className="px-4 py-3 text-muted-foreground">{asset.serial_number || "-"}</td>
                             <td className="px-4 py-3 text-muted-foreground">{divisionName}</td>
                             <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
                             <td className="px-4 py-3">
-                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
-                                {getAssetStatusLabel(normalizedStatus)}
-                              </Badge>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                                  {getAssetStatusLabel(normalizedStatus)}
+                                </Badge>
+                                {pendingDeleteAssetIdSet.has(asset.id) && (
+                                  <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300">
+                                    Pending delete
+                                  </Badge>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3">
                               <Link to={`/assets/${asset.id}`} className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80" onClick={() => setActiveGroupKey(null)}>

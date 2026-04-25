@@ -55,6 +55,35 @@ export type Database = {
           },
         ]
       }
+      asset_delete_requests: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          requested_by: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          requested_by: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          requested_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_delete_requests_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_requests: {
         Row: {
           admin_notes: string | null
