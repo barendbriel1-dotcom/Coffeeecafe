@@ -19,6 +19,10 @@ interface AssetReturn {
   code: string;
   name: string;
   serial_number: string | null;
+  division_id: string | null;
+  division_name: string;
+  current_location_id: string | null;
+  location_name: string;
   holder_id: string | null;
   holder_name: string;
   signout_item_id: string | null;
@@ -33,10 +37,8 @@ interface BulkDecision {
   nextStatus: "available" | "out_for_repairs" | "damaged";
 }
 
-interface LocationRow {
-  id: string;
-  name: string;
-}
+interface LocationRow { id: string; name: string; }
+interface DivisionRow { id: string; name: string; }
 
 export default function SignIn() {
   const { user, isAdmin } = useAuth();
@@ -48,6 +50,9 @@ export default function SignIn() {
   // Filters
   const [searchQ, setSearchQ] = useState("");
   const [holderFilter, setHolderFilter] = useState("all");
+  const [divisionFilter, setDivisionFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [packageFilter, setPackageFilter] = useState("all");
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -60,11 +65,17 @@ export default function SignIn() {
   const load = async () => {
     setLoading(true);
     try {
-      const [{ data: assets, error: assetError }, { data: profiles }, { data: locationRows }] = await Promise.all([
+      const [
+        { data: assets, error: assetError },
+        { data: profiles },
+        { data: locationRows },
+        { data: divisionRows },
+      ] = await Promise.all([
         supabase
           .from("assets")
           .select(`
             id, code, name, status, current_holder, serial_number,
+            division_id, current_location_id,
             signout_items(
               id, returned, signout_id,
               signout:signouts(
@@ -75,6 +86,7 @@ export default function SignIn() {
           .eq("status", "signed_out"),
         supabase.from("profiles").select("id, display_name"),
         supabase.from("locations").select("id, name"),
+        supabase.from("divisions").select("id, name"),
       ]);
 
       if (assetError) throw assetError;
@@ -86,6 +98,9 @@ export default function SignIn() {
       });
 
       const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name]));
+      const divisionMap = Object.fromEntries((divisionRows ?? []).map((d: DivisionRow) => [d.id, d.name]));
+      const locationMap = Object.fromEntries((locationRows ?? []).map((l: LocationRow) => [l.id, l.name]));
+
       const formattedRows: AssetReturn[] = (assets ?? []).map((asset: any) => {
         const activeItem = asset.signout_items?.find((item: any) => !item.returned);
         const signout = activeItem?.signout;
@@ -95,6 +110,10 @@ export default function SignIn() {
           code: asset.code,
           name: asset.name,
           serial_number: asset.serial_number ?? null,
+          division_id: asset.division_id ?? null,
+          division_name: divisionMap[asset.division_id ?? ""] || "—",
+          current_location_id: asset.current_location_id ?? null,
+          location_name: locationMap[asset.current_location_id ?? ""] || "—",
           holder_id: holderId,
           holder_name: profileMap[holderId ?? ""] || "Unknown user",
           signout_item_id: activeItem?.id ?? null,
@@ -116,17 +135,21 @@ export default function SignIn() {
 
   useEffect(() => { load(); }, []);
 
-  // Unique holders for the filter dropdown
-  const holderOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    rows.forEach((r) => seen.set(r.holder_name, r.holder_name));
-    return Array.from(seen.values()).sort();
-  }, [rows]);
+  // ── Filter option lists derived from live data ─────────────────
+  const holderOptions = useMemo(() => [...new Set(rows.map((r) => r.holder_name))].sort(), [rows]);
+  const divisionOptions = useMemo(() => [...new Set(rows.map((r) => r.division_name).filter((d) => d !== "—"))].sort(), [rows]);
+  const locationFilterOptions = useMemo(() => [...new Set(rows.map((r) => r.location_name).filter((l) => l !== "—"))].sort(), [rows]);
+  const packageOptions = useMemo(() => [...new Set(rows.map((r) => r.package_name).filter(Boolean) as string[])].sort(), [rows]);
 
   const locationOptions = useMemo(() => locations.filter((l) => l.name !== "Traveling"), [locations]);
 
-  // Only show items when a filter/search is active
-  const isFilterActive = searchQ.trim().length > 0 || holderFilter !== "all";
+  // ── Active filter detection ────────────────────────────────────
+  const isFilterActive =
+    searchQ.trim().length > 0 ||
+    holderFilter !== "all" ||
+    divisionFilter !== "all" ||
+    locationFilter !== "all" ||
+    packageFilter !== "all";
 
   const filteredRows = useMemo(() => {
     if (!isFilterActive) return [];
@@ -137,15 +160,18 @@ export default function SignIn() {
         item.name.toLowerCase().includes(q) ||
         item.code.toLowerCase().includes(q) ||
         (item.serial_number ?? "").toLowerCase().includes(q) ||
-        item.holder_name.toLowerCase().includes(q);
+        item.holder_name.toLowerCase().includes(q) ||
+        (item.package_name ?? "").toLowerCase().includes(q);
       const matchesHolder = holderFilter === "all" || item.holder_name === holderFilter;
-      return matchesSearch && matchesHolder;
+      const matchesDivision = divisionFilter === "all" || item.division_name === divisionFilter;
+      const matchesLocation = locationFilter === "all" || item.location_name === locationFilter;
+      const matchesPackage = packageFilter === "all" || item.package_name === packageFilter;
+      return matchesSearch && matchesHolder && matchesDivision && matchesLocation && matchesPackage;
     });
-  }, [rows, searchQ, holderFilter, isFilterActive]);
+  }, [rows, searchQ, holderFilter, divisionFilter, locationFilter, packageFilter, isFilterActive]);
 
   // ── Selection helpers ──────────────────────────────────────────
-  const allFilteredSelected =
-    filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
+  const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
 
   const toggleItem = (id: string) => {
     setSelectedIds((prev) => {
@@ -209,13 +235,9 @@ export default function SignIn() {
       await Promise.all(
         signoutIds.map(async (signoutId) => {
           const { data: remaining } = await supabase
-            .from("signout_items")
-            .select("id")
-            .eq("signout_id", signoutId)
-            .eq("returned", false);
+            .from("signout_items").select("id").eq("signout_id", signoutId).eq("returned", false);
           if (!remaining || remaining.length === 0) {
-            await supabase
-              .from("signouts")
+            await supabase.from("signouts")
               .update({ status: "returned", signed_in_at: new Date().toISOString(), signed_in_by: user?.id })
               .eq("id", signoutId);
           }
@@ -247,6 +269,14 @@ export default function SignIn() {
     }
   };
 
+  const resetFilters = () => {
+    setSearchQ("");
+    setHolderFilter("all");
+    setDivisionFilter("all");
+    setLocationFilter("all");
+    setPackageFilter("all");
+  };
+
   if (!isAdmin) return null;
 
   const selectedCount = selectedIds.size;
@@ -255,41 +285,79 @@ export default function SignIn() {
     <div className="space-y-5 animate-fade-in">
       <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
 
-      {/* ── Filter bar ── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Search by name, tag, serial number or holder…"
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-          />
-        </div>
+      {/* ── Search bar ── */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="pl-9"
+          placeholder="Search by name, tag, serial number, holder or group…"
+          value={searchQ}
+          onChange={(e) => setSearchQ(e.target.value)}
+        />
+      </div>
 
-        {/* Holder filter */}
-        <Select value={holderFilter} onValueChange={setHolderFilter}>
-          <SelectTrigger className="w-full sm:w-52">
-            <SelectValue placeholder="Filter by holder" />
+      {/* ── Filter row ── */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <Select value={divisionFilter} onValueChange={setDivisionFilter}>
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder="Division" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All holders</SelectItem>
-            {holderOptions.map((name) => (
-              <SelectItem key={name} value={name}>{name}</SelectItem>
-            ))}
+            <SelectItem value="all">All divisions</SelectItem>
+            {divisionOptions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
           </SelectContent>
         </Select>
 
-        {/* Select-all toggle — only visible when results are showing */}
+        <Select value={locationFilter} onValueChange={setLocationFilter}>
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder="Location" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All locations</SelectItem>
+            {locationFilterOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Select value={holderFilter} onValueChange={setHolderFilter}>
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder="User" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All users</SelectItem>
+            {holderOptions.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Select value={packageFilter} onValueChange={setPackageFilter}>
+          <SelectTrigger className="h-8 w-44 text-xs">
+            <SelectValue placeholder="Group signout" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All groups</SelectItem>
+            {packageOptions.map((pkg) => <SelectItem key={pkg} value={pkg}>{pkg}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        {isFilterActive && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
+
+        {/* Select-all — only when results visible */}
         {isFilterActive && filteredRows.length > 0 && (
           <Button
             type="button"
             variant="outline"
-            className="gap-2 whitespace-nowrap"
+            size="sm"
+            className="ml-auto gap-2 h-8 text-xs"
             onClick={toggleAllFiltered}
           >
-            {allFilteredSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+            {allFilteredSelected ? <CheckSquare size={13} /> : <Square size={13} />}
             {allFilteredSelected ? "Deselect all" : `Select all (${filteredRows.length})`}
           </Button>
         )}
@@ -304,20 +372,12 @@ export default function SignIn() {
           <Button size="sm" className="gap-1.5" onClick={() => openSelectedDecision("available")}>
             <Check size={13} /> Sign in as Available
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
-            onClick={() => openSelectedDecision("out_for_repairs")}
-          >
+          <Button size="sm" variant="outline" className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+            onClick={() => openSelectedDecision("out_for_repairs")}>
             <Wrench size={13} /> Out for Repairs
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-            onClick={() => openSelectedDecision("damaged")}
-          >
+          <Button size="sm" variant="outline" className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+            onClick={() => openSelectedDecision("damaged")}>
             <XCircle size={13} /> Damaged
           </Button>
           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
@@ -333,22 +393,19 @@ export default function SignIn() {
         </div>
 
       ) : !isFilterActive ? (
-        /* Empty state — prompt to search or filter */
-        <div className="rounded-[1.5rem] border border-primary/12 bg-card/40 px-6 py-16 text-center space-y-2">
+        <div className="rounded-[1.5rem] border border-primary/12 bg-card/40 px-6 py-16 text-center space-y-3">
           <Search size={32} className="mx-auto text-primary/30" />
           <p className="font-mono text-sm text-muted-foreground">
-            Search by name, tag, or serial number — or filter by holder above to see signed-out assets.
+            Use the search bar or filters above to find signed-out assets.
           </p>
         </div>
 
       ) : filteredRows.length === 0 ? (
-        /* No results */
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-muted-foreground/70">
-          No signed-out assets match your search or filter.
+          No signed-out assets match your search or filters.
         </div>
 
       ) : (
-        /* Results as selectable bubbles */
         <div className="flex flex-wrap gap-3">
           {filteredRows.map((item) => {
             const isSelected = selectedIds.has(item.id);
@@ -358,9 +415,9 @@ export default function SignIn() {
                 type="button"
                 onClick={() => toggleItem(item.id)}
                 className={cn(
-                  "group flex flex-col gap-1 rounded-[1.3rem] border px-4 py-3 text-left transition-all",
+                  "group flex flex-col gap-1 rounded-[1.3rem] border px-4 py-3 text-left transition-all w-full sm:w-auto sm:min-w-[240px]",
                   isSelected
-                    ? "border-primary/60 bg-primary/10 shadow-[0_0_12px_rgba(0,200,100,0.15)]"
+                    ? "border-primary/60 bg-primary/10 shadow-[0_0_12px_rgba(0,200,100,0.12)]"
                     : "border-primary/15 bg-card/50 hover:border-primary/35 hover:bg-primary/5"
                 )}
               >
@@ -377,38 +434,38 @@ export default function SignIn() {
                     Signed Out
                   </Badge>
                 </div>
+
                 <div className="pl-5 space-y-0.5">
                   <p className="text-sm font-medium text-foreground leading-tight">{item.name}</p>
                   <p className="text-xs text-muted-foreground">{item.holder_name}</p>
-                  {item.serial_number && (
-                    <p className="font-mono text-[10px] text-muted-foreground/60">{item.serial_number}</p>
-                  )}
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-muted-foreground/60">
+                    {item.division_name !== "—" && <span>{item.division_name}</span>}
+                    {item.location_name !== "—" && <span>{item.location_name}</span>}
+                    {item.serial_number && <span>{item.serial_number}</span>}
+                    {item.package_name && (
+                      <span className="text-primary/60">📦 {item.package_name}</span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Quick-action buttons — shown on hover or when selected */}
+                {/* Quick-action buttons on hover / when selected */}
                 <div className={cn(
                   "pl-5 flex flex-wrap gap-1.5 mt-1 transition-all overflow-hidden",
                   isSelected ? "max-h-20 opacity-100" : "max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100"
                 )}>
-                  <button
-                    type="button"
+                  <button type="button"
                     onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "available"); }}
-                    className="flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] text-primary hover:bg-primary/20 transition-colors"
-                  >
+                    className="flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] text-primary hover:bg-primary/20 transition-colors">
                     <Check size={10} /> Available
                   </button>
-                  <button
-                    type="button"
+                  <button type="button"
                     onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "out_for_repairs"); }}
-                    className="flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/20 transition-colors"
-                  >
+                    className="flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/20 transition-colors">
                     <Wrench size={10} /> Repairs
                   </button>
-                  <button
-                    type="button"
+                  <button type="button"
                     onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "damaged"); }}
-                    className="flex items-center gap-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 transition-colors"
-                  >
+                    className="flex items-center gap-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 transition-colors">
                     <XCircle size={10} /> Damaged
                   </button>
                 </div>
@@ -431,7 +488,6 @@ export default function SignIn() {
 
           {bulkDecision && (
             <div className="space-y-4">
-              {/* Items summary */}
               <div className="max-h-44 overflow-y-auto rounded-[1.2rem] border border-primary/12 bg-secondary/60 px-3 py-2 space-y-1.5">
                 {bulkDecision.items.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 text-sm">
@@ -450,9 +506,7 @@ export default function SignIn() {
                   </SelectTrigger>
                   <SelectContent>
                     {locationOptions.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                      </SelectItem>
+                      <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -473,7 +527,7 @@ export default function SignIn() {
                 />
               </div>
 
-              <div className="rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm text-muted-foreground space-y-2">
+              <div className="rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm space-y-2">
                 <div className="flex items-center gap-2 text-foreground">
                   <MapPin size={14} className="text-primary shrink-0" />
                   All selected items will be moved to the chosen return location.
