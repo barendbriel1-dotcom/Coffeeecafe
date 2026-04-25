@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ASSET_STATUSES, generateNameCode, getAssetStatusLabel, getStatusBadgeClass } from "@/lib/assets";
 import { cn } from "@/lib/utils";
-import { Trash2 } from "lucide-react";
+import { Search, Trash2, X } from "lucide-react";
 
 type Role = "admin" | "staff" | "volunteer";
 type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "not_assigned";
@@ -79,7 +79,8 @@ export default function Admin() {
   const [requestingDelete, setRequestingDelete] = useState(false);
   const [approvingDelete, setApprovingDelete] = useState(false);
   const [cancellingDeleteId, setCancellingDeleteId] = useState<string | null>(null);
-  const [assetToDeleteId, setAssetToDeleteId] = useState<string>("all");
+  const [deleteSearch, setDeleteSearch] = useState("");
+  const [stagedForDelete, setStagedForDelete] = useState<AssetRow[]>([]);
 
 
   const load = async () => {
@@ -150,19 +151,22 @@ export default function Admin() {
   );
 
   const submitDeleteRequest = async () => {
-    if (!assetToDeleteId || assetToDeleteId === "all") return;
-    
+    if (stagedForDelete.length === 0) return;
+
     setRequestingDelete(true);
     try {
-      const { error } = await supabase.from("asset_delete_requests").insert({
-        asset_id: assetToDeleteId,
-        requested_by: user!.id,
-      });
+      const { error } = await supabase.from("asset_delete_requests").insert(
+        stagedForDelete.map((asset) => ({
+          asset_id: asset.id,
+          requested_by: user!.id,
+        }))
+      );
 
       if (error) throw error;
 
-      toast.success("Delete request submitted and is pending admin approval.");
-      setAssetToDeleteId("all");
+      toast.success(`${stagedForDelete.length} delete request(s) submitted for admin approval.`);
+      setStagedForDelete([]);
+      setDeleteSearch("");
       await load();
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to request deletion.");
@@ -170,6 +174,22 @@ export default function Admin() {
       setRequestingDelete(false);
     }
   };
+
+  const deleteSearchResults = useMemo(() => {
+    const q = deleteSearch.trim().toLowerCase();
+    if (!q) return [];
+    const stagedIds = new Set(stagedForDelete.map((a) => a.id));
+    return assets
+      .filter(
+        (asset) =>
+          !stagedIds.has(asset.id) &&
+          !pendingDeleteAssetIdSet.has(asset.id) &&
+          (asset.name.toLowerCase().includes(q) ||
+            asset.code.toLowerCase().includes(q) ||
+            (asset.serial_number ?? "").toLowerCase().includes(q))
+      )
+      .slice(0, 8);
+  }, [deleteSearch, assets, stagedForDelete, pendingDeleteAssetIdSet]);
 
   const approveDeleteRequests = async (assetIds: string[]) => {
     if (!isSuperAdmin) return toast.error("Only barend@encounterchurch.co.za can approve deletions.");
@@ -687,31 +707,76 @@ export default function Admin() {
           <Card className="bg-card/40 border-primary/30 p-4 space-y-4">
             <div>
               <h3 className="font-display text-primary text-sm uppercase">Request Asset Deletion</h3>
-              <p className="text-xs text-muted-foreground mt-1">Select an asset to request its deletion. Only the Super Admin can approve.</p>
+              <p className="text-xs text-muted-foreground mt-1">Search for assets and add them to the list. Submit all at once for admin approval.</p>
             </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Select value={assetToDeleteId} onValueChange={setAssetToDeleteId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Search or select an asset..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">-- Select an asset --</SelectItem>
-                  {assets.map((asset) => (
-                    <SelectItem key={asset.id} value={asset.id}>
-                      [{asset.code}] {asset.name} {asset.serial_number ? `(${asset.serial_number})` : ""}
-                    </SelectItem>
+
+            {/* Search bar */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search by name, tag, or serial number…"
+                value={deleteSearch}
+                onChange={(e) => setDeleteSearch(e.target.value)}
+              />
+              {/* Suggestions dropdown */}
+              {deleteSearchResults.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full rounded-[1rem] border border-primary/20 bg-card shadow-lg overflow-hidden">
+                  {deleteSearchResults.map((asset) => (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors flex items-center gap-3"
+                      onClick={() => {
+                        setStagedForDelete((prev) => [...prev, asset]);
+                        setDeleteSearch("");
+                      }}
+                    >
+                      <span className="font-mono text-xs text-primary/70">{asset.code}</span>
+                      <span className="text-foreground">{asset.name}</span>
+                      {asset.serial_number && (
+                        <span className="ml-auto text-xs text-muted-foreground">{asset.serial_number}</span>
+                      )}
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
-              
-              <Button 
-                type="button" 
-                onClick={submitDeleteRequest} 
-                disabled={requestingDelete || assetToDeleteId === "all" || !assetToDeleteId}
+                </div>
+              )}
+            </div>
+
+            {/* Staged items bubble list */}
+            {stagedForDelete.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-widest">Queued for deletion ({stagedForDelete.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  {stagedForDelete.map((asset) => (
+                    <div
+                      key={asset.id}
+                      className="flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-sm text-destructive"
+                    >
+                      <span className="font-mono text-xs opacity-70">{asset.code}</span>
+                      <span>{asset.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setStagedForDelete((prev) => prev.filter((a) => a.id !== asset.id))}
+                        className="ml-1 opacity-60 hover:opacity-100 transition-opacity"
+                        aria-label={`Remove ${asset.name}`}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={submitDeleteRequest}
+                disabled={requestingDelete || stagedForDelete.length === 0}
               >
                 <Trash2 size={16} className="mr-2" />
-                {requestingDelete ? "Requesting..." : "Request Deletion"}
+                {requestingDelete ? "Requesting..." : `Request Deletion (${stagedForDelete.length})`}
               </Button>
             </div>
           </Card>
