@@ -432,7 +432,7 @@ export default function Admin() {
                     </Badge>
                     <span className="text-sm text-muted-foreground">{statusCounts[status]} item{statusCounts[status] === 1 ? "" : "s"}</span>
                   </div>
-                  {status === "signed_out" && (
+                  {(status === "signed_out" || status === "available") && (
                     <span className="text-xs text-amber-300 uppercase tracking-[0.16em]">Protected workflow status</span>
                   )}
                 </div>
