@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Download, ExternalLink, FileSpreadsheet, Plus, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,38 @@ interface DivisionRow {
   code: string | null;
   name: string;
 }
+
+const normalizeImportKey = (value: string) => {
+  const compact = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  switch (compact) {
+    case "devision":
+      return "division";
+    case "item_name":
+      return "name";
+    case "asset_tag":
+      return "tag";
+    default:
+      return compact;
+  }
+};
+
+const rowsToCsv = (rows: (string | number | boolean | null | undefined)[][]) => {
+  const worksheet = XLSX.utils.aoa_to_sheet(
+    rows.map((row) =>
+      row.map((cell) => {
+        if (cell === null || typeof cell === "undefined") return "";
+        return String(cell).trim();
+      }),
+    ),
+  );
+
+  return XLSX.utils.sheet_to_csv(worksheet);
+};
 
 export default function Assets() {
   const { isAdmin } = useAuth();
@@ -249,13 +282,46 @@ export default function Assets() {
     URL.revokeObjectURL(url);
   };
 
-  const onCsvFile = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("File too large (max 2MB).");
+  const onImportFile = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large (max 5MB).");
       return;
     }
 
-    setCsvText(await file.text());
+    const lowerName = file.name.toLowerCase();
+
+    try {
+      if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+
+        if (!firstSheetName) {
+          toast.error("The spreadsheet does not contain any sheets.");
+          return;
+        }
+
+        const firstSheet = workbook.Sheets[firstSheetName];
+        const rows = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(firstSheet, {
+          header: 1,
+          raw: false,
+          defval: "",
+        });
+
+        if (rows.length === 0) {
+          toast.error("The spreadsheet is empty.");
+          return;
+        }
+
+        setCsvText(rowsToCsv(rows));
+        toast.success(`Loaded ${file.name} for import.`);
+        return;
+      }
+
+      setCsvText(await file.text());
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to read import file.");
+    }
   };
 
   const parseCsv = (text: string): string[][] => {
@@ -305,7 +371,7 @@ export default function Assets() {
     const rows = parseCsv(csvText);
     if (rows.length === 0) return [];
 
-    const header = rows[0].map((value) => value.trim().toLowerCase().replace(/ /g, "_"));
+    const header = rows[0].map((value) => normalizeImportKey(value));
     return rows.slice(1).map((values) => {
       const row: Record<string, string> = {};
       header.forEach((key, index) => {
@@ -568,7 +634,7 @@ export default function Assets() {
             <Dialog open={importOpen} onOpenChange={(value) => { setImportOpen(value); if (!value) setCsvText(""); }}>
               <DialogTrigger asChild>
                 <Button variant="outline">
-                  <Upload size={16} className="mr-1" /> CSV Import
+                  <Upload size={16} className="mr-1" /> CSV / Excel Import
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl bg-card">
@@ -584,6 +650,9 @@ export default function Assets() {
                     <div className="mt-2">
                       Name, Tag, Status, Location, Division, Serial Number, Description
                     </div>
+                    <div className="mt-2">
+                      Excel files with only Division, Name, Serial Number, and Location also work. Tags are auto-generated and status defaults to Available.
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -594,11 +663,11 @@ export default function Assets() {
                     <label className="inline-flex">
                       <input
                         type="file"
-                        accept=".csv,text/csv"
+                        accept=".csv,text/csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         className="hidden"
                         onChange={(event) => {
                           const file = event.target.files?.[0];
-                          if (file) onCsvFile(file);
+                          if (file) onImportFile(file);
                           event.target.value = "";
                         }}
                       />
@@ -609,7 +678,7 @@ export default function Assets() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">CSV content</Label>
+                    <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Import content</Label>
                     <Textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder={csvSample} rows={6} className="font-mono text-xs" />
                   </div>
 
