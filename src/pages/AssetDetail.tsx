@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -42,6 +43,11 @@ interface AssetHistory {
   to_user_name?: string;
 }
 
+interface DivisionOption {
+  id: string;
+  name: string;
+}
+
 export default function AssetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -49,6 +55,7 @@ export default function AssetDetail() {
   
   const [asset, setAsset] = useState<Asset | null>(null);
   const [history, setHistory] = useState<AssetHistory[]>([]);
+  const [divisions, setDivisions] = useState<DivisionOption[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Edit form state
@@ -56,29 +63,39 @@ export default function AssetDetail() {
   const [editDesc, setEditDesc] = useState("");
   const [editSerial, setEditSerial] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
+  const [editDivisionId, setEditDivisionId] = useState("");
   const [updating, setUpdating] = useState(false);
 
   const loadAsset = async () => {
     setLoading(true);
     try {
       // Fetch asset with related names
-      const { data: a, error } = await supabase
-        .from("assets")
-        .select(`
-          *,
-          base_location:locations!assets_department_id_fkey(name),
-          current_location:locations!assets_current_location_id_fkey(name),
-          division:divisions(name)
-        `)
-        .eq("id", id)
-        .single();
+      const [
+        { data: a, error },
+        { data: divisionRows, error: divisionError },
+      ] = await Promise.all([
+        supabase
+          .from("assets")
+          .select(`
+            *,
+            base_location:locations!assets_department_id_fkey(name),
+            current_location:locations!assets_current_location_id_fkey(name),
+            division:divisions(name)
+          `)
+          .eq("id", id)
+          .single(),
+        supabase.from("divisions").select("id, name").order("name"),
+      ]);
 
       if (error) throw error;
+      if (divisionError) throw divisionError;
       setAsset(a as any);
+      setDivisions((divisionRows ?? []) as DivisionOption[]);
       setEditName(a.name);
       setEditDesc(a.description || "");
       setEditSerial(a.serial_number || "");
       setEditImageUrl(a.image_url || "");
+      setEditDivisionId(a.division_id || "");
 
       // Fetch history with profiles via manual join/lookup since relationship isn't in schema cache
       const { data: h, error: hErr } = await supabase
@@ -133,7 +150,8 @@ export default function AssetDetail() {
           name: editName,
           description: editDesc || null,
           serial_number: editSerial || null,
-          image_url: editImageUrl || null
+          image_url: editImageUrl || null,
+          division_id: editDivisionId || null,
         } as any)
         .eq("id", asset.id);
 
@@ -231,6 +249,22 @@ export default function AssetDetail() {
                     <div className="space-y-1.5">
                       <Label>Serial Number</Label>
                       <Input value={editSerial} onChange={(e) => setEditSerial(e.target.value)} className="bg-primary/5 border-primary/20" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Division</Label>
+                      <Select value={editDivisionId || "unassigned"} onValueChange={(value) => setEditDivisionId(value === "unassigned" ? "" : value)}>
+                        <SelectTrigger className="bg-primary/5 border-primary/20">
+                          <SelectValue placeholder="Select division" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {divisions.map((division) => (
+                            <SelectItem key={division.id} value={division.id}>
+                              {division.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Image URL (Local path: /assets/photos/filename.jpg)</Label>
