@@ -63,7 +63,7 @@ export default function Admin() {
   const [locationDrafts, setLocationDrafts] = useState<Record<string, { code: string; name: string }>>({});
   const [divisionDrafts, setDivisionDrafts] = useState<Record<string, { code: string; name: string }>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [statusTargets, setStatusTargets] = useState<Record<string, ManagedStatus>>({});
+
 
   const load = async () => {
     const [
@@ -321,8 +321,8 @@ export default function Admin() {
   };
 
   const moveStatusToFallback = async (status: ManagedStatus) => {
-    if (status === "not_assigned") {
-      toast.error("Not Assigned is already the fallback status.");
+    if (status === "available") {
+      toast.error("Available is the default status and cannot be deleted.");
       return;
     }
 
@@ -331,35 +331,14 @@ export default function Admin() {
       return;
     }
 
-    if (!window.confirm(`Move all assets with status "${getAssetStatusLabel(status)}" to Not Assigned?`)) return;
+    if (!window.confirm(`Move all assets with status "${getAssetStatusLabel(status)}" to Available?`)) return;
 
     setBusyKey(`status-delete-${status}`);
-    const { error } = await supabase.from("assets").update({ status: "not_assigned" } as any).eq("status", status);
+    const { error } = await supabase.from("assets").update({ status: "available" } as any).eq("status", status);
     setBusyKey(null);
 
     if (error) return toast.error(error.message);
-    toast.success(`${getAssetStatusLabel(status)} was cleared. Linked items now use ${FALLBACK_NAME}.`);
-    load();
-  };
-
-  const reassignStatus = async (status: ManagedStatus) => {
-    const target = statusTargets[status];
-    if (!target || target === status) {
-      toast.error("Choose a different target status first.");
-      return;
-    }
-
-    if (status === "signed_out") {
-      toast.error("Signed Out cannot be bulk-changed here because it is part of the live sign-out workflow.");
-      return;
-    }
-
-    setBusyKey(`status-move-${status}`);
-    const { error } = await supabase.from("assets").update({ status: target } as any).eq("status", status);
-    setBusyKey(null);
-
-    if (error) return toast.error(error.message);
-    toast.success(`${getAssetStatusLabel(status)} assets moved to ${getAssetStatusLabel(target)}.`);
+    toast.success(`${getAssetStatusLabel(status)} was cleared. Linked items now use Available.`);
     load();
   };
 
@@ -439,8 +418,8 @@ export default function Admin() {
 
         <TabsContent value="statuses" className="space-y-3 mt-4">
           <Card className="bg-card/40 border-primary/30 p-4 text-sm text-muted-foreground">
-            Core workflow statuses stay in the system. From here, admin can bulk move items out of a status into
-            <span className="text-foreground"> Not Assigned</span> or reassign them into another status. Signed Out is protected because it is linked to the live sign-out process.
+            Core workflow statuses stay in the system. From here, admin can delete a status usage, moving all linked items back into 
+            <span className="text-foreground"> Available</span>. Signed Out is protected because it is linked to the live sign-out process.
           </Card>
 
           <div className="grid gap-3">
@@ -458,39 +437,11 @@ export default function Admin() {
                   )}
                 </div>
 
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,240px)_auto_auto]">
-                  <Select
-                    value={statusTargets[status] ?? "none"}
-                    onValueChange={(value) => setStatusTargets((current) => ({ ...current, [status]: value as ManagedStatus }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Move assets to..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Choose target status</SelectItem>
-                      {managedStatuses
-                        .filter((candidate) => candidate !== status)
-                        .map((candidate) => (
-                          <SelectItem key={candidate} value={candidate}>
-                            {getAssetStatusLabel(candidate)}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => reassignStatus(status)}
-                    disabled={busyKey === `status-move-${status}` || statusCounts[status] === 0}
-                  >
-                    {busyKey === `status-move-${status}` ? "Moving..." : "Change items"}
-                  </Button>
-
+                <div className="flex justify-end">
                   <Button
                     type="button"
                     onClick={() => moveStatusToFallback(status)}
-                    disabled={busyKey === `status-delete-${status}` || statusCounts[status] === 0 || status === "not_assigned" || status === "signed_out"}
+                    disabled={busyKey === `status-delete-${status}` || statusCounts[status] === 0 || status === "available" || status === "signed_out"}
                   >
                     {busyKey === `status-delete-${status}` ? "Deleting..." : "Delete status usage"}
                   </Button>
