@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ASSET_STATUSES, generateNameCode, getAssetStatusLabel, getStatusBadgeClass } from "@/lib/assets";
 import { cn } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 
 type Role = "admin" | "staff" | "volunteer";
 type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "not_assigned";
@@ -40,10 +41,20 @@ interface Division {
 
 interface AssetRow {
   id: string;
+  code: string;
+  name: string;
+  serial_number: string | null;
   status: ManagedStatus;
   department_id: string;
   current_location_id: string | null;
   division_id: string | null;
+}
+
+interface AssetDeleteRequestRow {
+  id: string;
+  asset_id: string;
+  requested_by: string;
+  created_at: string;
 }
 
 const FALLBACK_NAME = "Not Assigned";
@@ -64,6 +75,12 @@ export default function Admin() {
   const [divisionDrafts, setDivisionDrafts] = useState<Record<string, { code: string; name: string }>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
+  const [pendingDeleteRequests, setPendingDeleteRequests] = useState<AssetDeleteRequestRow[]>([]);
+  const [requestingDelete, setRequestingDelete] = useState(false);
+  const [approvingDelete, setApprovingDelete] = useState(false);
+  const [cancellingDeleteId, setCancellingDeleteId] = useState<string | null>(null);
+  const [assetToDeleteId, setAssetToDeleteId] = useState<string>("all");
+
 
   const load = async () => {
     const [
@@ -72,12 +89,14 @@ export default function Admin() {
       { data: l },
       { data: divisionRows },
       { data: assetRows },
+      { data: deleteRequestRows },
     ] = await Promise.all([
       supabase.from("profiles").select("id, display_name, email").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
       supabase.from("locations").select("*").order("name"),
       supabase.from("divisions").select("*").order("name"),
-      supabase.from("assets").select("id, status, department_id, current_location_id, division_id"),
+      supabase.from("assets").select("*").order("name"),
+      supabase.from("asset_delete_requests").select("id, asset_id, requested_by, created_at").order("created_at", { ascending: false }),
     ]);
 
     const nextLocs = (l ?? []) as Loc[];
@@ -88,6 +107,7 @@ export default function Admin() {
     setLocs(nextLocs);
     setDivisions(nextDivisions);
     setAssets((assetRows ?? []) as AssetRow[]);
+    setPendingDeleteRequests((deleteRequestRows ?? []) as AssetDeleteRequestRow[]);
     setLocationDrafts(
       Object.fromEntries(nextLocs.map((location) => [location.id, { code: location.code, name: location.name }])),
     );
@@ -110,8 +130,89 @@ export default function Admin() {
   );
   const fallbackDivision = useMemo(
     () => divisions.find((division) => division.name.toLowerCase() === FALLBACK_NAME.toLowerCase()) ?? null,
-    [divisions],
   );
+
+  const isSuperAdmin = user?.email === "barend@encounterchurch.co.za";
+  const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
+  const locationMap = useMemo(() => Object.fromEntries(locs.map((location) => [location.id, location.name])), [locs]);
+  const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
+  const pendingDeleteAssetIdSet = useMemo(() => new Set(pendingDeleteRequests.map((request) => request.asset_id)), [pendingDeleteRequests]);
+  
+  const pendingDeleteDetails = useMemo(
+    () =>
+      pendingDeleteRequests
+        .map((request) => ({
+          ...request,
+          asset: assetById[request.asset_id],
+        }))
+        .filter((r) => r.asset),
+    [pendingDeleteRequests, assetById],
+  );
+
+  const submitDeleteRequest = async () => {
+    if (!assetToDeleteId || assetToDeleteId === "all") return;
+    
+    setRequestingDelete(true);
+    try {
+      const { error } = await supabase.from("asset_delete_requests").insert({
+        asset_id: assetToDeleteId,
+        requested_by: user!.id,
+      });
+
+      if (error) throw error;
+
+      toast.success("Delete request submitted and is pending admin approval.");
+      setAssetToDeleteId("all");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to request deletion.");
+    } finally {
+      setRequestingDelete(false);
+    }
+  };
+
+  const approveDeleteRequests = async (assetIds: string[]) => {
+    if (!isSuperAdmin) return toast.error("Only barend@encounterchurch.co.za can approve deletions.");
+    if (assetIds.length === 0) return;
+
+    if (!window.confirm(`Permanently delete ${assetIds.length} asset(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    setApprovingDelete(true);
+    try {
+      await supabase.from("signout_items").delete().in("asset_id", assetIds);
+      await supabase.from("handover_items").delete().in("asset_id", assetIds);
+      await supabase.from("asset_requests").delete().in("asset_id", assetIds);
+      await supabase.from("asset_history").delete().in("asset_id", assetIds);
+      await supabase.from("asset_delete_requests").delete().in("asset_id", assetIds);
+
+      const { error } = await supabase.from("assets").delete().in("id", assetIds);
+      if (error) throw error;
+
+      toast.success(`Successfully permanently deleted ${assetIds.length} asset(s).`);
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to delete assets.");
+    } finally {
+      setApprovingDelete(false);
+    }
+  };
+
+  const cancelDeleteRequest = async (requestId: string) => {
+    setCancellingDeleteId(requestId);
+    try {
+      const { error } = await supabase.from("asset_delete_requests").delete().eq("id", requestId);
+      if (error) throw error;
+
+      toast.success("Delete request cancelled.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to cancel the delete request.");
+    } finally {
+      setCancellingDeleteId(null);
+    }
+  };
 
   const managedStatuses = ASSET_STATUSES.filter(
     (status): status is ManagedStatus =>
@@ -361,6 +462,7 @@ export default function Admin() {
           <TabsTrigger value="statuses" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Statuses</TabsTrigger>
           <TabsTrigger value="locs" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Locations</TabsTrigger>
           <TabsTrigger value="divisions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Divisions</TabsTrigger>
+          <TabsTrigger value="deletions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Deletions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-2 mt-4">
@@ -579,6 +681,118 @@ export default function Admin() {
               );
             })}
           </div>
+        </TabsContent>
+
+        <TabsContent value="deletions" className="space-y-4 mt-4">
+          <Card className="bg-card/40 border-primary/30 p-4 space-y-4">
+            <div>
+              <h3 className="font-display text-primary text-sm uppercase">Request Asset Deletion</h3>
+              <p className="text-xs text-muted-foreground mt-1">Select an asset to request its deletion. Only the Super Admin can approve.</p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Select value={assetToDeleteId} onValueChange={setAssetToDeleteId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Search or select an asset..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">-- Select an asset --</SelectItem>
+                  {assets.map((asset) => (
+                    <SelectItem key={asset.id} value={asset.id}>
+                      [{asset.code}] {asset.name} {asset.serial_number ? `(${asset.serial_number})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button 
+                type="button" 
+                onClick={submitDeleteRequest} 
+                disabled={requestingDelete || assetToDeleteId === "all" || !assetToDeleteId}
+              >
+                <Trash2 size={16} className="mr-2" />
+                {requestingDelete ? "Requesting..." : "Request Deletion"}
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="bg-card/40 border-primary/30 p-4 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="font-display text-primary text-sm uppercase">Pending Delete Approvals</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Review the requested assets below. Only barend@encounterchurch.co.za can approve the final deletion.
+                </p>
+              </div>
+              {isSuperAdmin && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => approveDeleteRequests(pendingDeleteDetails.map((request) => request.asset_id))}
+                  disabled={pendingDeleteDetails.length === 0 || approvingDelete}
+                >
+                  {approvingDelete ? "Approving..." : "Approve all pending"}
+                </Button>
+              )}
+            </div>
+
+            {pendingDeleteDetails.length === 0 ? (
+              <div className="rounded-[1.2rem] border border-primary/10 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
+                No assets are waiting for delete approval.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-[1.4rem] border border-primary/12">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        <th className="px-4 py-3 font-normal">Tag</th>
+                        <th className="px-4 py-3 font-normal">Item Name</th>
+                        <th className="px-4 py-3 font-normal">Requested By</th>
+                        <th className="px-4 py-3 font-normal">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-primary/10">
+                      {pendingDeleteDetails.map((request) => {
+                        const asset = request.asset!;
+                        const requestedLabel = request.requested_by === user?.id ? "You" : "Admin";
+
+                        return (
+                          <tr key={request.id} className="transition-colors hover:bg-primary/5">
+                            <td className="px-4 py-3 font-mono text-foreground/85">{asset?.code}</td>
+                            <td className="px-4 py-3 text-foreground">{asset?.name}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{requestedLabel}</td>
+                            <td className="px-4 py-3 flex gap-2">
+                              {isSuperAdmin && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => approveDeleteRequests([asset!.id])}
+                                  disabled={approvingDelete}
+                                >
+                                  Approve
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 border-primary/20 text-xs hover:border-primary/50"
+                                onClick={() => cancelDeleteRequest(request.id)}
+                                disabled={cancellingDeleteId === request.id}
+                              >
+                                {cancellingDeleteId === request.id ? "Cancelling..." : "Cancel"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
