@@ -200,17 +200,17 @@
       conic-gradient(
           from var(--matrix-field-angle),
           hsl(140 20% 6%),
-          hsl(var(--primary) / 0.62) 8%,
+          hsl(142 88% 42% / 0.86) 11%,
           hsl(140 20% 6%) 18%,
           hsl(140 20% 6%) 52%,
-          hsl(166 82% 50% / 0.5) 62%,
-          hsl(140 20% 6%) 70%
+          hsl(195 92% 46% / 0.78) 66%,
+          hsl(140 20% 6%) 78%
         )
         border-box;
     box-shadow:
       inset 0 0 0 1px hsl(144 68% 62% / 0.08),
       inset 0 0 22px hsl(142 76% 48% / 0.06),
-      0 0 0 1px hsl(142 76% 48% / 0.08),
+      0 0 0 1px hsl(142 76% 48% / 0.12),
       0 14px 34px hsl(140 70% 4% / 0.32);
     transition:
       --matrix-field-angle 2s ease,
@@ -225,7 +225,8 @@
     box-shadow:
       inset 0 0 0 1px hsl(144 68% 62% / 0.12),
       inset 0 0 26px hsl(142 76% 48% / 0.08),
-      0 0 0 1px hsl(142 76% 48% / 0.14),
+      0 0 0 1px hsl(142 76% 48% / 0.22),
+      0 0 18px hsl(195 92% 46% / 0.2),
       0 16px 38px hsl(140 70% 4% / 0.38);
   }
 
