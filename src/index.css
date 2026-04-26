@@ -268,10 +268,9 @@
     color: var(--enhanced-glow-color);
     background: linear-gradient(180deg, hsl(150 46% 13%), var(--btn-color));
     box-shadow:
-      0 0 0.24em 0.04em var(--glow-color),
-      0 0 0.7em 0.12em var(--glow-spread-color),
-      inset 0 0 0.22em 0.04em var(--glow-color);
-    text-shadow: 0 0 0.18em var(--glow-color);
+      inset 0 0 0.18em 0.03em hsl(142 86% 54% / 0.32),
+      0 8px 18px hsl(140 70% 4% / 0.26);
+    text-shadow: none;
   }
 
   .matrix-button::after {
@@ -285,7 +284,7 @@
     border-radius: inherit;
     background: var(--glow-spread-color);
     filter: blur(1.35em);
-    opacity: 0.22;
+    opacity: 0;
     transform: perspective(1.5em) rotateX(35deg) scale(1, 0.52);
     transition: opacity 220ms ease, transform 220ms ease;
   }
@@ -295,22 +294,20 @@
     background: var(--glow-color);
     transform: translateY(-1px);
     box-shadow:
-      0 0 0.32em 0.06em var(--glow-color),
-      0 0 0.95em 0.18em var(--glow-spread-color),
-      inset 0 0 0.28em 0.06em var(--enhanced-glow-color);
+      inset 0 0 0.18em 0.03em hsl(151 92% 70% / 0.35),
+      0 10px 22px hsl(140 70% 4% / 0.3);
   }
 
   .matrix-button:hover::after {
-    opacity: 0.32;
+    opacity: 0;
     transform: perspective(1.5em) rotateX(35deg) scale(1.08, 0.6);
   }
 
   .matrix-button:active {
     transform: translateY(0);
     box-shadow:
-      0 0 0.22em 0.04em var(--glow-color),
-      0 0 0.7em 0.14em var(--glow-spread-color),
-      inset 0 0 0.18em 0.04em var(--glow-color);
+      inset 0 0 0.14em 0.03em hsl(142 86% 54% / 0.26),
+      0 6px 14px hsl(140 70% 4% / 0.24);
   }
 
   .matrix-button-destructive,
@@ -323,6 +320,11 @@
     --btn-color: hsl(0 42% 12%);
     color: hsl(0 92% 78%);
     background: linear-gradient(180deg, hsl(0 48% 18%), hsl(0 46% 12%));
+    box-shadow:
+      0 0 0.26em 0.05em hsl(0 78% 62% / 0.58),
+      0 0 0.9em 0.14em hsl(0 78% 52% / 0.24),
+      inset 0 0 0.22em 0.05em hsl(0 78% 62% / 0.42);
+    text-shadow: 0 0 0.22em hsl(0 78% 62% / 0.72);
   }
 
   .matrix-button-destructive:hover,
@@ -331,6 +333,10 @@
   .matrix-button.hover\:text-destructive:hover {
     color: hsl(0 0% 100%);
     background: hsl(0 78% 44%);
+    box-shadow:
+      0 0 0.34em 0.06em hsl(0 78% 62% / 0.68),
+      0 0 1.15em 0.2em hsl(0 78% 52% / 0.3),
+      inset 0 0 0.28em 0.06em hsl(0 92% 78% / 0.48);
   }
 
   .matrix-button-outline,
