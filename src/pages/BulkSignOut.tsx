@@ -121,7 +121,7 @@ const formatPreferredAssetLabel = (asset: Asset | null | undefined) =>
   asset ? `${asset.code}${asset.serial_number ? ` | ${asset.serial_number}` : ""}` : "";
 
 export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings" | "signouts" }) {
-  const { user, isAdmin, isAssetManager } = useAuth();
+  const { user, isAdmin, isAssetManager, assetManagerLocationId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingPacket, setSavingPacket] = useState(false);
   const [deletingPacket, setDeletingPacket] = useState(false);
@@ -400,8 +400,13 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const activePacketForSignout = activeSavedPacket;
 
   useEffect(() => {
+    if (isAssetManager) {
+      setGroupSignoutLocationId(assetManagerLocationId ?? "");
+      return;
+    }
+
     setGroupSignoutLocationId(selectedRecipient?.department_id ?? "");
-  }, [activePacketId, selectedRecipient]);
+  }, [activePacketId, assetManagerLocationId, isAssetManager, selectedRecipient]);
 
   const candidateAssetsForLine = (item: BulkPacketItemDraft) => {
     const normalizedLineLabel = item.line_label.trim().toLowerCase();
@@ -637,10 +642,14 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       return;
     }
 
-    if (!groupSignoutLocationId) {
-      toast.error("This user does not have a registered location yet. Update their profile before using Group signout.");
-      return;
-    }
+      if (!groupSignoutLocationId) {
+        toast.error(
+          isAssetManager
+            ? "Your Assets Manager role does not have a locked location yet. Update the role assignment before using Group signout."
+            : "This user does not have a registered location yet. Update their profile before using Group signout.",
+        );
+        return;
+      }
 
     const packetItems = activePacketForSignout.items;
     if (packetItems.length === 0) {
@@ -1018,16 +1027,22 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
             </div>
 
             <div className="grid gap-4">
-              <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Registered user location</Label>
-                <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 font-mono text-sm text-primary/90">
-                  {recipientId
-                    ? groupSignoutLocationId
-                      ? locationMap[groupSignoutLocationId] ?? "Registered location not found"
-                      : "This user has no registered location"
-                    : "Choose user first"}
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                    {isAssetManager ? "Assets manager location" : "Registered user location"}
+                  </Label>
+                  <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 font-mono text-sm text-primary/90">
+                    {isAssetManager
+                      ? groupSignoutLocationId
+                        ? locationMap[groupSignoutLocationId] ?? "Assigned location not found"
+                        : "Your Assets Manager role has no assigned location"
+                      : recipientId
+                      ? groupSignoutLocationId
+                        ? locationMap[groupSignoutLocationId] ?? "Registered location not found"
+                        : "This user has no registered location"
+                      : "Choose user first"}
+                  </div>
                 </div>
-              </div>
             </div>
 
             <div className="space-y-3">
@@ -1161,9 +1176,11 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                               </Badge>
                             </div>
                             <div className="text-sm text-foreground/85">{asset.name}</div>
+                            <div className="text-[13px] font-medium text-primary/85">
+                              {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}
+                            </div>
                             <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                               <span>Serial: {asset.serial_number || "-"}</span>
-                              <span>{asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}</span>
                               <span>{locationMap[effectiveLocationId] ?? "Location"}</span>
                             </div>
                           </div>
@@ -1235,9 +1252,11 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                               </Badge>
                             </div>
                             <div className="text-sm text-foreground/85">{asset.name}</div>
+                            <div className="text-[13px] font-medium text-primary/85">
+                              {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}
+                            </div>
                             <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                               <span>Serial: {asset.serial_number || "-"}</span>
-                              <span>{asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}</span>
                               <span>{locationMap[effectiveLocationId] ?? "Location"}</span>
                             </div>
                           </div>
