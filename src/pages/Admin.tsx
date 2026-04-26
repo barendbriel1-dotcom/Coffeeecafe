@@ -102,27 +102,6 @@ const REQUEST_STATUS_CLASS: Record<string, string> = {
 
 const roleLabel = (role: Role) => (role === "asset_manager" ? "Assets Manager" : role.replace("_", " "));
 
-const sectionLabel = (section: AdminSection) => {
-  switch (section) {
-    case "pending-approvals":
-      return "Pending Approvals";
-    case "users-roles":
-      return "Users & Roles";
-    case "status":
-      return "Status";
-    case "locations":
-      return "Locations";
-    case "divisions":
-      return "Divisions";
-    case "qrcodes":
-      return "QR Codes";
-    case "deletions":
-      return "Deletions";
-    case "unassigned":
-      return "Unassigned";
-  }
-};
-
 const parseAdminSection = (value: string | null): AdminSection => {
   const match = ADMIN_SECTIONS.find((section) => section.id === value);
   return match?.id ?? DEFAULT_ADMIN_SECTION;
@@ -796,13 +775,6 @@ export default function Admin() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="font-display text-3xl text-foreground glow-soft">Admin</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage approvals, roles, asset settings, QR exports, deletions, and cleanup work from one admin hub.
-        </p>
-      </div>
-
       <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="space-y-2 rounded-[1.8rem] border border-primary/16 bg-card/60 p-3 lg:sticky lg:top-28 lg:self-start">
           {ADMIN_SECTIONS.map((section) => {
@@ -829,11 +801,6 @@ export default function Admin() {
         </aside>
 
         <section className="min-w-0 space-y-5">
-          <Card className="border-primary/18 bg-card/50 p-5">
-            <div className="app-kicker">Admin section</div>
-            <h2 className="font-display text-2xl text-foreground glow-soft">{sectionLabel(currentSection)}</h2>
-          </Card>
-
           {currentSection === "pending-approvals" && (
             <div className="space-y-5">
               <Card className="bg-card/40 border-primary/30 p-5 space-y-4">
