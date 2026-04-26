@@ -138,7 +138,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const [editorNotes, setEditorNotes] = useState("");
   const [editorItems, setEditorItems] = useState<BulkPacketItemDraft[]>([EMPTY_ITEM()]);
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
-  const [activeEditorGroupKey, setActiveEditorGroupKey] = useState<string | null>(null);
   const [activeAssignmentLineId, setActiveAssignmentLineId] = useState<string | null>(null);
 
   const [recipientId, setRecipientId] = useState("");
@@ -443,29 +442,39 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
     const normalizedQuery = buildSearchBlob([query]);
 
-    return groupedAssets
-      .filter((group) =>
-        group.items.some((asset) => {
-          const effectiveLocationId = asset.current_location_id ?? asset.department_id;
-          const locationName = locationMap[effectiveLocationId] ?? "";
-          const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
-          const searchBlob = buildSearchBlob([
-            group.name,
-            asset.name,
-            asset.code,
-            asset.serial_number,
-            asset.description,
-            locationName,
-            divisionName,
-          ]);
-          return searchBlob.includes(normalizedQuery);
-        }),
-      )
+    return assets
+      .filter((asset) => {
+        const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+        const locationName = locationMap[effectiveLocationId] ?? "";
+        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+        const searchBlob = buildSearchBlob([
+          asset.name,
+          asset.code,
+          asset.serial_number,
+          asset.description,
+          locationName,
+          divisionName,
+        ]);
+        return searchBlob.includes(normalizedQuery);
+      })
       .sort((a, b) => {
-        const aExact = a.name.toLowerCase() === query.toLowerCase() ? 0 : 1;
-        const bExact = b.name.toLowerCase() === query.toLowerCase() ? 0 : 1;
-        if (aExact !== bExact) return aExact - bExact;
-        return a.name.localeCompare(b.name);
+        const aCodeExact = a.code.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        const bCodeExact = b.code.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        if (aCodeExact !== bCodeExact) return aCodeExact - bCodeExact;
+
+        const aSerialExact = (a.serial_number ?? "").toLowerCase() === query.toLowerCase() ? 0 : 1;
+        const bSerialExact = (b.serial_number ?? "").toLowerCase() === query.toLowerCase() ? 0 : 1;
+        if (aSerialExact !== bSerialExact) return aSerialExact - bSerialExact;
+
+        const aNameExact = a.name.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        const bNameExact = b.name.toLowerCase() === query.toLowerCase() ? 0 : 1;
+        if (aNameExact !== bNameExact) return aNameExact - bNameExact;
+
+        const aCodeStarts = a.code.toLowerCase().startsWith(query.toLowerCase()) ? 0 : 1;
+        const bCodeStarts = b.code.toLowerCase().startsWith(query.toLowerCase()) ? 0 : 1;
+        if (aCodeStarts !== bCodeStarts) return aCodeStarts - bCodeStarts;
+
+        return a.code.localeCompare(b.code);
       })
       .slice(0, 8);
   };
@@ -487,17 +496,11 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       ];
     });
     setGroupSearchQuery("");
-    setActiveEditorGroupKey(null);
   };
 
   const activeAssignmentLine = useMemo(
     () => activePacketForSignout?.items.find((item) => item.id === activeAssignmentLineId) ?? null,
     [activeAssignmentLineId, activePacketForSignout],
-  );
-
-  const activeEditorSelectionGroup = useMemo(
-    () => (activeEditorGroupKey ? groupedAssets.find((group) => group.key === activeEditorGroupKey) ?? null : null),
-    [activeEditorGroupKey, groupedAssets],
   );
 
   const assignmentCandidates = activeAssignmentLine ? candidateAssetsForLine(activeAssignmentLine) : [];
@@ -858,7 +861,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                         <div>
                           <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Matching Items</div>
                           <div className="mt-1 text-xs text-muted-foreground">
-                            Choose a result below and then select the exact unit.
+                            Search results now show only the exact units that matched your search.
                           </div>
                         </div>
                         <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -873,25 +876,39 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            {getGroupSearchSuggestions(groupSearchQuery).map((group) => (
-                              <button
-                                key={group.key}
-                                type="button"
-                                onClick={() => setActiveEditorGroupKey(group.key)}
-                                className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-display text-sm text-foreground glow-soft">{group.name}</span>
-                                  <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">
-                                    {group.totalUnits} unit{group.totalUnits === 1 ? "" : "s"}
-                                  </span>
-                                </div>
-                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                  <span>{group.availableUnits} available</span>
-                                  <span>{group.locationSummary}</span>
-                                </div>
-                              </button>
-                            ))}
+                            {getGroupSearchSuggestions(groupSearchQuery).map((asset) => {
+                              const effectiveLocationId = asset.current_location_id ?? asset.department_id;
+                              const normalizedStatus = normalizeAssetStatus(asset.status);
+
+                              return (
+                                <button
+                                  key={asset.id}
+                                  type="button"
+                                  onClick={() => appendGroupingItem(asset)}
+                                  className="w-full rounded-[1rem] border border-primary/10 bg-background px-3 py-3 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
+                                >
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-display text-sm text-foreground glow-soft">{asset.code}</span>
+                                        <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
+                                          {getAssetStatusLabel(normalizedStatus)}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-sm text-foreground/85">{asset.name}</div>
+                                      <div className="text-[13px] font-medium text-primary/85">
+                                        {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}
+                                      </div>
+                                      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                        <span>Serial: {asset.serial_number || "-"}</span>
+                                        <span>{locationMap[effectiveLocationId] ?? "Location"}</span>
+                                      </div>
+                                    </div>
+                                    <div className="text-xs uppercase tracking-[0.16em] text-primary">Add this item</div>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -1135,65 +1152,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
           </>
         )}
       </Card>
-      )}
-
-      {showGroupings && (
-      <Dialog open={!!activeEditorSelectionGroup} onOpenChange={(open) => !open && setActiveEditorGroupKey(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="font-display text-foreground">
-              {activeEditorSelectionGroup ? `Choose exact item | ${activeEditorSelectionGroup.name}` : "Choose exact item"}
-            </DialogTitle>
-          </DialogHeader>
-
-          {activeEditorSelectionGroup && (
-            <div className="space-y-4">
-              <div className="rounded-[1.2rem] border border-primary/12 bg-secondary/80 px-4 py-3 text-sm text-muted-foreground">
-                This item name has multiple physical units. Choose the exact one you want to add to the group by tag and serial number.
-              </div>
-
-              <div className="space-y-3">
-                {activeEditorSelectionGroup.items
-                  .slice()
-                  .sort((a, b) => a.code.localeCompare(b.code))
-                  .map((asset) => {
-                    const effectiveLocationId = asset.current_location_id ?? asset.department_id;
-                    const normalizedStatus = normalizeAssetStatus(asset.status);
-
-                    return (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => appendGroupingItem(asset)}
-                        className="w-full rounded-[1.2rem] border border-primary/10 bg-background p-4 text-left transition-all hover:border-primary/24 hover:bg-primary/8"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-display text-base text-foreground glow-soft">{asset.code}</span>
-                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(normalizedStatus))}>
-                                {getAssetStatusLabel(normalizedStatus)}
-                              </Badge>
-                            </div>
-                            <div className="text-sm text-foreground/85">{asset.name}</div>
-                            <div className="text-[13px] font-medium text-primary/85">
-                              {asset.division_id ? divisionMap[asset.division_id] ?? "Division" : "Division"}
-                            </div>
-                            <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                              <span>Serial: {asset.serial_number || "-"}</span>
-                              <span>{locationMap[effectiveLocationId] ?? "Location"}</span>
-                            </div>
-                          </div>
-                          <div className="text-xs uppercase tracking-[0.16em] text-primary">Add this item</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
       )}
 
       {showSignouts && (
