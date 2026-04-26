@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertCircle, Camera, Check, CheckSquare, MapPin, Search, Square, Trash2, Wrench, XCircle } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { toast } from "sonner";
@@ -121,6 +121,8 @@ export default function SignIn() {
   const [scanBusy, setScanBusy] = useState(false);
   const scanItemsRef = useRef<AssetReturn[]>([]);
   const recentScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
+  const bulkDecisionDescriptionId = useId();
+  const scanInDescriptionId = useId();
 
   useEffect(() => {
     scanItemsRef.current = scanItems;
@@ -469,8 +471,25 @@ export default function SignIn() {
       formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
       verbose: false,
     });
+    let cancelled = false;
+
+    const waitForReaderElement = async () => {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (cancelled) return false;
+        if (document.getElementById(SCAN_IN_READER_ID)) return true;
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+      }
+      return false;
+    };
 
     const startScanner = async () => {
+      const hasReaderElement = await waitForReaderElement();
+      if (!hasReaderElement || cancelled) {
+        setScannerStarting(false);
+        setScannerError("Camera area did not load correctly. Close the dialog and try Scan In again.");
+        return;
+      }
+
       try {
         await scanner.start(
           { facingMode: "environment" },
@@ -548,6 +567,7 @@ export default function SignIn() {
     startScanner();
 
     return () => {
+      cancelled = true;
       scanner
         .stop()
         .catch(() => undefined)
@@ -837,14 +857,14 @@ export default function SignIn() {
       )}
 
       <Dialog open={!!bulkDecision} onOpenChange={(open) => !open && setBulkDecision(null)}>
-        <DialogContent className="bg-card/95">
+        <DialogContent className="bg-card/95" aria-describedby={bulkDecisionDescriptionId}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">
               {bulkDecision
                 ? `Sign in ${bulkDecision.items.length} item${bulkDecision.items.length === 1 ? "" : "s"} — ${getAssetStatusLabel(bulkDecision.nextStatus)}`
                 : "Complete sign-in"}
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription id={bulkDecisionDescriptionId} className="text-muted-foreground">
               Confirm the location, condition, and notes for the selected sign-in items.
             </DialogDescription>
           </DialogHeader>
@@ -923,10 +943,10 @@ export default function SignIn() {
       </Dialog>
 
       <Dialog open={scanOpen} onOpenChange={setScanOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto border-primary/20 bg-card sm:max-w-3xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto border-primary/20 bg-card sm:max-w-3xl" aria-describedby={scanInDescriptionId}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">Scan In</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription id={scanInDescriptionId} className="text-muted-foreground">
               Use your camera to scan UUID QR codes, collect multiple signed-out items, and sign them back in together.
             </DialogDescription>
           </DialogHeader>
