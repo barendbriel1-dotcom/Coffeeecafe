@@ -146,6 +146,7 @@ export type Database = {
           location_id: string | null
           notes: string | null
           packet_id: string
+          preferred_asset_id: string | null
           sort_order: number
         }
         Insert: {
@@ -156,6 +157,7 @@ export type Database = {
           location_id?: string | null
           notes?: string | null
           packet_id: string
+          preferred_asset_id?: string | null
           sort_order?: number
         }
         Update: {
@@ -166,6 +168,7 @@ export type Database = {
           location_id?: string | null
           notes?: string | null
           packet_id?: string
+          preferred_asset_id?: string | null
           sort_order?: number
         }
         Relationships: [
@@ -174,6 +177,13 @@ export type Database = {
             columns: ["packet_id"]
             isOneToOne: false
             referencedRelation: "bulk_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_packet_items_preferred_asset_id_fkey"
+            columns: ["preferred_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
             referencedColumns: ["id"]
           },
         ]

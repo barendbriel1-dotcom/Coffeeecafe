@@ -19,6 +19,7 @@ interface AssetReturn {
   code: string;
   name: string;
   serial_number: string | null;
+  department_id: string;
   division_id: string | null;
   division_name: string;
   current_location_id: string | null;
@@ -74,7 +75,7 @@ export default function SignIn() {
         supabase
           .from("assets")
           .select(`
-            id, code, name, status, current_holder, serial_number,
+            id, code, name, status, current_holder, serial_number, department_id,
             division_id, current_location_id,
             signout_items(
               id, returned, signout_id,
@@ -110,6 +111,7 @@ export default function SignIn() {
           code: asset.code,
           name: asset.name,
           serial_number: asset.serial_number ?? null,
+          department_id: asset.department_id,
           division_id: asset.division_id ?? null,
           division_name: divisionMap[asset.division_id ?? ""] || "—",
           current_location_id: asset.current_location_id ?? null,
@@ -142,6 +144,17 @@ export default function SignIn() {
   const packageOptions = useMemo(() => [...new Set(rows.map((r) => r.package_name).filter(Boolean) as string[])].sort(), [rows]);
 
   const locationOptions = useMemo(() => locations.filter((l) => l.name !== "Traveling"), [locations]);
+  const scopedRows = useMemo(
+    () =>
+      isAssetManager && assetManagerLocationId
+        ? rows.filter((item) => item.department_id === assetManagerLocationId)
+        : rows,
+    [assetManagerLocationId, isAssetManager, rows],
+  );
+  const scopedHolderOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.holder_name))].sort(), [scopedRows]);
+  const scopedDivisionOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.division_name).filter((d) => d !== "â€”"))].sort(), [scopedRows]);
+  const scopedLocationFilterOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.location_name).filter((l) => l !== "â€”"))].sort(), [scopedRows]);
+  const scopedPackageOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.package_name).filter(Boolean) as string[])].sort(), [scopedRows]);
 
   // ── Active filter detection ────────────────────────────────────
   const isFilterActive =
@@ -153,7 +166,7 @@ export default function SignIn() {
 
   const filteredRows = useMemo(() => {
     const q = searchQ.trim().toLowerCase();
-    return rows.filter((item) => {
+    return scopedRows.filter((item) => {
       const matchesSearch =
         !q ||
         item.name.toLowerCase().includes(q) ||
@@ -167,7 +180,7 @@ export default function SignIn() {
       const matchesPackage = packageFilter === "all" || item.package_name === packageFilter;
       return matchesSearch && matchesHolder && matchesDivision && matchesLocation && matchesPackage;
     });
-  }, [rows, searchQ, holderFilter, divisionFilter, locationFilter, packageFilter]);
+  }, [scopedRows, searchQ, holderFilter, divisionFilter, locationFilter, packageFilter]);
 
   // ── Selection helpers ──────────────────────────────────────────
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
@@ -303,7 +316,7 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All divisions</SelectItem>
-            {divisionOptions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            {scopedDivisionOptions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -313,7 +326,7 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All locations</SelectItem>
-            {locationFilterOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+            {scopedLocationFilterOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -323,7 +336,7 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All users</SelectItem>
-            {holderOptions.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+            {scopedHolderOptions.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -333,7 +346,7 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All groups</SelectItem>
-            {packageOptions.map((pkg) => <SelectItem key={pkg} value={pkg}>{pkg}</SelectItem>)}
+            {scopedPackageOptions.map((pkg) => <SelectItem key={pkg} value={pkg}>{pkg}</SelectItem>)}
           </SelectContent>
         </Select>
 

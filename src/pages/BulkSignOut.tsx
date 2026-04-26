@@ -31,6 +31,7 @@ interface BulkPacketItemRow {
   division_id: string | null;
   location_id: string | null;
   notes: string | null;
+  preferred_asset_id: string | null;
   sort_order: number;
 }
 
@@ -40,6 +41,7 @@ interface BulkPacketItemDraft {
   division_id: string | null;
   location_id: string | null;
   notes: string;
+  preferred_asset_id: string | null;
   sort_order: number;
 }
 
@@ -88,6 +90,7 @@ const EMPTY_ITEM = (): BulkPacketItemDraft => ({
   division_id: null,
   location_id: null,
   notes: "",
+  preferred_asset_id: null,
   sort_order: 0,
 });
 
@@ -112,6 +115,9 @@ const readPreferredUnitNote = (notes: string) =>
     .find((line) => line.trim().startsWith(PREFERRED_UNIT_PREFIX))
     ?.replace(PREFERRED_UNIT_PREFIX, "")
     .trim() ?? "";
+
+const formatPreferredAssetLabel = (asset: Asset | null | undefined) =>
+  asset ? `${asset.code}${asset.serial_number ? ` | ${asset.serial_number}` : ""}` : "";
 
 export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings" | "signouts" }) {
   const { user, isAdmin } = useAuth();
@@ -179,6 +185,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
           division_id: row.division_id,
           location_id: row.location_id,
           notes: row.notes ?? "",
+          preferred_asset_id: row.preferred_asset_id ?? null,
           sort_order: row.sort_order,
         });
         groupedItems.set(row.packet_id, items);
@@ -253,18 +260,25 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     setEditorNotes(activeSavedPacket.notes ?? "");
     setEditorItems(
       activeSavedPacket.items.length > 0
-        ? activeSavedPacket.items.map((item, index) => ({ ...item, notes: item.notes ?? "", sort_order: index }))
+        ? activeSavedPacket.items.map((item, index) => ({ ...item, notes: item.notes ?? "", preferred_asset_id: item.preferred_asset_id ?? null, sort_order: index }))
         : [EMPTY_ITEM()],
     );
     setGroupSearchQuery("");
     setGroupSignoutDivisionId("all");
     setGroupSignoutLocationId("all");
-    setAssignments({});
+    setAssignments(
+      Object.fromEntries(
+        activeSavedPacket.items
+          .filter((item) => item.preferred_asset_id)
+          .map((item) => [item.id, item.preferred_asset_id as string]),
+      ),
+    );
   }, [activePacketId, activeSavedPacket]);
 
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.id, profile.display_name])), [profiles]);
+  const assetMap = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
 
   const availableAssets = useMemo(
     () => assets.filter((asset) => normalizeAssetStatus(asset.status) === "available"),
@@ -287,6 +301,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         division_id: null,
         location_id: null,
         notes: item.notes.trim(),
+        preferred_asset_id: item.preferred_asset_id,
         sort_order: index,
       })),
     [editorItems],
@@ -325,6 +340,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
             division_id: null,
             location_id: null,
             notes: (item.notes ?? "").trim(),
+            preferred_asset_id: item.preferred_asset_id ?? null,
             sort_order: index,
           })),
         )
@@ -350,6 +366,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         return groupSignoutLocationId !== "all" ? effectiveLocationId === groupSignoutLocationId : true;
       })
       .sort((a, b) => {
+        const aPreferred = item.preferred_asset_id && a.id === item.preferred_asset_id ? 0 : 1;
+        const bPreferred = item.preferred_asset_id && b.id === item.preferred_asset_id ? 0 : 1;
+        if (aPreferred !== bPreferred) return aPreferred - bPreferred;
         const aAvailable = normalizeAssetStatus(a.status) === "available" ? 0 : 1;
         const bAvailable = normalizeAssetStatus(b.status) === "available" ? 0 : 1;
         if (aAvailable !== bAvailable) return aAvailable - bAvailable;
@@ -404,6 +423,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
           division_id: null,
           location_id: null,
           notes: buildPreferredUnitNote("", asset),
+          preferred_asset_id: asset.id,
           sort_order: normalizedCurrent.length,
         },
       ];
@@ -447,7 +467,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     if (!user) return;
 
     const trimmedName = editorName.trim();
-    const validItems = normalizedEditorItems.filter((item) => item.line_label);
+      const validItems = normalizedEditorItems.filter((item) => item.line_label);
 
     if (!trimmedName) {
       toast.error("Group name is required.");
@@ -492,6 +512,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
           division_id: null,
           location_id: null,
           notes: item.notes || null,
+          preferred_asset_id: item.preferred_asset_id,
           sort_order: index,
         })),
       );
@@ -871,7 +892,13 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                             <div className="min-w-0 flex-1">
                               <div className="font-display text-sm text-foreground glow-soft">{item.trimmedLabel}</div>
                               <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                {readPreferredUnitNote(item.notes) && <span>{readPreferredUnitNote(item.notes)}</span>}
+                                {(item.preferred_asset_id ? formatPreferredAssetLabel(assetMap[item.preferred_asset_id]) : readPreferredUnitNote(item.notes)) && (
+                                  <span>
+                                    {item.preferred_asset_id
+                                      ? formatPreferredAssetLabel(assetMap[item.preferred_asset_id])
+                                      : readPreferredUnitNote(item.notes)}
+                                  </span>
+                                )}
                               </div>
                               {stripPreferredUnitNote(item.notes) && <div className="mt-1 text-[11px] text-muted-foreground">{stripPreferredUnitNote(item.notes)}</div>}
                             </div>
@@ -998,6 +1025,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
               {activePacketForSignout.items.map((item, index) => {
                 const selectedAssetId = assignments[item.id] ?? "";
                 const selectedAsset = selectedAssetId ? assets.find((asset) => asset.id === selectedAssetId) : null;
+                const preferredAsset = item.preferred_asset_id ? assetMap[item.preferred_asset_id] : null;
                 const selectedAssetUnavailable = Boolean(
                   selectedAsset && normalizeAssetStatus(selectedAsset.status) !== "available",
                 );
@@ -1021,7 +1049,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                           {index + 1}. {item.line_label}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                          {readPreferredUnitNote(item.notes) && <span>{readPreferredUnitNote(item.notes)}</span>}
+                          {(preferredAsset ? formatPreferredAssetLabel(preferredAsset) : readPreferredUnitNote(item.notes)) && (
+                            <span>{preferredAsset ? formatPreferredAssetLabel(preferredAsset) : readPreferredUnitNote(item.notes)}</span>
+                          )}
                           {stripPreferredUnitNote(item.notes) && <span>{stripPreferredUnitNote(item.notes)}</span>}
                         </div>
                       </div>

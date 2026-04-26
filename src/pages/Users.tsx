@@ -17,36 +17,55 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type AppRole = "admin" | "staff" | "volunteer";
+type AppRole = "admin" | "staff" | "volunteer" | "asset_manager";
 
 interface UserRow {
   id: string;
   display_name: string;
   email: string | null;
   role: AppRole | null;
+  asset_manager_location_id: string | null;
 }
 
-const roleOptions: AppRole[] = ["volunteer", "staff", "admin"];
+interface LocationRow {
+  id: string;
+  name: string;
+}
+
+const roleOptions: AppRole[] = ["volunteer", "staff", "asset_manager", "admin"];
+const roleLabel = (role: AppRole) => (role === "asset_manager" ? "Assets Manager" : role.charAt(0).toUpperCase() + role.slice(1));
 
 export default function Users() {
   const { user, isAdmin } = useAuth();
   const [rows, setRows] = useState<UserRow[]>([]);
+  const [locations, setLocations] = useState<LocationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [draftRoles, setDraftRoles] = useState<Record<string, AppRole>>({});
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [assetManagerTarget, setAssetManagerTarget] = useState<UserRow | null>(null);
+  const [assetManagerLocationDraft, setAssetManagerLocationDraft] = useState("none");
+  const [assetManagerSaving, setAssetManagerSaving] = useState(false);
+
+  const locationMap = useMemo(
+    () => Object.fromEntries(locations.map((location) => [location.id, location.name])),
+    [locations],
+  );
 
   const load = async () => {
     setLoading(true);
-    const [{ data: profiles, error: pErr }, { data: roles, error: rErr }] = await Promise.all([
-      supabase.from("profiles").select("id, display_name, email").order("display_name"),
+    const [{ data: profiles, error: pErr }, { data: roles, error: rErr }, { data: locationRows, error: lErr }] = await Promise.all([
+      supabase.from("profiles").select("id, display_name, email, asset_manager_location_id").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
+      supabase.from("locations").select("id, name").order("name"),
     ]);
 
-    if (pErr || rErr) {
+    if (pErr || rErr || lErr) {
       toast.error("Failed to load users");
       setLoading(false);
       return;
@@ -60,9 +79,11 @@ export default function Users() {
       display_name: profile.display_name,
       email: profile.email,
       role: roleMap.get(profile.id) ?? null,
+      asset_manager_location_id: profile.asset_manager_location_id ?? null,
     }));
 
     setRows(nextRows);
+    setLocations((locationRows ?? []) as LocationRow[]);
     setDraftRoles((current) => {
       const nextDrafts = { ...current };
       nextRows.forEach((row) => {
@@ -82,10 +103,20 @@ export default function Users() {
   const pendingUsers = useMemo(() => rows.filter((row) => !row.role), [rows]);
   const approvedUsers = useMemo(() => rows.filter((row) => row.role), [rows]);
 
-  const assignRole = async (userId: string, nextRole: AppRole) => {
+  const openAssetManagerDialog = (target: UserRow) => {
+    setAssetManagerTarget(target);
+    setAssetManagerLocationDraft(target.asset_manager_location_id ?? "none");
+  };
+
+  const assignRole = async (userId: string, nextRole: AppRole, assetManagerLocationId?: string | null) => {
     if (userId === user?.id && nextRole !== "admin") {
       const ok = confirm("You are about to remove your own admin access. Continue?");
-      if (!ok) return;
+      if (!ok) return false;
+    }
+
+    if (nextRole === "asset_manager" && (!assetManagerLocationId || assetManagerLocationId === "none")) {
+      toast.error("Choose the locked location for this Assets Manager first.");
+      return false;
     }
 
     setUpdatingId(userId);
@@ -94,20 +125,57 @@ export default function Users() {
     if (deleteError) {
       toast.error(deleteError.message);
       setUpdatingId(null);
-      return;
+      return false;
     }
 
     const { error: insertError } = await supabase.from("user_roles").insert({ user_id: userId, role: nextRole });
     if (insertError) {
       toast.error(insertError.message);
       setUpdatingId(null);
-      return;
+      return false;
     }
 
-    setRows((current) => current.map((row) => (row.id === userId ? { ...row, role: nextRole } : row)));
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ asset_manager_location_id: nextRole === "asset_manager" ? assetManagerLocationId : null })
+      .eq("id", userId);
+
+    if (profileError) {
+      toast.error(profileError.message);
+      setUpdatingId(null);
+      return false;
+    }
+
+    setRows((current) =>
+      current.map((row) =>
+        row.id === userId
+          ? { ...row, role: nextRole, asset_manager_location_id: nextRole === "asset_manager" ? assetManagerLocationId ?? null : null }
+          : row,
+      ),
+    );
     setDraftRoles((current) => ({ ...current, [userId]: nextRole }));
-    toast.success("User approved and role assigned");
+    toast.success("User role updated");
     setUpdatingId(null);
+    return true;
+  };
+
+  const saveAssetManagerRole = async () => {
+    if (!assetManagerTarget) return;
+    setAssetManagerSaving(true);
+    const saved = await assignRole(assetManagerTarget.id, "asset_manager", assetManagerLocationDraft);
+    setAssetManagerSaving(false);
+    if (saved) {
+      setAssetManagerTarget(null);
+    }
+  };
+
+  const handleRoleSubmit = async (row: UserRow) => {
+    const nextRole = draftRoles[row.id] ?? row.role ?? "volunteer";
+    if (nextRole === "asset_manager") {
+      openAssetManagerDialog(row);
+      return;
+    }
+    await assignRole(row.id, nextRole);
   };
 
   const deleteUser = async () => {
@@ -194,18 +262,20 @@ export default function Users() {
                         onValueChange={(value) => setDraftRoles((current) => ({ ...current, [row.id]: value as AppRole }))}
                         disabled={updatingId === row.id || deletingId === row.id}
                       >
-                        <SelectTrigger className="w-full min-w-[180px] border-primary/30 bg-background/60 text-primary sm:w-[190px]">
+                        <SelectTrigger className="w-full min-w-[180px] border-primary/30 bg-background/60 text-primary sm:w-[210px]">
                           <SelectValue placeholder="Assign role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="volunteer">Volunteer</SelectItem>
-                          <SelectItem value="staff">Staff</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
+                          {roleOptions.map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {roleLabel(role)}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
 
                       <Button
-                        onClick={() => assignRole(row.id, draftRoles[row.id] ?? "volunteer")}
+                        onClick={() => handleRoleSubmit(row)}
                         disabled={updatingId === row.id || deletingId === row.id}
                         className="sm:min-w-[170px]"
                       >
@@ -264,34 +334,43 @@ export default function Users() {
                       <div className="truncate text-xs font-mono text-muted-foreground">
                         {row.email ?? "-"}
                       </div>
+                      {row.role === "asset_manager" && (
+                        <div className="mt-1 text-xs text-primary/80">
+                          Locked to: {locationMap[row.asset_manager_location_id ?? ""] ?? "No location assigned"}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={
-                          row.role === "admin"
-                            ? "border-primary text-primary"
-                            : row.role === "staff"
-                              ? "border-yellow-500/60 text-yellow-400"
-                              : "border-muted-foreground/40 text-muted-foreground"
-                        }
-                      >
-                        {row.role?.toUpperCase()}
-                      </Badge>
+                      {row.role && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            row.role === "admin"
+                              ? "border-primary text-primary"
+                              : row.role === "staff"
+                                ? "border-yellow-500/60 text-yellow-400"
+                                : row.role === "asset_manager"
+                                  ? "border-cyan-500/60 text-cyan-300"
+                                  : "border-muted-foreground/40 text-muted-foreground"
+                          }
+                        >
+                          {roleLabel(row.role).toUpperCase()}
+                        </Badge>
+                      )}
 
                       <Select
                         value={draftRoles[row.id] ?? row.role ?? "volunteer"}
                         onValueChange={(value) => setDraftRoles((current) => ({ ...current, [row.id]: value as AppRole }))}
                         disabled={updatingId === row.id || deletingId === row.id}
                       >
-                        <SelectTrigger className="w-[170px] border-primary/30 bg-background/60 text-primary">
+                        <SelectTrigger className="w-[190px] border-primary/30 bg-background/60 text-primary">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {roleOptions.map((role) => (
                             <SelectItem key={role} value={role}>
-                              {role.charAt(0).toUpperCase() + role.slice(1)}
+                              {roleLabel(role)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -300,7 +379,7 @@ export default function Users() {
                       <Button
                         variant="outline"
                         className="border-primary/30 bg-background/40 text-primary hover:bg-primary/10"
-                        onClick={() => assignRole(row.id, draftRoles[row.id] ?? row.role ?? "volunteer")}
+                        onClick={() => handleRoleSubmit(row)}
                         disabled={updatingId === row.id || deletingId === row.id}
                       >
                         {updatingId === row.id ? "Saving..." : "Save"}
@@ -322,6 +401,50 @@ export default function Users() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!assetManagerTarget} onOpenChange={(open) => !open && setAssetManagerTarget(null)}>
+        <DialogContent className="border border-primary/20 bg-background">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-foreground glow-soft">
+              Assign Assets Manager
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Operator</Label>
+              <div className="rounded-[1rem] border border-primary/15 bg-card px-4 py-3 text-sm text-foreground">
+                {assetManagerTarget?.display_name ?? ""}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Locked Location</Label>
+              <Select value={assetManagerLocationDraft} onValueChange={setAssetManagerLocationDraft}>
+                <SelectTrigger className="bg-card">
+                  <SelectValue placeholder="Choose location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAssetManagerTarget(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveAssetManagerRole} disabled={assetManagerSaving}>
+              {assetManagerSaving ? "Saving..." : "Save Assets Manager"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent className="border border-primary/20 bg-background">
