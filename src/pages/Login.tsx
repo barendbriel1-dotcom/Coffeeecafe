@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 
 import DecypherLoader from "@/components/DecypherLoader";
+import DecypherText from "@/components/DecypherText";
 import MatrixRain from "@/components/MatrixRain";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,7 +169,7 @@ export default function Login() {
         <MatrixRain className="opacity-95" />
         <div className="z-10 rounded-[1.8rem] border border-primary/20 bg-background/58 px-6 py-5 text-center shadow-[var(--shadow-strong)] backdrop-blur-sm">
           <div className="font-display text-2xl text-primary glow tracking-[0.24em] uppercase md:text-4xl">
-            DECYPHERING CODE<span className="cursor-blink"></span>
+            <DecypherText />
           </div>
           <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.32em] text-primary/45">
             Initializing access shell

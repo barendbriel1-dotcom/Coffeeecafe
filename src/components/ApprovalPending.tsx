@@ -2,6 +2,7 @@ import { Link, Navigate } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 
 import MatrixRain from "@/components/MatrixRain";
+import DecypherText from "@/components/DecypherText";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
@@ -49,7 +50,10 @@ export default function ApprovalPending({
           <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-primary/70">
             // decyphering code //
           </div>
-          <div className="mt-3 font-mono text-xs uppercase tracking-[0.22em] text-primary/90">
+          <div className="mt-3 font-display text-lg text-primary glow tracking-[0.18em] uppercase">
+            <DecypherText />
+          </div>
+          <div className="mt-3 font-mono text-xs uppercase tracking-[0.22em] text-primary/70">
             Account created. Access remains locked until approval is granted.
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import MatrixRain from "./MatrixRain";
+import DecypherText from "./DecypherText";
 
 export default function DecypherLoader({ isReady, onComplete }: { isReady: boolean; onComplete: () => void }) {
   const targetText = "DECYPHERING CODE...";
@@ -56,9 +57,7 @@ export default function DecypherLoader({ isReady, onComplete }: { isReady: boole
       <div className="z-10 rounded-[1.8rem] border border-primary/20 bg-background/58 px-6 py-5 text-center shadow-[var(--shadow-strong)] backdrop-blur-sm">
         <div className="font-display text-2xl text-primary glow tracking-[0.24em] uppercase md:text-4xl">
           {phase === "raining" ? (
-            <>
-              DECYPHERING CODE<span className="cursor-blink"></span>
-            </>
+            <DecypherText />
           ) : (
             text
           )}
