@@ -300,7 +300,7 @@ export default function Login() {
                   onClick={() => setMode("signup")}
                   className="block w-full text-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
                 >
-                  Create Oporator Access
+                  Create Operator Access
                 </button>
                 <button
                   type="button"
