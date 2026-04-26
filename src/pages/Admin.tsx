@@ -80,7 +80,7 @@ interface DamageReport {
   other_details: string | null;
   admin_conclusion_notes: string | null;
   admin_conclusion_status: ManagedStatus | null;
-  status: "pending" | "completed";
+  status: "pending" | "completed" | "concluded";
   created_at: string;
   completed_at: string | null;
   reviewed_at: string | null;
@@ -241,7 +241,7 @@ export default function Admin() {
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.id, profile.display_name])), [profiles]);
   const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
   const pendingDeleteAssetIdSet = useMemo(() => new Set(pendingDeleteRequests.map((request) => request.asset_id)), [pendingDeleteRequests]);
-  const activeDamageReports = useMemo(() => damageReports.filter(r => !r.admin_conclusion_status), [damageReports]);
+  const activeDamageReports = useMemo(() => damageReports.filter(r => r.status === "completed" && !r.admin_conclusion_status), [damageReports]);
 
   const pendingDeleteDetails = useMemo(
     () =>
@@ -820,6 +820,7 @@ export default function Admin() {
           admin_conclusion_status: conclusionStatus,
           reviewed_at: new Date().toISOString(),
           reviewed_by: user.id,
+          status: "concluded" as any
         })
         .eq("id", concludingReport.id);
 

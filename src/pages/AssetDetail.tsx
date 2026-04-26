@@ -59,7 +59,7 @@ interface DamageReport {
   other_details: string | null;
   admin_conclusion_notes: string | null;
   admin_conclusion_status: string | null;
-  status: string;
+  status: "pending" | "completed" | "concluded";
   created_at: string;
   completed_at: string | null;
 }
@@ -162,7 +162,7 @@ export default function AssetDetail() {
         .from("damage_reports")
         .select("*")
         .eq("asset_id", id)
-        .eq("status", "completed")
+        .in("status", ["completed", "concluded"])
         .not("admin_conclusion_status", "is", null)
         .order("created_at", { ascending: false });
 
