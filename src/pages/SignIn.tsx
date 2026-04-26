@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Check, CheckSquare, MapPin, Search, Square, Wrench, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Camera, Check, CheckSquare, MapPin, Search, Square, Trash2, Wrench, XCircle } from "lucide-react";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +39,55 @@ interface BulkDecision {
   nextStatus: "available" | "out_for_repairs" | "damaged";
 }
 
-interface LocationRow { id: string; name: string; }
-interface DivisionRow { id: string; name: string; }
+interface LocationRow {
+  id: string;
+  name: string;
+}
+
+interface DivisionRow {
+  id: string;
+  name: string;
+}
+
+interface ProfileRow {
+  id: string;
+  display_name: string;
+}
+
+const SCAN_IN_READER_ID = "scan-in-camera-reader";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function formatAssetReturnRow(
+  asset: any,
+  maps: {
+    profileMap: Record<string, string>;
+    divisionMap: Record<string, string>;
+    locationMap: Record<string, string>;
+  },
+): AssetReturn {
+  const activeItem = asset.signout_items?.find((item: any) => !item.returned);
+  const signout = activeItem?.signout;
+  const holderId = asset.current_holder || signout?.signed_out_to || null;
+
+  return {
+    id: asset.id,
+    code: asset.code,
+    name: asset.name,
+    serial_number: asset.serial_number ?? null,
+    department_id: asset.department_id,
+    division_id: asset.division_id ?? null,
+    division_name: maps.divisionMap[asset.division_id ?? ""] || "—",
+    current_location_id: asset.current_location_id ?? null,
+    location_name: maps.locationMap[asset.current_location_id ?? ""] || "—",
+    holder_id: holderId,
+    holder_name: maps.profileMap[holderId ?? ""] || "Unknown user",
+    signout_item_id: activeItem?.id ?? null,
+    signout_id: signout?.id ?? null,
+    package_name: signout?.package_name ?? null,
+    notes: signout?.notes ?? null,
+    created_at: signout?.created_at ?? null,
+  };
+}
 
 export default function SignIn() {
   const { user, isAdmin, isAssetManager, assetManagerLocationId } = useAuth();
@@ -47,21 +95,36 @@ export default function SignIn() {
   const [processing, setProcessing] = useState(false);
   const [rows, setRows] = useState<AssetReturn[]>([]);
   const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, string>>({});
+  const [divisionMap, setDivisionMap] = useState<Record<string, string>>({});
+  const [locationNameMap, setLocationNameMap] = useState<Record<string, string>>({});
 
-  // Filters
   const [searchQ, setSearchQ] = useState("");
   const [holderFilter, setHolderFilter] = useState("all");
   const [divisionFilter, setDivisionFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [packageFilter, setPackageFilter] = useState("all");
 
-  // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Bulk decision dialog
   const [bulkDecision, setBulkDecision] = useState<BulkDecision | null>(null);
   const [returnLocationId, setReturnLocationId] = useState("");
   const [decisionNotes, setDecisionNotes] = useState("");
+
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanItems, setScanItems] = useState<AssetReturn[]>([]);
+  const [scanReturnLocationId, setScanReturnLocationId] = useState("");
+  const [scanNextStatus, setScanNextStatus] = useState<"available" | "out_for_repairs" | "damaged">("available");
+  const [scanNotes, setScanNotes] = useState("");
+  const [scannerStarting, setScannerStarting] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
+  const [scanBusy, setScanBusy] = useState(false);
+  const scanItemsRef = useRef<AssetReturn[]>([]);
+  const recentScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
+
+  useEffect(() => {
+    scanItemsRef.current = scanItems;
+  }, [scanItems]);
 
   const load = async () => {
     setLoading(true);
@@ -98,36 +161,24 @@ export default function SignIn() {
         return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
       });
 
-      const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.display_name]));
-      const divisionMap = Object.fromEntries((divisionRows ?? []).map((d: DivisionRow) => [d.id, d.name]));
-      const locationMap = Object.fromEntries((locationRows ?? []).map((l: LocationRow) => [l.id, l.name]));
+      const nextProfileMap = Object.fromEntries((profiles ?? []).map((profile: ProfileRow) => [profile.id, profile.display_name]));
+      const nextDivisionMap = Object.fromEntries((divisionRows ?? []).map((division: DivisionRow) => [division.id, division.name]));
+      const nextLocationMap = Object.fromEntries((locationRows ?? []).map((location: LocationRow) => [location.id, location.name]));
+      const formattedRows = (assets ?? [])
+        .map((asset: any) =>
+          formatAssetReturnRow(asset, {
+            profileMap: nextProfileMap,
+            divisionMap: nextDivisionMap,
+            locationMap: nextLocationMap,
+          }),
+        )
+        .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 
-      const formattedRows: AssetReturn[] = (assets ?? []).map((asset: any) => {
-        const activeItem = asset.signout_items?.find((item: any) => !item.returned);
-        const signout = activeItem?.signout;
-        const holderId = asset.current_holder || signout?.signed_out_to || null;
-        return {
-          id: asset.id,
-          code: asset.code,
-          name: asset.name,
-          serial_number: asset.serial_number ?? null,
-          department_id: asset.department_id,
-          division_id: asset.division_id ?? null,
-          division_name: divisionMap[asset.division_id ?? ""] || "—",
-          current_location_id: asset.current_location_id ?? null,
-          location_name: locationMap[asset.current_location_id ?? ""] || "—",
-          holder_id: holderId,
-          holder_name: profileMap[holderId ?? ""] || "Unknown user",
-          signout_item_id: activeItem?.id ?? null,
-          signout_id: signout?.id ?? null,
-          package_name: signout?.package_name ?? null,
-          notes: signout?.notes ?? null,
-          created_at: signout?.created_at ?? null,
-        };
-      });
-
-      setRows(formattedRows.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? "")));
+      setRows(formattedRows);
       setLocations(orderedLocations);
+      setProfileMap(nextProfileMap);
+      setDivisionMap(nextDivisionMap);
+      setLocationNameMap(nextLocationMap);
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to load signed-out assets.");
     } finally {
@@ -135,15 +186,11 @@ export default function SignIn() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  // ── Filter option lists derived from live data ─────────────────
-  const holderOptions = useMemo(() => [...new Set(rows.map((r) => r.holder_name))].sort(), [rows]);
-  const divisionOptions = useMemo(() => [...new Set(rows.map((r) => r.division_name).filter((d) => d !== "—"))].sort(), [rows]);
-  const locationFilterOptions = useMemo(() => [...new Set(rows.map((r) => r.location_name).filter((l) => l !== "—"))].sort(), [rows]);
-  const packageOptions = useMemo(() => [...new Set(rows.map((r) => r.package_name).filter(Boolean) as string[])].sort(), [rows]);
-
-  const locationOptions = useMemo(() => locations.filter((l) => l.name !== "Traveling"), [locations]);
+  const locationOptions = useMemo(() => locations.filter((location) => location.name !== "Traveling"), [locations]);
   const scopedRows = useMemo(
     () =>
       isAssetManager && assetManagerLocationId
@@ -151,12 +198,12 @@ export default function SignIn() {
         : rows,
     [assetManagerLocationId, isAssetManager, rows],
   );
-  const scopedHolderOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.holder_name))].sort(), [scopedRows]);
-  const scopedDivisionOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.division_name).filter((d) => d !== "â€”"))].sort(), [scopedRows]);
-  const scopedLocationFilterOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.location_name).filter((l) => l !== "â€”"))].sort(), [scopedRows]);
-  const scopedPackageOptions = useMemo(() => [...new Set(scopedRows.map((r) => r.package_name).filter(Boolean) as string[])].sort(), [scopedRows]);
 
-  // ── Active filter detection ────────────────────────────────────
+  const scopedHolderOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.holder_name))].sort(), [scopedRows]);
+  const scopedDivisionOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.division_name).filter((name) => name !== "—"))].sort(), [scopedRows]);
+  const scopedLocationFilterOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.location_name).filter((name) => name !== "—"))].sort(), [scopedRows]);
+  const scopedPackageOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.package_name).filter(Boolean) as string[])].sort(), [scopedRows]);
+
   const isFilterActive =
     searchQ.trim().length > 0 ||
     holderFilter !== "all" ||
@@ -180,110 +227,33 @@ export default function SignIn() {
       const matchesPackage = packageFilter === "all" || item.package_name === packageFilter;
       return matchesSearch && matchesHolder && matchesDivision && matchesLocation && matchesPackage;
     });
-  }, [scopedRows, searchQ, holderFilter, divisionFilter, locationFilter, packageFilter]);
+  }, [divisionFilter, holderFilter, locationFilter, packageFilter, scopedRows, searchQ]);
 
-  // ── Selection helpers ──────────────────────────────────────────
-  const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
+  const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id));
+  const selectedCount = selectedIds.size;
 
   const toggleItem = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
 
   const toggleAllFiltered = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
+    setSelectedIds((current) => {
+      const next = new Set(current);
       if (allFilteredSelected) {
-        filteredRows.forEach((r) => next.delete(r.id));
+        filteredRows.forEach((row) => next.delete(row.id));
       } else {
-        filteredRows.forEach((r) => next.add(r.id));
+        filteredRows.forEach((row) => next.add(row.id));
       }
       return next;
     });
-  };
-
-  // ── Bulk decision ──────────────────────────────────────────────
-  const openBulkDecision = (items: AssetReturn[], nextStatus: "available" | "out_for_repairs" | "damaged") => {
-    setBulkDecision({ items, nextStatus });
-    setReturnLocationId(isAssetManager && assetManagerLocationId ? assetManagerLocationId : "");
-    setDecisionNotes("");
-  };
-
-  const openSelectedDecision = (nextStatus: "available" | "out_for_repairs" | "damaged") => {
-    const items = rows.filter((r) => selectedIds.has(r.id));
-    if (items.length === 0) return;
-    openBulkDecision(items, nextStatus);
-  };
-
-  const confirmBulkDecision = async () => {
-    if (!bulkDecision) return;
-    if (!returnLocationId) {
-      toast.error("Select a return location before confirming.");
-      return;
-    }
-
-    setProcessing(true);
-    try {
-      const { items, nextStatus } = bulkDecision;
-
-      await Promise.all(
-        items.map((item) =>
-          supabase
-            .from("assets")
-            .update({ status: nextStatus, current_holder: null, current_location_id: returnLocationId } as any)
-            .eq("id", item.id)
-        )
-      );
-
-      const signoutItemIds = items.map((i) => i.signout_item_id).filter(Boolean) as string[];
-      if (signoutItemIds.length > 0) {
-        await supabase.from("signout_items").update({ returned: true }).in("id", signoutItemIds);
-      }
-
-      const signoutIds = [...new Set(items.map((i) => i.signout_id).filter(Boolean) as string[])];
-      await Promise.all(
-        signoutIds.map(async (signoutId) => {
-          const { data: remaining } = await supabase
-            .from("signout_items").select("id").eq("signout_id", signoutId).eq("returned", false);
-          if (!remaining || remaining.length === 0) {
-            await supabase.from("signouts")
-              .update({ status: "returned", signed_in_at: new Date().toISOString(), signed_in_by: user?.id })
-              .eq("id", signoutId);
-          }
-        })
-      );
-
-      const returnLocationName = locations.find((l) => l.id === returnLocationId)?.name ?? "Unknown location";
-      const action =
-        nextStatus === "available" ? "signed_in" : nextStatus === "out_for_repairs" ? "sent_for_repairs" : "marked_damaged";
-
-      await supabase.from("asset_history").insert(
-        items.map((item) => ({
-          asset_id: item.id,
-          action,
-          performed_by: user?.id,
-          from_user: item.holder_id,
-          notes: `${decisionNotes || "Admin bulk sign-in."} Returned to ${returnLocationName}.`,
-        }))
-      );
-
-      toast.success(`${items.length} item${items.length === 1 ? "" : "s"} signed in as ${getAssetStatusLabel(nextStatus)}.`);
-      setBulkDecision(null);
-      setSelectedIds(new Set());
-      load();
-    } catch (error: any) {
-      const message = error?.message ?? "Failed to complete sign-in.";
-      if (message.toLowerCase().includes("row-level security")) {
-        toast.error("Supabase still needs the Asset Manager signin policy SQL applied before this role can complete returns.");
-      } else {
-        toast.error(message);
-      }
-    } finally {
-      setProcessing(false);
-    }
   };
 
   const resetFilters = () => {
@@ -294,26 +264,383 @@ export default function SignIn() {
     setPackageFilter("all");
   };
 
-  if (!isAdmin && !isAssetManager) return null;
+  const completeSignIn = async ({
+    items,
+    nextStatus,
+    targetLocationId,
+    notes,
+    notePrefix,
+  }: {
+    items: AssetReturn[];
+    nextStatus: "available" | "out_for_repairs" | "damaged";
+    targetLocationId: string;
+    notes: string;
+    notePrefix: string;
+  }) => {
+    if (!targetLocationId) {
+      toast.error("Select a return location before confirming.");
+      return false;
+    }
 
-  const selectedCount = selectedIds.size;
+    setProcessing(true);
+    try {
+      await Promise.all(
+        items.map((item) =>
+          supabase
+            .from("assets")
+            .update({ status: nextStatus, current_holder: null, current_location_id: targetLocationId } as any)
+            .eq("id", item.id),
+        ),
+      );
+
+      const signoutItemIds = items.map((item) => item.signout_item_id).filter(Boolean) as string[];
+      if (signoutItemIds.length > 0) {
+        await supabase.from("signout_items").update({ returned: true }).in("id", signoutItemIds);
+      }
+
+      const signoutIds = [...new Set(items.map((item) => item.signout_id).filter(Boolean) as string[])];
+      await Promise.all(
+        signoutIds.map(async (signoutId) => {
+          const { data: remaining } = await supabase
+            .from("signout_items")
+            .select("id")
+            .eq("signout_id", signoutId)
+            .eq("returned", false);
+
+          if (!remaining || remaining.length === 0) {
+            await supabase
+              .from("signouts")
+              .update({ status: "returned", signed_in_at: new Date().toISOString(), signed_in_by: user?.id })
+              .eq("id", signoutId);
+          }
+        }),
+      );
+
+      const returnLocationName = locations.find((location) => location.id === targetLocationId)?.name ?? "Unknown location";
+      const action =
+        nextStatus === "available"
+          ? "signed_in"
+          : nextStatus === "out_for_repairs"
+            ? "sent_for_repairs"
+            : "marked_damaged";
+
+      const noteText = notes.trim() || notePrefix;
+      await supabase.from("asset_history").insert(
+        items.map((item) => ({
+          asset_id: item.id,
+          action,
+          performed_by: user?.id,
+          from_user: item.holder_id,
+          notes: `${noteText} Returned to ${returnLocationName}.`,
+        })),
+      );
+
+      toast.success(`${items.length} item${items.length === 1 ? "" : "s"} signed in as ${getAssetStatusLabel(nextStatus)}.`);
+      await load();
+      return true;
+    } catch (error: any) {
+      const message = error?.message ?? "Failed to complete sign-in.";
+      if (message.toLowerCase().includes("row-level security")) {
+        toast.error("Supabase still needs the Asset Manager signin policy SQL applied before this role can complete returns.");
+      } else {
+        toast.error(message);
+      }
+      return false;
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const openBulkDecision = (items: AssetReturn[], nextStatus: "available" | "out_for_repairs" | "damaged") => {
+    setBulkDecision({ items, nextStatus });
+    setReturnLocationId(isAssetManager && assetManagerLocationId ? assetManagerLocationId : "");
+    setDecisionNotes("");
+  };
+
+  const openSelectedDecision = (nextStatus: "available" | "out_for_repairs" | "damaged") => {
+    const items = rows.filter((row) => selectedIds.has(row.id));
+    if (items.length === 0) return;
+    openBulkDecision(items, nextStatus);
+  };
+
+  const confirmBulkDecision = async () => {
+    if (!bulkDecision) return;
+    const success = await completeSignIn({
+      items: bulkDecision.items,
+      nextStatus: bulkDecision.nextStatus,
+      targetLocationId: returnLocationId,
+      notes: decisionNotes,
+      notePrefix: "Manual sign-in completed.",
+    });
+
+    if (success) {
+      setBulkDecision(null);
+      setSelectedIds(new Set());
+    }
+  };
+
+  const fetchReturnRowById = async (assetId: string) => {
+    const { data, error } = await supabase
+      .from("assets")
+      .select(`
+        id, code, name, status, current_holder, serial_number, department_id,
+        division_id, current_location_id,
+        signout_items(
+          id, returned, signout_id,
+          signout:signouts(
+            id, created_at, package_name, notes, signed_out_to
+          )
+        )
+      `)
+      .eq("id", assetId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  };
+
+  const resolveScannedItem = async (rawValue: string) => {
+    const assetId = rawValue.trim();
+    if (!UUID_PATTERN.test(assetId)) {
+      toast.error("QR code does not contain a valid asset UUID.");
+      return null;
+    }
+
+    const existingBatchItem = scanItemsRef.current.find((item) => item.id === assetId);
+    if (existingBatchItem) {
+      toast.error(`${existingBatchItem.name} is already in the scan batch.`);
+      return null;
+    }
+
+    const existingRow = rows.find((row) => row.id === assetId);
+    if (existingRow) {
+      if (isAssetManager && assetManagerLocationId && existingRow.department_id !== assetManagerLocationId) {
+        toast.error("This QR code belongs to an item outside your locked location.");
+        return null;
+      }
+      return existingRow;
+    }
+
+    const asset = await fetchReturnRowById(assetId);
+    if (!asset) {
+      toast.error("No asset was found for that QR code.");
+      return null;
+    }
+
+    if (asset.status !== "signed_out") {
+      toast.error("This asset is not currently signed out.");
+      return null;
+    }
+
+    if (isAssetManager && assetManagerLocationId && asset.department_id !== assetManagerLocationId) {
+      toast.error("This QR code belongs to an item outside your locked location.");
+      return null;
+    }
+
+    const formatted = formatAssetReturnRow(asset, {
+      profileMap,
+      divisionMap,
+      locationMap: locationNameMap,
+    });
+
+    if (!formatted.signout_item_id) {
+      toast.error("This signed-out asset is missing an active sign-out record.");
+      return null;
+    }
+
+    return formatted;
+  };
+
+  useEffect(() => {
+    if (!scanOpen) {
+      setScanItems([]);
+      setScanNotes("");
+      setScanNextStatus("available");
+      setScanReturnLocationId(isAssetManager && assetManagerLocationId ? assetManagerLocationId : "");
+      setScannerError(null);
+      return;
+    }
+
+    setScanReturnLocationId(isAssetManager && assetManagerLocationId ? assetManagerLocationId : "");
+    setScannerError(null);
+    setScannerStarting(true);
+
+    const scanner = new Html5Qrcode(SCAN_IN_READER_ID, {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      verbose: false,
+    });
+
+    const startScanner = async () => {
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 230, height: 230 },
+            aspectRatio: 1,
+          },
+          async (decodedText) => {
+            const now = Date.now();
+            if (recentScanRef.current.value === decodedText && now - recentScanRef.current.at < 1500) {
+              return;
+            }
+            recentScanRef.current = { value: decodedText, at: now };
+
+            try {
+              const resolved = await resolveScannedItem(decodedText);
+              if (!resolved) return;
+
+              setScanItems((current) => {
+                if (current.some((item) => item.id === resolved.id)) {
+                  return current;
+                }
+                return [resolved, ...current];
+              });
+              toast.success(`Added ${resolved.name} to the scan batch.`);
+            } catch (error: any) {
+              toast.error(error?.message ?? "Failed to read the scanned QR code.");
+            }
+          },
+          () => undefined,
+        );
+        setScannerStarting(false);
+      } catch {
+        try {
+          await scanner.start(
+            { facingMode: "user" },
+            {
+              fps: 10,
+              qrbox: { width: 230, height: 230 },
+              aspectRatio: 1,
+            },
+            async (decodedText) => {
+              const now = Date.now();
+              if (recentScanRef.current.value === decodedText && now - recentScanRef.current.at < 1500) {
+                return;
+              }
+              recentScanRef.current = { value: decodedText, at: now };
+
+              try {
+                const resolved = await resolveScannedItem(decodedText);
+                if (!resolved) return;
+
+                setScanItems((current) => {
+                  if (current.some((item) => item.id === resolved.id)) {
+                    return current;
+                  }
+                  return [resolved, ...current];
+                });
+                toast.success(`Added ${resolved.name} to the scan batch.`);
+              } catch (error: any) {
+                toast.error(error?.message ?? "Failed to read the scanned QR code.");
+              }
+            },
+            () => undefined,
+          );
+          setScannerStarting(false);
+        } catch (error: any) {
+          setScannerStarting(false);
+          setScannerError(error?.message ?? "Camera access failed. Check browser camera permission and try again.");
+        }
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      scanner
+        .stop()
+        .catch(() => undefined)
+        .then(() => scanner.clear().catch(() => undefined));
+    };
+  }, [assetManagerLocationId, divisionMap, isAssetManager, locationNameMap, profileMap, rows, scanOpen]);
+
+  const confirmScanBatch = async () => {
+    if (scanItems.length === 0) {
+      toast.error("Scan at least one asset before confirming.");
+      return;
+    }
+
+    if (!scanReturnLocationId) {
+      toast.error("Select a return location before confirming the scan batch.");
+      return;
+    }
+
+    setScanBusy(true);
+    try {
+      const verifiedItems: AssetReturn[] = [];
+
+      for (const item of scanItems) {
+        const refreshed = await fetchReturnRowById(item.id);
+        if (!refreshed) {
+          toast.error(`${item.name} no longer exists in the system.`);
+          return;
+        }
+
+        if (refreshed.status !== "signed_out") {
+          toast.error(`${item.name} is no longer signed out and cannot be scanned in.`);
+          return;
+        }
+
+        if (isAssetManager && assetManagerLocationId && refreshed.department_id !== assetManagerLocationId) {
+          toast.error(`${item.name} is outside your locked location and cannot be scanned in.`);
+          return;
+        }
+
+        const formatted = formatAssetReturnRow(refreshed, {
+          profileMap,
+          divisionMap,
+          locationMap: locationNameMap,
+        });
+
+        if (!formatted.signout_item_id) {
+          toast.error(`${item.name} is missing an active sign-out record.`);
+          return;
+        }
+
+        verifiedItems.push(formatted);
+      }
+
+      const success = await completeSignIn({
+        items: verifiedItems,
+        nextStatus: scanNextStatus,
+        targetLocationId: scanReturnLocationId,
+        notes: scanNotes,
+        notePrefix: "QR scan-in batch completed.",
+      });
+
+      if (success) {
+        setScanOpen(false);
+        setScanItems([]);
+        setSelectedIds(new Set());
+      }
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  if (!isAdmin && !isAssetManager) return null;
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
+        <Button type="button" onClick={() => setScanOpen(true)}>
+          <Camera size={15} className="mr-2" />
+          Scan In
+        </Button>
+      </div>
 
-      {/* ── Search bar ── */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
           className="pl-9"
           placeholder="Search by name, tag, serial number, holder or group…"
           value={searchQ}
-          onChange={(e) => setSearchQ(e.target.value)}
+          onChange={(event) => setSearchQ(event.target.value)}
         />
       </div>
 
-      {/* ── Filter row ── */}
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={divisionFilter} onValueChange={setDivisionFilter}>
           <SelectTrigger className="h-8 w-40 text-xs">
@@ -321,7 +648,11 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All divisions</SelectItem>
-            {scopedDivisionOptions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            {scopedDivisionOptions.map((division) => (
+              <SelectItem key={division} value={division}>
+                {division}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -331,7 +662,11 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All locations</SelectItem>
-            {scopedLocationFilterOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+            {scopedLocationFilterOptions.map((location) => (
+              <SelectItem key={location} value={location}>
+                {location}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -341,7 +676,11 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All users</SelectItem>
-            {scopedHolderOptions.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+            {scopedHolderOptions.map((holder) => (
+              <SelectItem key={holder} value={holder}>
+                {holder}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -351,7 +690,11 @@ export default function SignIn() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All groups</SelectItem>
-            {scopedPackageOptions.map((pkg) => <SelectItem key={pkg} value={pkg}>{pkg}</SelectItem>)}
+            {scopedPackageOptions.map((pkg) => (
+              <SelectItem key={pkg} value={pkg}>
+                {pkg}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -365,22 +708,14 @@ export default function SignIn() {
           </button>
         )}
 
-        {/* Select-all — only when results visible */}
         {filteredRows.length > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="ml-auto gap-2 h-8 text-xs"
-            onClick={toggleAllFiltered}
-          >
+          <Button type="button" variant="outline" size="sm" className="ml-auto gap-2 h-8 text-xs" onClick={toggleAllFiltered}>
             {allFilteredSelected ? <CheckSquare size={13} /> : <Square size={13} />}
             {allFilteredSelected ? "Deselect all" : `Select all (${filteredRows.length})`}
           </Button>
         )}
       </div>
 
-      {/* ── Sticky bulk action bar ── */}
       {selectedCount > 0 && (
         <div className="sticky top-4 z-30 flex flex-wrap items-center gap-2 rounded-[1.3rem] border border-primary/30 bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
           <span className="mr-auto font-mono text-sm text-primary">
@@ -389,12 +724,20 @@ export default function SignIn() {
           <Button size="sm" className="gap-1.5" onClick={() => openSelectedDecision("available")}>
             <Check size={13} /> Sign in as Available
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
-            onClick={() => openSelectedDecision("out_for_repairs")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+            onClick={() => openSelectedDecision("out_for_repairs")}
+          >
             <Wrench size={13} /> Out for Repairs
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-            onClick={() => openSelectedDecision("damaged")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+            onClick={() => openSelectedDecision("damaged")}
+          >
             <XCircle size={13} /> Damaged
           </Button>
           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setSelectedIds(new Set())}>
@@ -403,17 +746,14 @@ export default function SignIn() {
         </div>
       )}
 
-      {/* ── Content area ── */}
       {loading ? (
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-primary/70">
           Loading signed-out assets…
         </div>
-
       ) : filteredRows.length === 0 ? (
         <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-muted-foreground/70">
           No signed-out assets match your search or filters.
         </div>
-
       ) : (
         <div className="flex flex-wrap gap-3">
           {filteredRows.map((item) => {
@@ -424,22 +764,20 @@ export default function SignIn() {
                 type="button"
                 onClick={() => toggleItem(item.id)}
                 className={cn(
-                  "group flex flex-col gap-1 rounded-[1.3rem] border px-4 py-3 text-left transition-all w-full sm:w-auto sm:min-w-[240px]",
+                  "group flex w-full flex-col gap-1 rounded-[1.3rem] border px-4 py-3 text-left transition-all sm:min-w-[240px] sm:w-auto",
                   isSelected
                     ? "border-primary/60 bg-primary/10 shadow-[0_0_12px_rgba(0,200,100,0.12)]"
-                    : "border-primary/15 bg-card/50 hover:border-primary/35 hover:bg-primary/5"
+                    : "border-primary/15 bg-card/50 hover:border-primary/35 hover:bg-primary/5",
                 )}
               >
                 <div className="flex items-center gap-2">
-                  {isSelected
-                    ? <CheckSquare size={14} className="shrink-0 text-primary" />
-                    : <Square size={14} className="shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground" />
-                  }
+                  {isSelected ? (
+                    <CheckSquare size={14} className="shrink-0 text-primary" />
+                  ) : (
+                    <Square size={14} className="shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground" />
+                  )}
                   <span className="font-mono text-xs text-primary/70">{item.code}</span>
-                  <Badge
-                    variant="outline"
-                    className={cn("ml-auto text-[10px] uppercase tracking-wider", getStatusBadgeClass("signed_out"))}
-                  >
+                  <Badge variant="outline" className={cn("ml-auto text-[10px] uppercase tracking-wider", getStatusBadgeClass("signed_out"))}>
                     Signed Out
                   </Badge>
                 </div>
@@ -451,30 +789,44 @@ export default function SignIn() {
                     {item.division_name !== "—" && <span>{item.division_name}</span>}
                     {item.location_name !== "—" && <span>{item.location_name}</span>}
                     {item.serial_number && <span>{item.serial_number}</span>}
-                    {item.package_name && (
-                      <span className="text-primary/60">📦 {item.package_name}</span>
-                    )}
+                    {item.package_name && <span className="text-primary/60">Group {item.package_name}</span>}
                   </div>
                 </div>
 
-                {/* Quick-action buttons on hover / when selected */}
-                <div className={cn(
-                  "pl-5 flex flex-wrap gap-1.5 mt-1 transition-all overflow-hidden",
-                  isSelected ? "max-h-20 opacity-100" : "max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100"
-                )}>
-                  <button type="button"
-                    onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "available"); }}
-                    className="flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] text-primary hover:bg-primary/20 transition-colors">
+                <div
+                  className={cn(
+                    "pl-5 mt-1 flex flex-wrap gap-1.5 overflow-hidden transition-all",
+                    isSelected ? "max-h-20 opacity-100" : "max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openBulkDecision([item], "available");
+                    }}
+                    className="flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] text-primary hover:bg-primary/20 transition-colors"
+                  >
                     <Check size={10} /> Available
                   </button>
-                  <button type="button"
-                    onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "out_for_repairs"); }}
-                    className="flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/20 transition-colors">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openBulkDecision([item], "out_for_repairs");
+                    }}
+                    className="flex items-center gap-1 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+                  >
                     <Wrench size={10} /> Repairs
                   </button>
-                  <button type="button"
-                    onClick={(e) => { e.stopPropagation(); openBulkDecision([item], "damaged"); }}
-                    className="flex items-center gap-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 transition-colors">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openBulkDecision([item], "damaged");
+                    }}
+                    className="flex items-center gap-1 rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 transition-colors"
+                  >
                     <XCircle size={10} /> Damaged
                   </button>
                 </div>
@@ -484,7 +836,6 @@ export default function SignIn() {
         </div>
       )}
 
-      {/* ── Bulk decision dialog ── */}
       <Dialog open={!!bulkDecision} onOpenChange={(open) => !open && setBulkDecision(null)}>
         <DialogContent className="bg-card/95">
           <DialogHeader>
@@ -497,12 +848,12 @@ export default function SignIn() {
 
           {bulkDecision && (
             <div className="space-y-4">
-              <div className="max-h-44 overflow-y-auto rounded-[1.2rem] border border-primary/12 bg-secondary/60 px-3 py-2 space-y-1.5">
+              <div className="max-h-44 space-y-1.5 overflow-y-auto rounded-[1.2rem] border border-primary/12 bg-secondary/60 px-3 py-2">
                 {bulkDecision.items.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 text-sm">
-                    <span className="font-mono text-xs text-primary/70 shrink-0">{item.code}</span>
-                    <span className="text-foreground truncate">{item.name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground shrink-0">{item.holder_name}</span>
+                    <span className="shrink-0 font-mono text-xs text-primary/70">{item.code}</span>
+                    <span className="truncate text-foreground">{item.name}</span>
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">{item.holder_name}</span>
                   </div>
                 ))}
               </div>
@@ -510,8 +861,8 @@ export default function SignIn() {
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Return location</Label>
                 {isAssetManager && assetManagerLocationId ? (
-                  <div className="font-mono text-sm text-primary/90 bg-primary/10 border border-primary/20 rounded-md px-3 py-2">
-                    {locationOptions.find(l => l.id === assetManagerLocationId)?.name ?? "Locked to assigned location"}
+                  <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 font-mono text-sm text-primary/90">
+                    {locationOptions.find((location) => location.id === assetManagerLocationId)?.name ?? "Locked to assigned location"}
                   </div>
                 ) : (
                   <Select value={returnLocationId} onValueChange={setReturnLocationId}>
@@ -520,7 +871,9 @@ export default function SignIn() {
                     </SelectTrigger>
                     <SelectContent>
                       {locationOptions.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -531,7 +884,7 @@ export default function SignIn() {
                 <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Notes (optional)</Label>
                 <Textarea
                   value={decisionNotes}
-                  onChange={(e) => setDecisionNotes(e.target.value)}
+                  onChange={(event) => setDecisionNotes(event.target.value)}
                   placeholder={
                     bulkDecision.nextStatus === "damaged"
                       ? "Describe why the asset(s) are not usable."
@@ -542,13 +895,13 @@ export default function SignIn() {
                 />
               </div>
 
-              <div className="rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm space-y-2">
+              <div className="space-y-2 rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm">
                 <div className="flex items-center gap-2 text-foreground">
-                  <MapPin size={14} className="text-primary shrink-0" />
+                  <MapPin size={14} className="shrink-0 text-primary" />
                   All selected items will be moved to the chosen return location.
                 </div>
                 <div className="flex items-center gap-2 text-foreground">
-                  <AlertCircle size={14} className="text-primary shrink-0" />
+                  <AlertCircle size={14} className="shrink-0 text-primary" />
                   History records both the admin completing this action and the last holder.
                 </div>
               </div>
@@ -556,9 +909,158 @@ export default function SignIn() {
           )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setBulkDecision(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setBulkDecision(null)}>
+              Cancel
+            </Button>
             <Button onClick={confirmBulkDecision} disabled={!bulkDecision || processing}>
               {processing ? "Processing…" : `Confirm (${bulkDecision?.items.length ?? 0})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto border-primary/20 bg-card sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">Scan In</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="space-y-3">
+                <div className="rounded-[1.6rem] border border-primary/18 bg-background p-4">
+                  <div className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em] text-primary/72">
+                    <Camera size={14} />
+                    Camera scanner
+                  </div>
+                  <div id={SCAN_IN_READER_ID} className="min-h-[280px] overflow-hidden rounded-[1.2rem] border border-primary/12 bg-black/60" />
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Scan the asset QR code. Each valid UUID is added into the sign-in batch automatically.
+                  </div>
+                  {scannerStarting && (
+                    <div className="mt-3 rounded-[1rem] border border-primary/15 bg-primary/8 px-3 py-2 text-xs text-primary/80">
+                      Starting camera…
+                    </div>
+                  )}
+                  {scannerError && (
+                    <div className="mt-3 rounded-[1rem] border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+                      {scannerError}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-[1.6rem] border border-primary/18 bg-secondary/75 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="font-mono text-xs uppercase tracking-[0.18em] text-primary/72">
+                      Scanned items ({scanItems.length})
+                    </div>
+                    {scanItems.length > 0 && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setScanItems([])}>
+                        Clear all
+                      </Button>
+                    )}
+                  </div>
+
+                  {scanItems.length === 0 ? (
+                    <div className="rounded-[1.2rem] border border-primary/10 bg-background px-4 py-8 text-center text-sm text-muted-foreground">
+                      No items scanned yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {scanItems.map((item) => (
+                        <div key={item.id} className="flex items-start gap-3 rounded-[1.2rem] border border-primary/12 bg-background px-4 py-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs uppercase tracking-[0.16em] text-primary/70">{item.code}</div>
+                            <div className="truncate text-sm text-foreground">{item.name}</div>
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                              {item.serial_number && <span>{item.serial_number}</span>}
+                              {item.division_name !== "—" && <span>{item.division_name}</span>}
+                              {item.location_name !== "—" && <span>{item.location_name}</span>}
+                              <span>{item.holder_name}</span>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setScanItems((current) => current.filter((entry) => entry.id !== item.id))}
+                            className="shrink-0 text-muted-foreground hover:text-rose-300"
+                          >
+                            <Trash2 size={15} />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[1.6rem] border border-primary/18 bg-card p-4">
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Return status</Label>
+                  <Select value={scanNextStatus} onValueChange={(value) => setScanNextStatus(value as "available" | "out_for_repairs" | "damaged")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
+                      <SelectItem value="damaged">Damaged</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Return location</Label>
+                  {isAssetManager && assetManagerLocationId ? (
+                    <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 font-mono text-sm text-primary/90">
+                      {locationOptions.find((location) => location.id === assetManagerLocationId)?.name ?? "Locked to assigned location"}
+                    </div>
+                  ) : (
+                    <Select value={scanReturnLocationId} onValueChange={setScanReturnLocationId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select the return location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locationOptions.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Notes (optional)</Label>
+                  <Textarea
+                    value={scanNotes}
+                    onChange={(event) => setScanNotes(event.target.value)}
+                    placeholder="Optional notes for this scan-in capture."
+                  />
+                </div>
+
+                <div className="space-y-2 rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm">
+                  <div className="flex items-start gap-2 text-foreground">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-primary" />
+                    Every scanned item will be signed in together under one capture with the same return location, status, and notes.
+                  </div>
+                  <div className="flex items-start gap-2 text-foreground">
+                    <MapPin size={14} className="mt-0.5 shrink-0 text-primary" />
+                    Asset Managers are still limited to their locked location during QR scan-in.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setScanOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmScanBatch} disabled={scanItems.length === 0 || scanBusy || processing}>
+              {scanBusy || processing ? "Processing…" : `Confirm Scan In (${scanItems.length})`}
             </Button>
           </DialogFooter>
         </DialogContent>

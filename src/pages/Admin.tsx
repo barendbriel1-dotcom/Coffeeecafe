@@ -6,13 +6,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ASSET_STATUSES, generateNameCode, getAssetStatusLabel, getStatusBadgeClass } from "@/lib/assets";
+import { exportAssetQrPdf, type AssetQrLabel } from "@/lib/qr";
 import { cn } from "@/lib/utils";
-import { Search, Trash2, X } from "lucide-react";
+import { CheckSquare, Download, QrCode, Search, Square, Trash2, X } from "lucide-react";
 
 type Role = "admin" | "staff" | "volunteer" | "asset_manager";
 type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "not_assigned";
@@ -85,6 +87,12 @@ export default function Admin() {
   const [cancellingDeleteId, setCancellingDeleteId] = useState<string | null>(null);
   const [deleteSearch, setDeleteSearch] = useState("");
   const [stagedForDelete, setStagedForDelete] = useState<AssetRow[]>([]);
+  const [qrSearch, setQrSearch] = useState("");
+  const [qrStatusFilter, setQrStatusFilter] = useState<ManagedStatus | "all">("all");
+  const [qrLocationFilter, setQrLocationFilter] = useState("all");
+  const [qrDivisionFilter, setQrDivisionFilter] = useState("all");
+  const [qrSelectedIds, setQrSelectedIds] = useState<Set<string>>(new Set());
+  const [qrExportingMode, setQrExportingMode] = useState<"selected" | "filtered" | null>(null);
   const [assetManagerTarget, setAssetManagerTarget] = useState<Profile | null>(null);
   const [assetManagerLocationDraft, setAssetManagerLocationDraft] = useState("none");
   const [assetManagerSaving, setAssetManagerSaving] = useState(false);
@@ -198,6 +206,38 @@ export default function Admin() {
       .slice(0, 8);
   }, [deleteSearch, assets, stagedForDelete, pendingDeleteAssetIdSet]);
 
+  const qrFilteredAssets = useMemo(() => {
+    const q = qrSearch.trim().toLowerCase();
+    return assets.filter((asset) => {
+      const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "";
+      const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "" : "";
+      const matchesSearch =
+        !q ||
+        asset.name.toLowerCase().includes(q) ||
+        asset.code.toLowerCase().includes(q) ||
+        (asset.serial_number ?? "").toLowerCase().includes(q) ||
+        locationName.toLowerCase().includes(q) ||
+        divisionName.toLowerCase().includes(q) ||
+        getAssetStatusLabel(asset.status).toLowerCase().includes(q);
+      const matchesStatus = qrStatusFilter === "all" || asset.status === qrStatusFilter;
+      const matchesLocation = qrLocationFilter === "all" || (asset.current_location_id ?? asset.department_id) === qrLocationFilter;
+      const matchesDivision = qrDivisionFilter === "all" || asset.division_id === qrDivisionFilter;
+      return matchesSearch && matchesStatus && matchesLocation && matchesDivision;
+    });
+  }, [assets, divisionMap, locationMap, qrDivisionFilter, qrLocationFilter, qrSearch, qrStatusFilter]);
+
+  const allQrFilteredSelected =
+    qrFilteredAssets.length > 0 && qrFilteredAssets.every((asset) => qrSelectedIds.has(asset.id));
+
+  const buildQrLabels = (rows: AssetRow[]): AssetQrLabel[] =>
+    rows.map((asset) => ({
+      id: asset.id,
+      assetId: asset.id,
+      name: asset.name,
+      code: asset.code,
+      serialNumber: asset.serial_number,
+    }));
+
   const approveDeleteRequests = async (assetIds: string[]) => {
     if (!isSuperAdmin) return toast.error("Only barend@encounterchurch.co.za can approve deletions.");
     if (assetIds.length === 0) return;
@@ -238,6 +278,54 @@ export default function Admin() {
       toast.error(error?.message ?? "Failed to cancel the delete request.");
     } finally {
       setCancellingDeleteId(null);
+    }
+  };
+
+  const toggleQrAsset = (assetId: string) => {
+    setQrSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(assetId)) {
+        next.delete(assetId);
+      } else {
+        next.add(assetId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllQrFiltered = () => {
+    setQrSelectedIds((current) => {
+      const next = new Set(current);
+      if (allQrFilteredSelected) {
+        qrFilteredAssets.forEach((asset) => next.delete(asset.id));
+      } else {
+        qrFilteredAssets.forEach((asset) => next.add(asset.id));
+      }
+      return next;
+    });
+  };
+
+  const exportQrCodes = async (mode: "selected" | "filtered") => {
+    const sourceRows = mode === "selected"
+      ? assets.filter((asset) => qrSelectedIds.has(asset.id))
+      : qrFilteredAssets;
+
+    if (sourceRows.length === 0) {
+      toast.error("No assets are available for QR export.");
+      return;
+    }
+
+    setQrExportingMode(mode);
+    try {
+      await exportAssetQrPdf(
+        buildQrLabels(sourceRows),
+        mode === "selected" ? "selected-asset-qr-codes.pdf" : "filtered-asset-qr-codes.pdf",
+      );
+      toast.success(`Downloaded ${sourceRows.length} QR code label${sourceRows.length === 1 ? "" : "s"}.`);
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to export QR codes.");
+    } finally {
+      setQrExportingMode(null);
     }
   };
 
@@ -519,6 +607,7 @@ export default function Admin() {
           <TabsTrigger value="statuses" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Statuses</TabsTrigger>
           <TabsTrigger value="locs" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Locations</TabsTrigger>
           <TabsTrigger value="divisions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Divisions</TabsTrigger>
+          <TabsTrigger value="qrcodes" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">QR Codes</TabsTrigger>
           <TabsTrigger value="deletions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">Deletions</TabsTrigger>
         </TabsList>
 
@@ -753,6 +842,156 @@ export default function Admin() {
               );
             })}
           </div>
+        </TabsContent>
+
+        <TabsContent value="qrcodes" className="space-y-4 mt-4">
+          <Card className="bg-card/40 border-primary/30 p-4 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="font-display text-primary text-sm uppercase">Asset QR Codes</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Search exact asset units, select one or many, and download a printable PDF sheet of QR labels.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => exportQrCodes("filtered")}
+                  disabled={qrFilteredAssets.length === 0 || qrExportingMode !== null}
+                >
+                  <Download size={15} className="mr-2" />
+                  {qrExportingMode === "filtered" ? "Building PDF..." : `Download all filtered (${qrFilteredAssets.length})`}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => exportQrCodes("selected")}
+                  disabled={qrSelectedIds.size === 0 || qrExportingMode !== null}
+                >
+                  <QrCode size={15} className="mr-2" />
+                  {qrExportingMode === "selected" ? "Building PDF..." : `Download selected (${qrSelectedIds.size})`}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,0.9fr))]">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search by name, tag, serial, division, location, or status…"
+                  value={qrSearch}
+                  onChange={(event) => setQrSearch(event.target.value)}
+                />
+              </div>
+
+              <Select value={qrStatusFilter} onValueChange={(value) => setQrStatusFilter(value as ManagedStatus | "all")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {managedStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {getAssetStatusLabel(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={qrLocationFilter} onValueChange={setQrLocationFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All locations</SelectItem>
+                  {locs.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={qrDivisionFilter} onValueChange={setQrDivisionFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All divisions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All divisions</SelectItem>
+                  {divisions.map((division) => (
+                    <SelectItem key={division.id} value={division.id}>
+                      {division.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 rounded-[1.2rem] border border-primary/12 bg-background px-4 py-3">
+              <span className="font-mono text-xs uppercase tracking-[0.16em] text-primary/72">
+                {qrSelectedIds.size} selected
+              </span>
+              <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={toggleAllQrFiltered}>
+                {allQrFilteredSelected ? <CheckSquare size={14} className="mr-2" /> : <Square size={14} className="mr-2" />}
+                {allQrFilteredSelected ? "Deselect all filtered" : `Select all filtered (${qrFilteredAssets.length})`}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setQrSelectedIds(new Set())} disabled={qrSelectedIds.size === 0}>
+                Clear selection
+              </Button>
+            </div>
+
+            <div className="overflow-hidden rounded-[1.4rem] border border-primary/12">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-primary/12 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      <th className="px-4 py-3 font-normal">Select</th>
+                      <th className="px-4 py-3 font-normal">Tag</th>
+                      <th className="px-4 py-3 font-normal">Item Name</th>
+                      <th className="px-4 py-3 font-normal">Serial Number</th>
+                      <th className="px-4 py-3 font-normal">Division</th>
+                      <th className="px-4 py-3 font-normal">Location</th>
+                      <th className="px-4 py-3 font-normal">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-primary/10">
+                    {qrFilteredAssets.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                          No assets matched the QR export filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      qrFilteredAssets.map((asset) => {
+                        const locationName = locationMap[asset.current_location_id ?? asset.department_id] ?? "—";
+                        const divisionName = asset.division_id ? divisionMap[asset.division_id] ?? "—" : "—";
+                        const isSelected = qrSelectedIds.has(asset.id);
+
+                        return (
+                          <tr key={asset.id} className="transition-colors hover:bg-primary/5">
+                            <td className="px-4 py-3">
+                              <Checkbox checked={isSelected} onCheckedChange={() => toggleQrAsset(asset.id)} />
+                            </td>
+                            <td className="px-4 py-3 font-mono text-foreground/85">{asset.code}</td>
+                            <td className="px-4 py-3 text-foreground">{asset.name}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{asset.serial_number || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{divisionName}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{locationName}</td>
+                            <td className="px-4 py-3">
+                              <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(asset.status))}>
+                                {getAssetStatusLabel(asset.status)}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Card>
         </TabsContent>
 
         <TabsContent value="deletions" className="space-y-4 mt-4">

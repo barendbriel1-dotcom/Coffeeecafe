@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Download, ExternalLink, FileSpreadsheet, Plus, Search, Upload } from "lucide-react";
+import { Download, ExternalLink, FileSpreadsheet, Plus, QrCode, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import AssetQrDialog from "@/components/AssetQrDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ import {
   LOCATION_NAMES,
   normalizeAssetStatus,
 } from "@/lib/assets";
+import type { AssetQrLabel } from "@/lib/qr";
 import { cn } from "@/lib/utils";
 
 interface Asset {
@@ -109,6 +111,7 @@ export default function Assets() {
   const [newDivisionName, setNewDivisionName] = useState("");
   const [addingDivision, setAddingDivision] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
+  const [qrAsset, setQrAsset] = useState<AssetQrLabel | null>(null);
 
   const load = async () => {
     const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
@@ -846,6 +849,7 @@ export default function Assets() {
                         <th className="px-4 py-3 font-normal">Division</th>
                         <th className="px-4 py-3 font-normal">Location</th>
                         <th className="px-4 py-3 font-normal">Status</th>
+                        <th className="px-4 py-3 font-normal">QR Code</th>
                         <th className="px-4 py-3 font-normal">Open</th>
                       </tr>
                     </thead>
@@ -869,6 +873,26 @@ export default function Assets() {
                               </div>
                             </td>
                             <td className="px-4 py-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-primary/22 bg-card text-foreground hover:border-primary/45"
+                                onClick={() =>
+                                  setQrAsset({
+                                    id: asset.id,
+                                    assetId: asset.id,
+                                    name: asset.name,
+                                    code: asset.code,
+                                    serialNumber: asset.serial_number,
+                                  })
+                                }
+                              >
+                                <QrCode size={14} className="mr-2" />
+                                QR Code
+                              </Button>
+                            </td>
+                            <td className="px-4 py-3">
                               <Link to={`/assets/${asset.id}`} className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80" onClick={() => setActiveGroupKey(null)}>
                                 View <ExternalLink size={12} />
                               </Link>
@@ -884,6 +908,12 @@ export default function Assets() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AssetQrDialog
+        open={!!qrAsset}
+        onOpenChange={(open) => !open && setQrAsset(null)}
+        asset={qrAsset}
+      />
     </div>
   );
 }
