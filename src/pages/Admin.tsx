@@ -1813,7 +1813,7 @@ export default function Admin() {
 
           {/* Conclusion Dialog */}
           <Dialog open={!!concludingReport} onOpenChange={(open) => !open && setConcludingReport(null)}>
-            <DialogContent className="border-primary/20 bg-card">
+            <DialogContent className="border-primary/20 bg-card" aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle className="font-display text-foreground">Damage Report Conclusion</DialogTitle>
               </DialogHeader>
@@ -1863,7 +1863,7 @@ export default function Admin() {
       </div>
 
       <Dialog open={!!assetManagerTarget} onOpenChange={(open) => !open && setAssetManagerTarget(null)}>
-        <DialogContent className="border-primary/20 bg-card">
+        <DialogContent className="border-primary/20 bg-card" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">Assign Assets Manager</DialogTitle>
           </DialogHeader>
@@ -1908,7 +1908,7 @@ export default function Admin() {
       </Dialog>
 
       <Dialog open={!!deleteUserTarget} onOpenChange={(open) => !open && setDeleteUserTarget(null)}>
-        <DialogContent className="border-primary/20 bg-card">
+        <DialogContent className="border-primary/20 bg-card" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">Delete user</DialogTitle>
           </DialogHeader>

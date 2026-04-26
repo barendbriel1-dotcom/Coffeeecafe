@@ -1156,7 +1156,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
       {showSignouts && (
       <Dialog open={!!activeAssignmentLine} onOpenChange={(open) => !open && setActiveAssignmentLineId(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">
               {activeAssignmentLine ? `Choose exact unit | ${activeAssignmentLine.line_label}` : "Choose exact unit"}

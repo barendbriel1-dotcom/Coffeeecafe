@@ -390,7 +390,7 @@ export default function Users() {
       </div>
 
       <Dialog open={!!assetManagerTarget} onOpenChange={(open) => !open && setAssetManagerTarget(null)}>
-        <DialogContent className="border border-primary/20 bg-background">
+        <DialogContent className="border border-primary/20 bg-background" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-2xl text-foreground glow-soft">
               Assign Assets Manager

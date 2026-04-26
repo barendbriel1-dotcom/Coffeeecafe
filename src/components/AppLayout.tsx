@@ -401,7 +401,7 @@ export default function AppLayout() {
       </div>
 
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        <DialogContent className="rounded-[1.8rem] border-primary/18 bg-card shadow-[var(--shadow-strong)]">
+        <DialogContent className="rounded-[1.8rem] border-primary/18 bg-card shadow-[var(--shadow-strong)]" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-3xl text-foreground glow-soft">Profile</DialogTitle>
           </DialogHeader>

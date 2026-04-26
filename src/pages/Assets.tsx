@@ -549,7 +549,7 @@ export default function Assets() {
                   <Plus size={16} className="mr-1" /> New Asset
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-2xl">
+              <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-2xl" aria-describedby={undefined}>
                 <DialogHeader>
                   <DialogTitle className="font-display text-foreground">Register asset</DialogTitle>
                 </DialogHeader>
@@ -636,7 +636,7 @@ export default function Assets() {
                   <Upload size={16} className="mr-1" /> CSV / Excel Import
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl bg-card">
+              <DialogContent className="max-w-2xl bg-card" aria-describedby={undefined}>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 font-display text-foreground">
                     <FileSpreadsheet size={18} /> Bulk import assets
@@ -826,7 +826,7 @@ export default function Assets() {
       </div>
 
       <Dialog open={!!activeGroup} onOpenChange={(open) => !open && setActiveGroupKey(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">
               {activeGroup?.name ?? "Asset instances"}

@@ -308,7 +308,7 @@ export default function AssetDetail() {
                     <Edit3 size={14} className="mr-2" /> Edit Profile
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-card border-primary/40">
+                <DialogContent className="bg-card border-primary/40" aria-describedby={undefined}>
                   <DialogHeader><DialogTitle className="font-display text-primary">Edit Asset Profile</DialogTitle></DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-1.5">

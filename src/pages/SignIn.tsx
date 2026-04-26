@@ -587,7 +587,13 @@ export default function SignIn() {
         scanner
           .stop()
           .catch(() => undefined)
-          .then(() => scanner?.clear().catch(() => undefined));
+          .then(() => {
+            try {
+              scanner?.clear();
+            } catch {
+              // Camera cleanup can race the dialog unmount; ignore stale scanner cleanup errors.
+            }
+          });
       }
     };
   }, [assetManagerLocationId, divisionMap, isAssetManager, locationNameMap, profileMap, rows, scanOpen]);

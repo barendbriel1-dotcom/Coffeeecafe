@@ -333,7 +333,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       </Card>
 
       <Dialog open={!!activeGroup} onOpenChange={(open) => !open && setActiveGroupKey(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-card sm:max-w-4xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">
               {activeGroup?.name ?? "Item instances"}

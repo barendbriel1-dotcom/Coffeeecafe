@@ -20,6 +20,10 @@ interface Handover {
   handover_items: { asset_id: string; assets: { code: string; name: string } }[];
 }
 
+type HandoverRpcClient = {
+  rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
+};
+
 export default function Handover() {
   const { user, isStaff } = useAuth();
   const [myAssets, setMyAssets] = useState<Asset[]>([]);
@@ -51,7 +55,8 @@ export default function Handover() {
 
   const toggle = (id: string) => {
     const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelected(next);
   };
 
@@ -60,14 +65,13 @@ export default function Handover() {
     if (!toUser || selected.size === 0) { toast.error("Select recipient and at least one asset"); return; }
     setBusy(true);
     try {
-      const { data: h, error } = await supabase.from("handovers").insert({
-        from_user: user!.id, to_user: toUser, notes: notes || null,
-      }).select("id").single();
-      if (error) throw error;
       const ids = [...selected];
-      const { error: ie } = await supabase.from("handover_items").insert(ids.map((asset_id) => ({ handover_id: h.id, asset_id })));
-      if (ie) throw ie;
-      await supabase.from("assets").update({ status: "signed_out" } as any).in("id", ids);
+      const { error } = await (supabase as unknown as HandoverRpcClient).rpc("initiate_handover", {
+        target_asset_ids: ids,
+        recipient_user_id: toUser,
+        handover_notes: notes || null,
+      });
+      if (error) throw error;
       toast.success("Handover initiated — awaiting recipient confirmation");
       setSelected(new Set()); setToUser(""); setNotes("");
       load();
@@ -77,23 +81,11 @@ export default function Handover() {
 
   const respond = async (h: Handover, accept: boolean) => {
     try {
-      const ids = h.handover_items.map((i) => i.asset_id);
-      const { error } = await supabase.from("handovers").update({
-        status: accept ? "accepted" : "rejected",
-        responded_at: new Date().toISOString(),
-      }).eq("id", h.id);
+      const { error } = await (supabase as unknown as HandoverRpcClient).rpc("respond_handover", {
+        target_handover_id: h.id,
+        accept_handover: accept,
+      });
       if (error) throw error;
-
-      if (accept) {
-        await supabase.from("assets").update({
-          status: "signed_out", current_holder: user!.id,
-        }).in("id", ids);
-        await supabase.from("asset_history").insert(ids.map((asset_id) => ({
-          asset_id, action: "handover_accepted", performed_by: user!.id, from_user: h.from_user, to_user: user!.id,
-        })));
-      } else {
-        await supabase.from("assets").update({ status: "signed_out" }).in("id", ids);
-      }
       toast.success(accept ? "Assets received" : "Handover rejected");
       load();
     } catch (e: any) { toast.error(e?.message ?? "Failed"); }
