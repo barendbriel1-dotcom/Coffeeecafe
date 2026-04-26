@@ -233,7 +233,12 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       setActiveGroupKey(null);
       load();
     } catch (error: any) {
-      toast.error(error?.message ?? "Failed to sign out the selected assets.");
+      const message = error?.message ?? "Failed to sign out the selected assets.";
+      if (message.toLowerCase().includes("row-level security")) {
+        toast.error("Supabase still needs the Asset Manager signout policy SQL applied before this role can sign items out.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setBusy(false);
     }

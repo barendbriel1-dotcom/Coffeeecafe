@@ -275,7 +275,12 @@ export default function SignIn() {
       setSelectedIds(new Set());
       load();
     } catch (error: any) {
-      toast.error(error?.message ?? "Failed to complete sign-in.");
+      const message = error?.message ?? "Failed to complete sign-in.";
+      if (message.toLowerCase().includes("row-level security")) {
+        toast.error("Supabase still needs the Asset Manager signin policy SQL applied before this role can complete returns.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setProcessing(false);
     }
