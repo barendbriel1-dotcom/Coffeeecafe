@@ -64,7 +64,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const normalizeSignInNextStatus = (status: string): "available" | "out_for_repairs" | "damaged" => {
   const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (["out_for_repair", "out_for_repairs", "repair", "repairs"].includes(normalized)) {
+  if (["out_for_repair", "out_for_repairs", "sign_out_for_repair", "sign_out_for_repairs", "signed_out_for_repair", "signed_out_for_repairs", "repair", "repairs"].includes(normalized)) {
     return "out_for_repairs";
   }
   if (normalized === "damaged") return "damaged";

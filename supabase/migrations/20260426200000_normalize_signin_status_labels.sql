@@ -75,7 +75,7 @@ begin
 
     if v_next_status_text in ('available', 'returned') then
       v_next_status_text := 'available';
-    elsif v_next_status_text in ('out_for_repair', 'out_for_repairs', 'repair', 'repairs', 'maintenance') then
+    elsif v_next_status_text in ('out_for_repair', 'out_for_repairs', 'sign_out_for_repair', 'sign_out_for_repairs', 'signed_out_for_repair', 'signed_out_for_repairs', 'repair', 'repairs', 'maintenance') then
       v_next_status_text := 'out_for_repairs';
     elsif v_next_status_text in ('damaged', 'damage') then
       v_next_status_text := 'damaged';
