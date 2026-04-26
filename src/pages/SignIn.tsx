@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -844,6 +844,9 @@ export default function SignIn() {
                 ? `Sign in ${bulkDecision.items.length} item${bulkDecision.items.length === 1 ? "" : "s"} — ${getAssetStatusLabel(bulkDecision.nextStatus)}`
                 : "Complete sign-in"}
             </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Confirm the location, condition, and notes for the selected sign-in items.
+            </DialogDescription>
           </DialogHeader>
 
           {bulkDecision && (
@@ -923,6 +926,9 @@ export default function SignIn() {
         <DialogContent className="max-h-[92vh] overflow-y-auto border-primary/20 bg-card sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">Scan In</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Use your camera to scan UUID QR codes, collect multiple signed-out items, and sign them back in together.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

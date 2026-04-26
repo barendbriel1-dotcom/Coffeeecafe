@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Activity, AlertTriangle, ChevronRight, History, Package, PackageCheck, XCircle } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeAssetStatus } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 interface Stats {
@@ -26,31 +27,38 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const [{ count: total }, { count: available }, { count: signedOut }, { count: activeSignouts }, { count: damaged }, { data: history }] = await Promise.all([
-        supabase.from("assets").select("*", { count: "exact", head: true }),
-        supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "available"),
-        supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "signed_out"),
-        supabase.from("signouts").select("*", { count: "exact", head: true }).eq("status", "active"),
-        supabase.from("assets").select("*", { count: "exact", head: true }).eq("status", "damaged"),
-        supabase.from("asset_history").select("id, action, created_at, assets(code)").order("created_at", { ascending: false }).limit(8),
-      ]);
+      try {
+        const [{ data: assets, error: assetsError }, { count: activeSignouts }, { data: history, error: historyError }] = await Promise.all([
+          supabase.from("assets").select("id, status"),
+          supabase.from("signouts").select("*", { count: "exact", head: true }).eq("status", "active"),
+          supabase.from("asset_history").select("id, action, created_at, assets(code)").order("created_at", { ascending: false }).limit(8),
+        ]);
 
-      setStats({
-        total: total ?? 0,
-        available: available ?? 0,
-        signedOut: signedOut ?? 0,
-        activeSignouts: activeSignouts ?? 0,
-        damaged: damaged ?? 0,
-      });
+        if (assetsError) throw assetsError;
+        if (historyError) throw historyError;
 
-      setActivity(
-        (history ?? []).map((entry: any) => ({
-          id: entry.id,
-          action: entry.action,
-          created_at: entry.created_at,
-          asset_code: entry.assets?.code,
-        })),
-      );
+        const normalizedAssets = (assets ?? []).map((asset) => normalizeAssetStatus(asset.status));
+
+        setStats({
+          total: assets?.length ?? 0,
+          available: normalizedAssets.filter((status) => status === "available").length,
+          signedOut: normalizedAssets.filter((status) => status === "signed_out").length,
+          activeSignouts: activeSignouts ?? 0,
+          damaged: normalizedAssets.filter((status) => status === "damaged").length,
+        });
+
+        setActivity(
+          (history ?? []).map((entry: any) => ({
+            id: entry.id,
+            action: entry.action,
+            created_at: entry.created_at,
+            asset_code: entry.assets?.code,
+          })),
+        );
+      } catch {
+        setStats({ total: 0, available: 0, signedOut: 0, activeSignouts: 0, damaged: 0 });
+        setActivity([]);
+      }
     })();
   }, []);
 

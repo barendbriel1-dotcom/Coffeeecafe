@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, QrCode } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildAssetQrFilename, downloadAssetQrPng, generateAssetQrDataUrl, type AssetQrLabel } from "@/lib/qr";
 
 interface AssetQrDialogProps {
@@ -57,6 +57,9 @@ export default function AssetQrDialog({ open, onOpenChange, asset }: AssetQrDial
       <DialogContent className="border-primary/20 bg-card sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="font-display text-foreground">Asset QR Code</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Preview and download the UUID QR code for this exact asset unit.
+          </DialogDescription>
         </DialogHeader>
 
         {asset && (

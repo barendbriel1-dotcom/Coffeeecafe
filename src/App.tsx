@@ -40,7 +40,7 @@ const App = () => (
               <Route path="/assets" element={<Assets />} />
               <Route path="/assets/:id" element={<AssetDetail />} />
               <Route path="/signout" element={<ProtectedRoute requireRole="staff"><SignOut /></ProtectedRoute>} />
-              <Route path="/groupings" element={<ProtectedRoute requireRole="admin"><BulkSignOut /></ProtectedRoute>} />
+              <Route path="/groupings" element={<ProtectedRoute requireRole="asset_manager"><BulkSignOut /></ProtectedRoute>} />
               <Route path="/group-signouts" element={<ProtectedRoute requireRole="asset_manager"><GroupSignouts /></ProtectedRoute>} />
               <Route path="/signout/bulk" element={<Navigate to="/groupings" replace />} />
               <Route path="/signin" element={<ProtectedRoute requireRole="asset_manager"><SignIn /></ProtectedRoute>} />

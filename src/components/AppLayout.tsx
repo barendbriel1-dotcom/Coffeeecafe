@@ -220,7 +220,7 @@ export default function AppLayout() {
     { to: "/", label: "Dashboard", icon: LayoutGrid, show: true, exact: true },
     { to: "/assets", label: "Assets", icon: Package, show: true, exact: false },
     { to: "/signout", label: "Sign out", icon: LogOut, show: isStaff, exact: true },
-    { to: "/groupings", label: "Groupings", icon: Layers, show: isAdmin, exact: true },
+    { to: "/groupings", label: "Groupings", icon: Layers, show: isAdmin || isAssetManager, exact: true },
     { to: "/group-signouts", label: "Group signouts", icon: Download, show: isAdmin || isAssetManager, exact: true },
     { to: "/signin", label: "Sign in", icon: LogIn, show: isAdmin || isAssetManager, exact: true },
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true, exact: true },
