@@ -329,6 +329,8 @@ export default function SignIn() {
         .join(" | ");
 
       toast.success(`${entries.length} item${entries.length === 1 ? "" : "s"} signed in${statusSummary ? `: ${statusSummary}` : "."}`);
+      const processedIds = new Set(entries.map((entry) => entry.item.id));
+      setRows((current) => current.filter((row) => !processedIds.has(row.id)));
       await load();
       return true;
     } catch (error: any) {

@@ -786,6 +786,17 @@ export default function Assets() {
 
               {filteredGroups.map((group) => {
                 const groupAssetIds = group.items.map((asset) => asset.id);
+                const groupStatuses = group.items.map((asset) => normalizeAssetStatus(asset.status));
+                const groupStatus =
+                  groupStatuses.includes("available")
+                    ? "available"
+                    : groupStatuses.includes("signed_out")
+                      ? "signed_out"
+                      : groupStatuses.includes("out_for_repairs")
+                        ? "out_for_repairs"
+                        : groupStatuses.includes("damaged")
+                          ? "damaged"
+                          : "not_assigned";
 
                 return (
                   <tr
@@ -801,7 +812,7 @@ export default function Assets() {
                     </td>
                     <td className="px-4 py-3 font-mono text-foreground/80">{group.totalUnits}</td>
                     <td className="px-4 py-3">
-                      <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", group.availableUnits > 0 ? getStatusBadgeClass("available") : getStatusBadgeClass("signed_out"))}>
+                      <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", getStatusBadgeClass(groupStatus))}>
                         {group.availableUnits}
                       </Badge>
                     </td>
