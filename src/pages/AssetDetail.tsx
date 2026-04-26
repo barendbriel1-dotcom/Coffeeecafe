@@ -157,13 +157,11 @@ export default function AssetDetail() {
         to_user_name: profileMap[x.to_user] || x.to_user
       })));
 
-      // Fetch completed damage reports for this asset
+      // Fetch all damage reports for this asset
       const { data: dr } = await supabase
         .from("damage_reports")
         .select("*")
         .eq("asset_id", id)
-        .in("status", ["completed", "concluded"])
-        .not("admin_conclusion_status", "is", null)
         .order("created_at", { ascending: false });
 
       setDamageReports((dr ?? []) as DamageReport[]);
@@ -269,6 +267,18 @@ export default function AssetDetail() {
               <currentStatus.icon size={12} className="mr-2" />
               {currentStatus.label}
             </Badge>
+
+            {damageReports.length > 0 && (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-1.5 text-rose-400 font-mono text-[10px] uppercase tracking-wider animate-pulse">
+                  <AlertTriangle size={12} />
+                  Damage History Detected
+                </div>
+                <div className="text-[9px] text-muted-foreground uppercase tracking-widest">
+                  {damageReports.length} {damageReports.length === 1 ? "Incidient" : "Incidents"} Recorded
+                </div>
+              </div>
+            )}
 
             <div className="w-full h-px bg-primary/10 my-6" />
 
@@ -469,8 +479,10 @@ export default function AssetDetail() {
                     </div>
 
                     <div className="pt-2 border-t border-rose-500/10 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
-                      <div>REPORTED BY: <span className="text-rose-300/80">{profileMapState[report.reported_by] || "OPERATIVE"}</span></div>
-                      <div className="sm:text-right">RESOLUTION: <span className="text-primary/80 uppercase tracking-widest">{report.admin_conclusion_status?.replace(/_/g, " ")}</span></div>
+                      <div>OPERATIVE AT TIME: <span className="text-rose-300/80">{profileMapState[report.assigned_to] || "OPERATIVE"}</span></div>
+                      <div className="sm:text-right">RESOLUTION: <span className={cn("uppercase tracking-widest", report.admin_conclusion_status ? "text-primary/80" : "text-amber-400")}>
+                        {report.admin_conclusion_status?.replace(/_/g, " ") || "PENDING CONCLUSION"}
+                      </span></div>
                     </div>
                   </div>
                 ))}
