@@ -58,6 +58,7 @@ interface BulkPacket {
 interface Profile {
   id: string;
   display_name: string;
+  department_id: string | null;
 }
 
 interface Asset {
@@ -141,8 +142,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const [activeAssignmentLineId, setActiveAssignmentLineId] = useState<string | null>(null);
 
   const [recipientId, setRecipientId] = useState("");
-  const [groupSignoutDivisionId, setGroupSignoutDivisionId] = useState("all");
-  const [groupSignoutLocationId, setGroupSignoutLocationId] = useState("all");
+  const [groupSignoutLocationId, setGroupSignoutLocationId] = useState("");
   const [signoutNotes, setSignoutNotes] = useState("");
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const assignmentsRef = useRef<Record<string, string>>({});
@@ -162,7 +162,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       ] = await Promise.all([
         supabase.from("bulk_packets").select("*").order("name"),
         supabase.from("bulk_packet_items").select("*").order("packet_id").order("sort_order"),
-        supabase.from("profiles").select("id, display_name").order("display_name"),
+        supabase.from("profiles").select("id, display_name, department_id").order("display_name"),
         supabase
           .from("assets")
           .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, description, locked_by, locked_at")
@@ -288,8 +288,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       setEditorNotes("");
       setEditorItems([EMPTY_ITEM()]);
       setGroupSearchQuery("");
-      setGroupSignoutDivisionId("all");
-      setGroupSignoutLocationId("all");
+      setGroupSignoutLocationId("");
       setAssignments({});
       return;
     }
@@ -299,8 +298,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
       setEditorNotes("");
       setEditorItems([EMPTY_ITEM()]);
       setGroupSearchQuery("");
-      setGroupSignoutDivisionId("all");
-      setGroupSignoutLocationId("all");
+      setGroupSignoutLocationId("");
       setAssignments({});
       return;
     }
@@ -313,8 +311,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         : [EMPTY_ITEM()],
     );
     setGroupSearchQuery("");
-    setGroupSignoutDivisionId("all");
-    setGroupSignoutLocationId("all");
+    setGroupSignoutLocationId("");
     setAssignments(
       Object.fromEntries(
         activeSavedPacket.items
@@ -328,6 +325,10 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.id, profile.display_name])), [profiles]);
   const assetMap = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
+  const selectedRecipient = useMemo(
+    () => profiles.find((profile) => profile.id === recipientId) ?? null,
+    [profiles, recipientId],
+  );
 
   const availableAssets = useMemo(
     () => assets.filter((asset) => normalizeAssetStatus(asset.status) === "available"),
@@ -398,6 +399,10 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
   const activePacketForSignout = activeSavedPacket;
 
+  useEffect(() => {
+    setGroupSignoutLocationId(selectedRecipient?.department_id ?? "");
+  }, [activePacketId, selectedRecipient]);
+
   const candidateAssetsForLine = (item: BulkPacketItemDraft) => {
     const normalizedLineLabel = item.line_label.trim().toLowerCase();
     if (!normalizedLineLabel) return [];
@@ -409,10 +414,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         : assets.filter((asset) => buildSearchBlob([asset.name, asset.code, asset.serial_number]).includes(normalizedLineLabel));
 
     return [...basePool]
-      .filter((asset) => (groupSignoutDivisionId !== "all" ? asset.division_id === groupSignoutDivisionId : true))
       .filter((asset) => {
         const effectiveLocationId = asset.current_location_id ?? asset.department_id;
-        return groupSignoutLocationId !== "all" ? effectiveLocationId === groupSignoutLocationId : true;
+        return groupSignoutLocationId ? effectiveLocationId === groupSignoutLocationId : true;
       })
       .sort((a, b) => {
         const aPreferred = item.preferred_asset_id && a.id === item.preferred_asset_id ? 0 : 1;
@@ -630,6 +634,11 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
     if (!recipientId) {
       toast.error("Choose the user receiving this group.");
+      return;
+    }
+
+    if (!groupSignoutLocationId) {
+      toast.error("This user does not have a registered location yet. Update their profile before using Group signout.");
       return;
     }
 
@@ -1008,35 +1017,16 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid gap-4">
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Division for this group</Label>
-                <Select value={groupSignoutDivisionId} onValueChange={setGroupSignoutDivisionId}>
-                  <SelectTrigger><SelectValue placeholder="All divisions" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All divisions</SelectItem>
-                    {divisions.map((division) => (
-                      <SelectItem key={division.id} value={division.id}>
-                        {division.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Location for this group</Label>
-                <Select value={groupSignoutLocationId} onValueChange={setGroupSignoutLocationId}>
-                  <SelectTrigger><SelectValue placeholder="All locations" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All locations</SelectItem>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Registered user location</Label>
+                <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 font-mono text-sm text-primary/90">
+                  {recipientId
+                    ? groupSignoutLocationId
+                      ? locationMap[groupSignoutLocationId] ?? "Registered location not found"
+                      : "This user has no registered location"
+                    : "Choose user first"}
+                </div>
               </div>
             </div>
 
