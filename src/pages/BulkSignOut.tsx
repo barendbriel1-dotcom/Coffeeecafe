@@ -120,7 +120,7 @@ const formatPreferredAssetLabel = (asset: Asset | null | undefined) =>
   asset ? `${asset.code}${asset.serial_number ? ` | ${asset.serial_number}` : ""}` : "";
 
 export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings" | "signouts" }) {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isAssetManager } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingPacket, setSavingPacket] = useState(false);
   const [deletingPacket, setDeletingPacket] = useState(false);
@@ -224,9 +224,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   };
 
   useEffect(() => {
-    if (!user || !isAdmin) return;
+    if (!user || (!isAdmin && !isAssetManager)) return;
     load();
-  }, [user, isAdmin]);
+  }, [user, isAdmin, isAssetManager]);
 
   const activeSavedPacket = useMemo(
     () => (activePacketId && activePacketId !== "new" ? packets.find((packet) => packet.id === activePacketId) ?? null : null),
@@ -700,7 +700,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     }
   };
 
-  if (!isAdmin) return null;
+  if (!isAdmin && !isAssetManager) return null;
 
   const showGroupings = mode === "groupings";
   const showSignouts = mode === "signouts";
