@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
+import { isAssetLocked, normalizeAssetStatus } from "@/lib/assets";
 
 interface Req {
   id: string; requested_by: string; asset_id: string | null;
@@ -17,7 +18,14 @@ interface Req {
   needed_by: string | null; status: string; admin_notes: string | null;
   created_at: string;
 }
-interface Asset { id: string; code: string; name: string; status: string; }
+interface Asset {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  locked_by?: string | null;
+  locked_at?: string | null;
+}
 
 export default function Requests() {
   const { user, isAdmin } = useAuth();
@@ -35,7 +43,7 @@ export default function Requests() {
     const [{ data: r }, { data: p }, { data: a }] = await Promise.all([
       supabase.from("asset_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, display_name"),
-      supabase.from("assets").select("id, code, name, status"),
+      supabase.from("assets").select("id, code, name, status, locked_by, locked_at"),
     ]);
     setRequests(r ?? []);
     setProfileMap(Object.fromEntries((p ?? []).map((x) => [x.id, x.display_name])));
@@ -65,6 +73,25 @@ export default function Requests() {
     setBusy(true);
     try {
       if (status === "approved" && r.asset_id) {
+        const { data: liveAsset, error: liveAssetError } = await supabase
+          .from("assets")
+          .select("id, code, name, status, locked_by, locked_at")
+          .eq("id", r.asset_id)
+          .maybeSingle();
+
+        if (liveAssetError) throw liveAssetError;
+        if (!liveAsset) {
+          throw new Error("This asset could not be found anymore. Refresh the request list and review it again.");
+        }
+
+        if (normalizeAssetStatus(liveAsset.status) !== "available") {
+          throw new Error(`${liveAsset.code} is no longer available, so this request cannot be auto-approved.`);
+        }
+
+        if (isAssetLocked(liveAsset.locked_by, liveAsset.locked_at, user!.id)) {
+          throw new Error(`${liveAsset.code} is currently locked by another workflow. Try again after the lock is cleared.`);
+        }
+
         const { data: locations } = await supabase.from("locations").select("id, name");
         const travelingId = locations?.find((location: any) => location.name === "Traveling")?.id;
 
