@@ -76,7 +76,7 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-in">
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {tiles.map((tile) => (
-          <Link key={tile.label} to={tile.to} className="app-panel group p-5 transition-all hover:-translate-y-1 hover:border-primary/24 hover:shadow-[0_0_40px_hsl(var(--primary)/0.08)]">
+          <Link key={tile.label} to={tile.to} className="matrix-dashboard-bubble group p-5">
             <div className="mb-6 flex items-center justify-between">
               <div className={cn("flex size-12 items-center justify-center rounded-2xl border", tile.accent)}>
                 <tile.icon size={20} />
@@ -89,7 +89,7 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <section className="app-panel p-5 sm:p-6">
+      <section className="matrix-dashboard-bubble p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <div className="app-kicker">Recent activity</div>
@@ -102,13 +102,13 @@ export default function Dashboard() {
         </div>
 
         {activity.length === 0 ? (
-          <div className="rounded-[1.5rem] border border-primary/12 bg-secondary/65 px-6 py-12 text-center text-sm text-muted-foreground">
+          <div className="matrix-dashboard-bubble rounded-[1.5rem] px-6 py-12 text-center text-sm text-muted-foreground">
             No asset activity has been recorded yet.
           </div>
         ) : (
           <ul className="space-y-3">
             {activity.map((entry) => (
-              <li key={entry.id} className="flex flex-col gap-3 rounded-[1.35rem] border border-primary/10 bg-secondary/55 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <li key={entry.id} className="matrix-dashboard-bubble flex flex-col gap-3 rounded-[1.35rem] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="font-display text-lg text-foreground glow-soft">
                     {entry.asset_code

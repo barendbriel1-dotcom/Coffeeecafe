@@ -378,6 +378,49 @@
     box-shadow: none;
     text-decoration: underline;
   }
+
+  .matrix-dashboard-bubble {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.75rem;
+    border: 1px solid hsl(var(--primary) / 0.18);
+    background: linear-gradient(145deg, hsl(220 25% 8% / 0.96), hsl(150 36% 10% / 0.92));
+    color: hsl(var(--foreground));
+    box-shadow: 0 0 28px hsl(192 54% 26% / 0.22), 0 18px 42px hsl(140 70% 4% / 0.34);
+    transition: transform 0.6s ease, border-color 0.6s ease, background 0.6s ease, box-shadow 0.6s ease, color 0.6s ease;
+  }
+
+  .matrix-dashboard-bubble::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(270deg, transparent 0%, hsl(193 90% 46% / 0.16) 48%, hsl(142 86% 48% / 0.2) 72%, transparent 100%),
+      var(--matrix-grid);
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+
+  .matrix-dashboard-bubble > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .matrix-dashboard-bubble:hover {
+    transform: translateY(-3px);
+    border-color: hsl(142 86% 48% / 0.38);
+    background: linear-gradient(270deg, hsl(205 72% 16% / 0.82) 0%, hsl(142 68% 24% / 0.74) 62%, hsl(220 25% 8% / 0.96) 100%);
+    box-shadow: 0 0 34px hsl(192 54% 30% / 0.28), 0 22px 46px hsl(140 70% 4% / 0.38);
+  }
+
+  .matrix-dashboard-bubble:hover::before {
+    opacity: 1;
+  }
+
+  .matrix-dashboard-bubble:active {
+    transform: translateY(0) scale(0.98);
+  }
 }
 
 @keyframes matrix-field-orbit {
