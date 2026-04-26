@@ -29,9 +29,20 @@ export default function DamageReportDialog() {
   const [reports, setReports] = useState<PendingReport[]>([]);
   const [description, setDescription] = useState("");
   const [damagedDate, setDamagedDate] = useState("");
+  const [damagedTime, setDamagedTime] = useState("");
+  const [damageType, setDamageType] = useState("");
+  const [otherDetails, setOtherDetails] = useState("");
   const [busy, setBusy] = useState(false);
 
   const activeReport = reports[0] ?? null;
+
+  const damageTypes = [
+    "Scratched",
+    "Cracked",
+    "Broken",
+    "Water Damage",
+    "Other"
+  ];
 
   useEffect(() => {
     if (!user) return;
@@ -49,7 +60,6 @@ export default function DamageReportDialog() {
 
     load();
 
-    // Re-check every 30 seconds in case an admin marks something damaged
     const interval = setInterval(load, 30_000);
     return () => clearInterval(interval);
   }, [user]);
@@ -57,13 +67,28 @@ export default function DamageReportDialog() {
   const submit = async () => {
     if (!activeReport) return;
 
-    if (!description.trim()) {
-      toast.error("Please describe how the item was damaged.");
+    if (!damagedDate) {
+      toast.error("Please select the date the item was damaged.");
       return;
     }
 
-    if (!damagedDate) {
-      toast.error("Please select the date the item was damaged.");
+    if (!damagedTime) {
+      toast.error("Please select the approximate time the item was damaged.");
+      return;
+    }
+
+    if (!damageType) {
+      toast.error("Please select a damage type.");
+      return;
+    }
+
+    if (damageType === "Other" && !otherDetails.trim()) {
+      toast.error("Please specify the other damage details.");
+      return;
+    }
+
+    if (!description.trim()) {
+      toast.error("Please provide a description of how it happened.");
       return;
     }
 
@@ -74,6 +99,9 @@ export default function DamageReportDialog() {
         .update({
           description: description.trim(),
           damaged_date: damagedDate,
+          damaged_time: damagedTime,
+          damage_type: damageType,
+          other_details: damageType === "Other" ? otherDetails.trim() : null,
           status: "completed",
           completed_at: new Date().toISOString(),
         })
@@ -85,6 +113,9 @@ export default function DamageReportDialog() {
       setReports((current) => current.filter((r) => r.id !== activeReport.id));
       setDescription("");
       setDamagedDate("");
+      setDamagedTime("");
+      setDamageType("");
+      setOtherDetails("");
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to submit damage report.");
     } finally {
@@ -97,7 +128,7 @@ export default function DamageReportDialog() {
   return (
     <Dialog open onOpenChange={() => { /* prevent closing */ }}>
       <DialogContent
-        className="bg-card sm:max-w-lg [&>button]:hidden"
+        className="bg-card sm:max-w-lg [&>button]:hidden max-h-[90vh] overflow-y-auto"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         aria-describedby="damage-report-desc"
@@ -110,46 +141,84 @@ export default function DamageReportDialog() {
             Damage Report Required
           </DialogTitle>
           <DialogDescription id="damage-report-desc" className="text-center">
-            The following item was returned as <strong className="text-rose-400">damaged</strong> while
-            assigned to you. Please complete this report before continuing.
+            This item was returned as <strong className="text-rose-400">damaged</strong> while
+            assigned to you. All fields are required.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Asset info */}
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="font-mono text-sm font-bold text-rose-300">{activeReport.asset_code}</span>
               <span className="text-sm text-foreground">{activeReport.asset_name}</span>
             </div>
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              Reported on {new Date(activeReport.created_at).toLocaleDateString()}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Date Damaged</Label>
+              <Input
+                type="date"
+                value={damagedDate}
+                onChange={(e) => setDamagedDate(e.target.value)}
+                max={new Date().toISOString().split("T")[0]}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Approx. Time</Label>
+              <Input
+                type="time"
+                value={damagedTime}
+                onChange={(e) => setDamagedTime(e.target.value)}
+                required
+              />
             </div>
           </div>
 
-          {/* Date damaged */}
           <div className="space-y-1.5">
-            <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
-              Date damaged
-            </Label>
-            <Input
-              type="date"
-              value={damagedDate}
-              onChange={(e) => setDamagedDate(e.target.value)}
-              max={new Date().toISOString().split("T")[0]}
-            />
+            <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Damage Type</Label>
+            <div className="flex flex-wrap gap-2">
+              {damageTypes.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setDamageType(type)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs transition-all",
+                    damageType === type
+                      ? "border-primary bg-primary/20 text-primary glow-soft"
+                      : "border-primary/20 bg-card text-muted-foreground hover:border-primary/40"
+                  )}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Description */}
+          {damageType === "Other" && (
+            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Please Specify</Label>
+              <Input
+                value={otherDetails}
+                onChange={(e) => setOtherDetails(e.target.value)}
+                placeholder="Details for 'Other'..."
+                required
+              />
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
-              How was this item damaged?
+              How did it happen?
             </Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what happened and the extent of the damage..."
-              rows={4}
+              placeholder="Describe the incident..."
+              rows={3}
+              required
             />
           </div>
         </div>
@@ -166,4 +235,5 @@ export default function DamageReportDialog() {
       </DialogContent>
     </Dialog>
   );
+}
 }

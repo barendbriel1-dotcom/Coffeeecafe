@@ -73,9 +73,16 @@ interface DamageReport {
   reported_by: string;
   description: string | null;
   damaged_date: string | null;
+  damaged_time: string | null;
+  damage_type: string | null;
+  other_details: string | null;
+  admin_conclusion_notes: string | null;
+  admin_conclusion_status: ManagedStatus | null;
   status: "pending" | "completed";
   created_at: string;
   completed_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 }
 
 interface AssetRequestRow {
@@ -167,6 +174,10 @@ export default function Admin() {
   const [unassignedDraftStatus, setUnassignedDraftStatus] = useState<ManagedStatus | "skip">("skip");
   const [unassignedDraftLocationId, setUnassignedDraftLocationId] = useState("skip");
   const [unassignedApplying, setUnassignedApplying] = useState(false);
+  const [concludingReport, setConcludingReport] = useState<DamageReport | null>(null);
+  const [conclusionNotes, setConclusionNotes] = useState("");
+  const [conclusionStatus, setConclusionStatus] = useState<ManagedStatus>("available");
+  const [concludingBusy, setConcludingBusy] = useState(false);
 
   const setSection = (section: AdminSection) => {
     const next = new URLSearchParams(searchParams);
@@ -842,6 +853,43 @@ export default function Admin() {
     doc.text(lines, 20, y);
 
     doc.save(`Damage-Report-${report.asset_code}-${new Date().getTime()}.pdf`);
+  };
+
+  const submitConclusion = async () => {
+    if (!concludingReport || !user) return;
+
+    setConcludingBusy(true);
+    try {
+      // 1. Update the damage report with conclusion
+      const { error: reportError } = await supabase
+        .from("damage_reports")
+        .update({
+          admin_conclusion_notes: conclusionNotes.trim(),
+          admin_conclusion_status: conclusionStatus,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user.id,
+        })
+        .eq("id", concludingReport.id);
+
+      if (reportError) throw reportError;
+
+      // 2. Update the asset status
+      const { error: assetError } = await supabase
+        .from("assets")
+        .update({ status: conclusionStatus } as any)
+        .eq("id", concludingReport.asset_id);
+
+      if (assetError) throw assetError;
+
+      toast.success("Conclusion submitted and item status updated.");
+      setConcludingReport(null);
+      setConclusionNotes("");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to submit conclusion.");
+    } finally {
+      setConcludingBusy(false);
+    }
   };
 
   if (!isAdmin) {
@@ -1714,9 +1762,9 @@ export default function Admin() {
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                             <div><span className="opacity-60">Assigned to:</span> {profileMap[report.assigned_to] ?? "Unknown"}</div>
-                            <div><span className="opacity-60">Damaged on:</span> {report.damaged_date ? new Date(report.damaged_date).toLocaleDateString() : "Pending"}</div>
+                            <div><span className="opacity-60">Damaged on:</span> {report.damaged_date ? `${new Date(report.damaged_date).toLocaleDateString()} ${report.damaged_time || ""}` : "Pending"}</div>
+                            <div><span className="opacity-60">Type:</span> <span className="text-primary/90">{report.damage_type}{report.other_details ? ` (${report.other_details})` : ""}</span></div>
                             <div><span className="opacity-60">Reported by:</span> {profileMap[report.reported_by] ?? "Admin"}</div>
-                            <div><span className="opacity-60">Created:</span> {new Date(report.created_at).toLocaleDateString()}</div>
                           </div>
                           {report.description && (
                             <div className="mt-3 rounded-lg bg-black/20 p-3 text-xs text-foreground/80 italic border-l-2 border-primary/30">
@@ -1724,7 +1772,7 @@ export default function Admin() {
                             </div>
                           )}
                         </div>
-                        <div className="shrink-0">
+                        <div className="shrink-0 flex flex-col gap-2">
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -1734,6 +1782,20 @@ export default function Admin() {
                             <FileText size={14} />
                             Export PDF
                           </Button>
+                          {report.status === "completed" && !report.admin_conclusion_status && (
+                            <Button 
+                              size="sm" 
+                              className="gap-2"
+                              onClick={() => {
+                                setConcludingReport(report);
+                                setConclusionStatus("available");
+                                setConclusionNotes("");
+                              }}
+                            >
+                              <Shield size={14} />
+                              Conclusion
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1742,6 +1804,55 @@ export default function Admin() {
               </Card>
             </div>
           )}
+
+          {/* Conclusion Dialog */}
+          <Dialog open={!!concludingReport} onOpenChange={(open) => !open && setConcludingReport(null)}>
+            <DialogContent className="border-primary/20 bg-card">
+              <DialogHeader>
+                <DialogTitle className="font-display text-foreground">Damage Report Conclusion</DialogTitle>
+              </DialogHeader>
+
+              {concludingReport && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                    <div className="font-mono text-sm font-bold text-primary">{concludingReport.asset_code} · {concludingReport.asset_name}</div>
+                    <div className="mt-1 text-xs text-muted-foreground italic">"{concludingReport.description}"</div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Admin Conclusion Status</Label>
+                    <Select value={conclusionStatus} onValueChange={(value) => setConclusionStatus(value as ManagedStatus)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
+                        <SelectItem value="damaged">Damaged (Keep Retired)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Conclusion Notes</Label>
+                    <Textarea 
+                      placeholder="Add any final notes or repair details..." 
+                      value={conclusionNotes}
+                      onChange={(e) => setConclusionNotes(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setConcludingReport(null)}>Cancel</Button>
+                <Button onClick={submitConclusion} disabled={concludingBusy}>
+                  {concludingBusy ? "Submitting..." : "Submit Conclusion"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </section>
       </div>
 
