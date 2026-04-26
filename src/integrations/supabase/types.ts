@@ -599,6 +599,15 @@ export type Database = {
         }
         Returns: Json
       }
+      sign_in_assets_safe: {
+        Args: {
+          note_prefix?: string | null
+          notes?: string | null
+          signin_payload: Json
+          target_location_id: string
+        }
+        Returns: Json
+      }
       sign_out_assets: {
         Args: {
           history_notes_by_asset?: Json

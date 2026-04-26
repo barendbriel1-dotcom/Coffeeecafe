@@ -298,7 +298,7 @@ export default function SignIn() {
 
     setProcessing(true);
     try {
-      const { data, error } = await supabase.rpc("sign_in_assets", {
+      const { data, error } = await supabase.rpc("sign_in_assets_safe", {
         signin_payload: entries.map((entry) => ({
           asset_id: entry.item.id,
           next_status: normalizeSignInNextStatus(entry.nextStatus),

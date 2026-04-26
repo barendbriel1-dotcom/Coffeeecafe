@@ -197,3 +197,19 @@ end;
 $$;
 
 grant execute on function public.sign_in_assets(jsonb, uuid, text, text) to authenticated;
+
+create or replace function public.sign_in_assets_safe(
+  signin_payload jsonb,
+  target_location_id uuid,
+  notes text default null,
+  note_prefix text default 'Manual sign-in completed.'
+)
+returns jsonb
+language sql
+security definer
+set search_path = public, auth
+as $$
+  select public.sign_in_assets(signin_payload, target_location_id, notes, note_prefix);
+$$;
+
+grant execute on function public.sign_in_assets_safe(jsonb, uuid, text, text) to authenticated;
