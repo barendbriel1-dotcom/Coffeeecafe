@@ -801,12 +801,6 @@ export default function Admin() {
     }
   };
 
-  const setSection = (section: AdminSection) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("section", section);
-    setSearchParams(next, { replace: true });
-  };
-
   const exportDamageReportPdf = async (report: DamageReport) => {
     const { exportDamageReportPdf: generatePdf } = await import("@/lib/pdf");
     generatePdf(report, profileMap);
