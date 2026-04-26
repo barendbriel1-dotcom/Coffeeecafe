@@ -19,6 +19,7 @@ interface ActivityRow {
   action: string;
   created_at: string;
   asset_code?: string;
+  asset_name?: string;
 }
 
 export default function Dashboard() {
@@ -31,7 +32,7 @@ export default function Dashboard() {
         const [{ data: assets, error: assetsError }, { count: activeSignouts }, { data: history, error: historyError }] = await Promise.all([
           supabase.from("assets").select("id, status"),
           supabase.from("signouts").select("*", { count: "exact", head: true }).eq("status", "active"),
-          supabase.from("asset_history").select("id, action, created_at, assets(code)").order("created_at", { ascending: false }).limit(8),
+          supabase.from("asset_history").select("id, action, created_at, assets(code, name)").order("created_at", { ascending: false }).limit(8),
         ]);
 
         if (assetsError) throw assetsError;
@@ -53,6 +54,7 @@ export default function Dashboard() {
             action: entry.action,
             created_at: entry.created_at,
             asset_code: entry.assets?.code,
+            asset_name: entry.assets?.name,
           })),
         );
       } catch {
@@ -108,7 +110,11 @@ export default function Dashboard() {
             {activity.map((entry) => (
               <li key={entry.id} className="flex flex-col gap-3 rounded-[1.35rem] border border-primary/10 bg-secondary/55 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <div className="font-display text-lg text-foreground glow-soft">{entry.asset_code ?? "Unknown asset"}</div>
+                  <div className="font-display text-lg text-foreground glow-soft">
+                    {entry.asset_code
+                      ? `${entry.asset_code}${entry.asset_name ? ` · ${entry.asset_name}` : ""}`
+                      : entry.asset_name ?? "Unknown asset"}
+                  </div>
                   <div className="font-mono text-sm capitalize text-muted-foreground">{entry.action.replace(/_/g, " ")}</div>
                 </div>
                 <div className="shrink-0 font-mono text-sm text-muted-foreground">
