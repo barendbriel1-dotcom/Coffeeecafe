@@ -62,6 +62,15 @@ interface SignInEntry {
 const SCAN_IN_READER_ID = "scan-in-camera-reader";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const normalizeSignInNextStatus = (status: string): "available" | "out_for_repairs" | "damaged" => {
+  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["out_for_repair", "out_for_repairs", "repair", "repairs"].includes(normalized)) {
+    return "out_for_repairs";
+  }
+  if (normalized === "damaged") return "damaged";
+  return "available";
+};
+
 function formatAssetReturnRow(
   asset: any,
   maps: {
@@ -292,7 +301,7 @@ export default function SignIn() {
       const { data, error } = await supabase.rpc("sign_in_assets", {
         signin_payload: entries.map((entry) => ({
           asset_id: entry.item.id,
-          next_status: entry.nextStatus,
+          next_status: normalizeSignInNextStatus(entry.nextStatus),
         })),
         target_location_id: targetLocationId,
         notes: notes.trim() || null,
