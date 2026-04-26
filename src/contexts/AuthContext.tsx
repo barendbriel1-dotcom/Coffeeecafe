@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         roles,
         isAdmin: roles.includes("admin"),
         isStaff: roles.includes("staff") || roles.includes("admin") || roles.includes("asset_manager"),
-        isVolunteer: roles.includes("volunteer"),
+        isVolunteer: roles.includes("volunteer") && !roles.includes("admin") && !roles.includes("staff") && !roles.includes("asset_manager"),
         isAssetManager: roles.includes("asset_manager"),
         assetManagerLocationId,
         isApproved: roles.length > 0,

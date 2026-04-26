@@ -391,6 +391,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          asset_manager_location_id: string | null
           created_at: string
           department_id: string | null
           display_name: string
@@ -400,6 +401,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          asset_manager_location_id?: string | null
           created_at?: string
           department_id?: string | null
           display_name: string
@@ -409,6 +411,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          asset_manager_location_id?: string | null
           created_at?: string
           department_id?: string | null
           display_name?: string
@@ -418,6 +421,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_asset_manager_location_id_fkey"
+            columns: ["asset_manager_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_department_fk"
             columns: ["department_id"]
@@ -560,7 +570,7 @@ export type Database = {
       is_staff_or_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "staff" | "volunteer"
+      app_role: "admin" | "staff" | "volunteer" | "asset_manager"
       asset_status:
         | "available"
         | "signed_out"
@@ -699,7 +709,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "staff", "volunteer"],
+      app_role: ["admin", "staff", "volunteer", "asset_manager"],
       asset_status: [
         "available",
         "signed_out",

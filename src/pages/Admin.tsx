@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,8 @@ interface AssetDeleteRequestRow {
 const FALLBACK_NAME = "Not Assigned";
 const FALLBACK_LOCATION_CODE = "N";
 const FALLBACK_DIVISION_CODE = "NASS";
+const ROLE_OPTIONS: Role[] = ["admin", "staff", "volunteer", "asset_manager"];
+const roleLabel = (role: Role) => (role === "asset_manager" ? "Assets Manager" : role.replace("_", " "));
 
 export default function Admin() {
   const { user } = useAuth();
@@ -82,6 +85,9 @@ export default function Admin() {
   const [cancellingDeleteId, setCancellingDeleteId] = useState<string | null>(null);
   const [deleteSearch, setDeleteSearch] = useState("");
   const [stagedForDelete, setStagedForDelete] = useState<AssetRow[]>([]);
+  const [assetManagerTarget, setAssetManagerTarget] = useState<Profile | null>(null);
+  const [assetManagerLocationDraft, setAssetManagerLocationDraft] = useState("none");
+  const [assetManagerSaving, setAssetManagerSaving] = useState(false);
 
 
   const load = async () => {
@@ -248,32 +254,57 @@ export default function Admin() {
     [assets, managedStatuses],
   );
 
-  const toggleRole = async (uid: string, role: Role) => {
-    if (uid === user?.id && role === "admin" && rolesFor(uid).includes("admin")) {
-      toast.error("Cannot remove your own admin role");
-      return;
-    }
-
-    const has = rolesFor(uid).includes(role);
-    if (has) {
-      await Promise.all([
-        supabase.from("user_roles").delete().eq("user_id", uid).eq("role", role),
-        role === "asset_manager" ? supabase.from("profiles").update({ asset_manager_location_id: null }).eq("id", uid) : Promise.resolve()
-      ]);
-    } else {
-      const { error } = await supabase.from("user_roles").insert({ user_id: uid, role });
-      if (error) return toast.error(error.message);
-    }
-
-    toast.success("Roles updated");
-    load();
+  const openAssetManagerDialog = (profile: Profile) => {
+    setAssetManagerTarget(profile);
+    setAssetManagerLocationDraft(profile.asset_manager_location_id ?? "none");
   };
 
-  const updateAssetManagerLocation = async (userId: string, locationId: string) => {
-    setBusyKey(`loc-${userId}`);
-    await supabase.from("profiles").update({ asset_manager_location_id: locationId === "none" ? null : locationId }).eq("id", userId);
-    await load();
-    setBusyKey(null);
+  const assignSingleRole = async (uid: string, role: Role, assetManagerLocationId?: string | null) => {
+    if (uid === user?.id && role === "admin" && rolesFor(uid).includes("admin")) {
+      toast.error("Cannot remove your own admin role");
+      return false;
+    }
+
+    if (role === "asset_manager" && (!assetManagerLocationId || assetManagerLocationId === "none")) {
+      toast.error("Choose the location for this Assets Manager first.");
+      return false;
+    }
+
+    setBusyKey(`role-${uid}`);
+
+    try {
+      const { error: deleteError } = await supabase.from("user_roles").delete().eq("user_id", uid);
+      if (deleteError) throw deleteError;
+
+      const { error: insertError } = await supabase.from("user_roles").insert({ user_id: uid, role });
+      if (insertError) throw insertError;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ asset_manager_location_id: role === "asset_manager" ? assetManagerLocationId : null })
+        .eq("id", uid);
+      if (profileError) throw profileError;
+
+      toast.success("Role updated");
+      await load();
+      return true;
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to update role");
+      return false;
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const saveAssetManagerRole = async () => {
+    if (!assetManagerTarget) return;
+
+    setAssetManagerSaving(true);
+    const saved = await assignSingleRole(assetManagerTarget.id, "asset_manager", assetManagerLocationDraft);
+    setAssetManagerSaving(false);
+    if (saved) {
+      setAssetManagerTarget(null);
+    }
   };
 
   const ensureFallbackLocation = async () => {
@@ -363,6 +394,7 @@ export default function Admin() {
         supabase.from("assets").update({ department_id: fallback.id } as any).eq("department_id", location.id),
         supabase.from("assets").update({ current_location_id: fallback.id } as any).eq("current_location_id", location.id),
         supabase.from("profiles").update({ department_id: fallback.id } as any).eq("department_id", location.id),
+        supabase.from("profiles").update({ asset_manager_location_id: fallback.id } as any).eq("asset_manager_location_id", location.id),
         supabase.from("signouts").update({ to_department_id: fallback.id } as any).eq("to_department_id", location.id),
         supabase.from("bulk_packet_items").update({ location_id: fallback.id } as any).eq("location_id", location.id),
       ];
@@ -452,24 +484,19 @@ export default function Admin() {
   };
 
   const moveStatusToFallback = async (status: ManagedStatus) => {
-    if (status === "available") {
-      toast.error("Available is the default status and cannot be deleted.");
+    if (status === "not_assigned") {
+      toast.error("Not Assigned is already the fallback status.");
       return;
     }
 
-    if (status === "signed_out") {
-      toast.error("Signed Out cannot be deleted because it is tied to active sign-out workflow.");
-      return;
-    }
-
-    if (!window.confirm(`Move all assets with status "${getAssetStatusLabel(status)}" to Available?`)) return;
+    if (!window.confirm(`Delete "${getAssetStatusLabel(status)}" usage and move all linked items to Not Assigned?`)) return;
 
     setBusyKey(`status-delete-${status}`);
-    const { error } = await supabase.from("assets").update({ status: "available" } as any).eq("status", status);
+    const { error } = await supabase.from("assets").update({ status: "not_assigned" } as any).eq("status", status);
     setBusyKey(null);
 
     if (error) return toast.error(error.message);
-    toast.success(`${getAssetStatusLabel(status)} was cleared. Linked items now use Available.`);
+    toast.success(`${getAssetStatusLabel(status)} was deleted. Linked items now use Not Assigned.`);
     load();
   };
 
@@ -511,8 +538,11 @@ export default function Admin() {
                   <div className="text-xs text-muted-foreground truncate">{p.email}</div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => toggleRole(p.id, "volunteer")}>Approve as Volunteer</Button>
-                  <Button size="sm" variant="outline" onClick={() => toggleRole(p.id, "staff")}>Approve as Staff</Button>
+                  <Button size="sm" onClick={() => assignSingleRole(p.id, "volunteer")}>Approve as Volunteer</Button>
+                  <Button size="sm" variant="outline" onClick={() => assignSingleRole(p.id, "staff")}>Approve as Staff</Button>
+                  <Button size="sm" variant="outline" onClick={() => openAssetManagerDialog(p)}>
+                    Approve as Assets Manager
+                  </Button>
                 </div>
               </Card>
             ))
@@ -521,48 +551,43 @@ export default function Admin() {
 
         <TabsContent value="users" className="space-y-2 mt-4">
           {profiles.filter((p) => rolesFor(p.id).length > 0).map((p) => (
-            <Card key={p.id} className="bg-card/40 border-primary/20 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
+            <Card key={p.id} className="bg-card/40 border-primary/20 p-4 flex flex-col gap-3">
               <div className="flex-1 min-w-0">
                 <div className="font-mono text-sm text-primary truncate">{p.display_name}</div>
                 <div className="text-xs text-muted-foreground truncate">{p.email}</div>
               </div>
               <div className="flex flex-col gap-2">
-                <div className="flex gap-1 flex-wrap">
-                  {(["admin", "staff", "volunteer", "asset_manager"] as Role[]).map((r) => {
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="border-primary/30 bg-card text-primary uppercase tracking-[0.16em]">
+                    {roleLabel(rolesFor(p.id)[0])}
+                  </Badge>
+                  {rolesFor(p.id).includes("asset_manager") && (
+                    <span className="text-xs text-primary/80">
+                      Locked to {locs.find((l) => l.id === p.asset_manager_location_id)?.name ?? "No location assigned"}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {ROLE_OPTIONS.map((r) => {
                     const active = rolesFor(p.id).includes(r);
                     return (
-                      <Badge
+                      <Button
                         key={r}
-                        variant="outline"
-                        onClick={() => toggleRole(p.id, r)}
+                        type="button"
+                        size="sm"
+                        variant={active ? "default" : "outline"}
+                        disabled={busyKey === `role-${p.id}` || (active && r !== "asset_manager")}
+                        onClick={() => (r === "asset_manager" ? openAssetManagerDialog(p) : assignSingleRole(p.id, r))}
                         className={cn(
-                          "cursor-pointer uppercase text-[10px]",
-                          active ? "bg-primary text-primary-foreground border-primary" : "border-primary/30 text-muted-foreground",
+                          "rounded-full",
+                          !active && "border-primary/25 bg-card text-foreground hover:border-primary/45",
                         )}
                       >
-                        {r.replace("_", " ")}
-                      </Badge>
+                        {roleLabel(r)}
+                      </Button>
                     );
                   })}
                 </div>
-                {rolesFor(p.id).includes("asset_manager") && (
-                  <div className="mt-1 max-w-[200px]">
-                    <Select
-                      value={p.asset_manager_location_id ?? "none"}
-                      onValueChange={(val) => updateAssetManagerLocation(p.id, val)}
-                    >
-                      <SelectTrigger className="h-7 text-xs bg-card/50">
-                        <SelectValue placeholder="Assign Location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Location</SelectItem>
-                        {locs.map((l) => (
-                          <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
             </Card>
           ))}
@@ -570,8 +595,8 @@ export default function Admin() {
 
         <TabsContent value="statuses" className="space-y-3 mt-4">
           <Card className="bg-card/40 border-primary/30 p-4 text-sm text-muted-foreground">
-            Core workflow statuses stay in the system. From here, admin can delete a status usage, moving all linked items back into 
-            <span className="text-foreground"> Available</span>. Signed Out is protected because it is linked to the live sign-out process.
+            Delete any status usage here and all linked items will be moved into
+            <span className="text-foreground"> Not Assigned</span>.
           </Card>
 
           <div className="grid gap-3">
@@ -584,9 +609,6 @@ export default function Admin() {
                     </Badge>
                     <span className="text-sm text-muted-foreground">{statusCounts[status]} item{statusCounts[status] === 1 ? "" : "s"}</span>
                   </div>
-                  {(status === "signed_out" || status === "available") && (
-                    <span className="text-xs text-amber-300 uppercase tracking-[0.16em]">Protected workflow status</span>
-                  )}
                 </div>
 
                 <div className="flex justify-end">
@@ -594,7 +616,7 @@ export default function Admin() {
                     type="button"
                     variant="destructive"
                     onClick={() => moveStatusToFallback(status)}
-                    disabled={busyKey === `status-delete-${status}` || status === "available" || status === "signed_out"}
+                    disabled={busyKey === `status-delete-${status}` || status === "not_assigned"}
                   >
                     {busyKey === `status-delete-${status}` ? "Deleting..." : "Delete"}
                   </Button>
@@ -890,6 +912,53 @@ export default function Admin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!assetManagerTarget} onOpenChange={(open) => !open && setAssetManagerTarget(null)}>
+        <DialogContent className="border-primary/20 bg-card">
+          <DialogHeader>
+            <DialogTitle className="font-display text-foreground">
+              Assign Assets Manager
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Operator</Label>
+              <div className="rounded-[1rem] border border-primary/15 bg-background px-4 py-3 text-sm text-foreground">
+                {assetManagerTarget?.display_name ?? ""}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Locked Location</Label>
+              <Select value={assetManagerLocationDraft} onValueChange={setAssetManagerLocationDraft}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Choose location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locs.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Assets Managers will only work inside this location when signing items in and out.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAssetManagerTarget(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveAssetManagerRole} disabled={assetManagerSaving}>
+              {assetManagerSaving ? "Saving..." : "Save Assets Manager"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

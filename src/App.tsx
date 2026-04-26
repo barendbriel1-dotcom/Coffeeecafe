@@ -43,7 +43,7 @@ const App = () => (
               <Route path="/groupings" element={<ProtectedRoute requireRole="admin"><BulkSignOut /></ProtectedRoute>} />
               <Route path="/group-signouts" element={<ProtectedRoute requireRole="admin"><GroupSignouts /></ProtectedRoute>} />
               <Route path="/signout/bulk" element={<Navigate to="/groupings" replace />} />
-              <Route path="/signin" element={<ProtectedRoute requireRole="admin"><SignIn /></ProtectedRoute>} />
+              <Route path="/signin" element={<ProtectedRoute requireRole="asset_manager"><SignIn /></ProtectedRoute>} />
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/history" element={<History />} />

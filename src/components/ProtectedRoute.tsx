@@ -11,7 +11,7 @@ export function ProtectedRoute({
   children: ReactNode;
   requireRole?: AppRole;
 }) {
-  const { session, loading, roles, isAdmin, isApproved, signOut } = useAuth();
+  const { session, loading, roles, isAdmin, isStaff, isAssetManager, isApproved, signOut } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -38,8 +38,17 @@ export function ProtectedRoute({
     return <ApprovalPending allowSignOut onSignOut={signOut} />;
   }
 
-  if (requireRole && !isAdmin && !roles.includes(requireRole)) {
-    return <Navigate to="/" replace />;
+  if (requireRole && !isAdmin) {
+    const allowed =
+      requireRole === "staff"
+        ? isStaff
+        : requireRole === "asset_manager"
+          ? isAssetManager
+          : roles.includes(requireRole);
+
+    if (!allowed) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <>{children}</>;

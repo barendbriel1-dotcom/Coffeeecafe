@@ -276,7 +276,7 @@ export default function SignIn() {
     setPackageFilter("all");
   };
 
-  if (!isAdmin) return null;
+  if (!isAdmin && !isAssetManager) return null;
 
   const selectedCount = selectedIds.size;
 

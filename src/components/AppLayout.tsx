@@ -54,7 +54,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function AppLayout() {
-  const { user, isAdmin, isStaff, signOut } = useAuth();
+  const { user, isAdmin, isStaff, isAssetManager, signOut } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -230,7 +230,7 @@ export default function AppLayout() {
     { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin, exact: true },
   ].filter((entry) => entry.show);
 
-  const roleLabel = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "VOLUNTEER";
+  const roleLabel = isAdmin ? "ADMIN" : isAssetManager ? "ASSETS MANAGER" : isStaff ? "STAFF" : "VOLUNTEER";
   const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
