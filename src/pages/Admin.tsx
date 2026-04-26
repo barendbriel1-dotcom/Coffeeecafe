@@ -242,7 +242,10 @@ export default function Admin() {
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.id, profile.display_name])), [profiles]);
   const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
   const pendingDeleteAssetIdSet = useMemo(() => new Set(pendingDeleteRequests.map((request) => request.asset_id)), [pendingDeleteRequests]);
-  const activeDamageReports = useMemo(() => damageReports.filter(r => r.status === "completed" && !r.admin_conclusion_status), [damageReports]);
+  const visibleDamageReports = useMemo(
+    () => damageReports.filter((report) => report.status === "pending" || report.status === "completed" || !!report.admin_conclusion_status),
+    [damageReports],
+  );
 
   const pendingDeleteDetails = useMemo(
     () =>
@@ -1734,13 +1737,13 @@ export default function Admin() {
                   <p className="mt-1 text-xs text-muted-foreground">View and export reports for items marked as damaged by operators.</p>
                 </div>
 
-                {activeDamageReports.length === 0 ? (
+                {visibleDamageReports.length === 0 ? (
                   <div className="rounded-[1.4rem] border border-dashed border-primary/20 bg-background/30 px-5 py-10 text-center text-sm text-muted-foreground">
-                    No active damage reports waiting for conclusion.
+                    No damage reports found.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {activeDamageReports.map((report) => (
+                    {visibleDamageReports.map((report) => (
                       <div
                         key={report.id}
                         className="flex flex-col gap-4 rounded-[1.4rem] border border-primary/18 bg-background/40 p-4 lg:flex-row lg:items-center lg:justify-between"
@@ -1750,7 +1753,7 @@ export default function Admin() {
                             <span className="font-mono text-sm font-bold text-primary">{report.asset_code}</span>
                             <span className="font-display text-foreground">{report.asset_name}</span>
                             <Badge variant="outline" className={report.status === "completed" ? "border-primary/40 text-primary bg-primary/5" : "border-amber-500/40 text-amber-400 bg-amber-500/5"}>
-                              {report.status.toUpperCase()}
+                              {report.admin_conclusion_status ? "CONCLUDED" : report.status.toUpperCase()}
                             </Badge>
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
