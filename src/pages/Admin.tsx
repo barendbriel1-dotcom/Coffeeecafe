@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import { Check, CheckSquare, Download, MapPin, PackageSearch, QrCode, Search, Shield, Square, Trash2, UserCheck, Users2, Wrench, X } from "lucide-react";
+import { AlertTriangle, Check, CheckSquare, Download, FileText, MapPin, PackageSearch, QrCode, Search, Shield, Square, Trash2, UserCheck, Users2, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 type Role = "admin" | "staff" | "volunteer" | "asset_manager";
 type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "not_assigned";
-type AdminSection = "pending-approvals" | "users-roles" | "status" | "locations" | "divisions" | "qrcodes" | "deletions" | "unassigned";
+type AdminSection = "pending-approvals" | "users-roles" | "status" | "locations" | "divisions" | "qrcodes" | "deletions" | "unassigned" | "damage-reports";
 
 interface Profile {
   id: string;
@@ -64,6 +64,20 @@ interface AssetDeleteRequestRow {
   created_at: string;
 }
 
+interface DamageReport {
+  id: string;
+  asset_id: string;
+  asset_code: string;
+  asset_name: string;
+  assigned_to: string;
+  reported_by: string;
+  description: string | null;
+  damaged_date: string | null;
+  status: "pending" | "completed";
+  created_at: string;
+  completed_at: string | null;
+}
+
 interface AssetRequestRow {
   id: string;
   requested_by: string;
@@ -89,6 +103,7 @@ const ADMIN_SECTIONS: { id: AdminSection; label: string; icon: typeof Shield }[]
   { id: "locations", label: "Locations", icon: MapPin },
   { id: "divisions", label: "Divisions", icon: Wrench },
   { id: "qrcodes", label: "QR Codes", icon: QrCode },
+  { id: "damage-reports", label: "Damage Reports", icon: AlertTriangle },
   { id: "deletions", label: "Deletions", icon: Trash2 },
   { id: "unassigned", label: "Unassigned", icon: PackageSearch },
 ];
@@ -117,6 +132,7 @@ export default function Admin() {
   const [locs, setLocs] = useState<Loc[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);
+  const [damageReports, setDamageReports] = useState<DamageReport[]>([]);
   const [assetRequests, setAssetRequests] = useState<AssetRequestRow[]>([]);
   const [newLocCode, setNewLocCode] = useState("");
   const [newLocName, setNewLocName] = useState("");
@@ -167,6 +183,7 @@ export default function Admin() {
       { data: assetRows },
       { data: deleteRequestRows },
       { data: requestRows },
+      { data: damageRows },
     ] = await Promise.all([
       supabase.from("profiles").select("id, display_name, email, asset_manager_location_id").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
@@ -175,6 +192,7 @@ export default function Admin() {
       supabase.from("assets").select("*").order("name"),
       supabase.from("asset_delete_requests").select("id, asset_id, requested_by, created_at").order("created_at", { ascending: false }),
       supabase.from("asset_requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("damage_reports").select("*").order("created_at", { ascending: false }),
     ]);
 
     const nextLocs = (l ?? []) as Loc[];
@@ -185,6 +203,7 @@ export default function Admin() {
     setLocs(nextLocs);
     setDivisions(nextDivisions);
     setAssets((assetRows ?? []) as AssetRow[]);
+    setDamageReports((damageRows ?? []) as DamageReport[]);
     setPendingDeleteRequests((deleteRequestRows ?? []) as AssetDeleteRequestRow[]);
     setAssetRequests((requestRows ?? []) as AssetRequestRow[]);
     setLocationDrafts(Object.fromEntries(nextLocs.map((location) => [location.id, { code: location.code, name: location.name }])));
@@ -767,6 +786,62 @@ export default function Admin() {
     } finally {
       setUnassignedApplying(false);
     }
+  };
+
+  const exportDamageReportPdf = async (report: DamageReport) => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+    const primaryColor = [34, 197, 94]; // Matrix green
+
+    // Header
+    doc.setFillColor(5, 10, 7);
+    doc.rect(0, 0, 210, 40, "F");
+    
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.setFontSize(22);
+    doc.text("DAMAGE REPORT", 20, 25);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generated on ${new Date().toLocaleString()}`, 140, 25);
+
+    // Body
+    let y = 55;
+    const addField = (label: string, value: string) => {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(label.toUpperCase(), 20, y);
+      y += 6;
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(value || "N/A", 20, y);
+      y += 12;
+    };
+
+    addField("Asset Tag", report.asset_code);
+    addField("Asset Name", report.asset_name);
+    addField("Status", report.status.toUpperCase());
+    addField("Assigned User", profileMap[report.assigned_to] ?? "Unknown");
+    addField("Reported By", profileMap[report.reported_by] ?? "Admin");
+    addField("Date Damaged", report.damaged_date ? new Date(report.damaged_date).toLocaleDateString() : "Unknown");
+    addField("Report Date", new Date(report.created_at).toLocaleDateString());
+    
+    if (report.completed_at) {
+      addField("Completed On", new Date(report.completed_at).toLocaleString());
+    }
+
+    y += 5;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text("DESCRIPTION / EXPLANATION", 20, y);
+    y += 8;
+    doc.setFontSize(11);
+    doc.setTextColor(40, 40, 40);
+    
+    const lines = doc.splitTextToSize(report.description || "No description provided.", 170);
+    doc.text(lines, 20, y);
+
+    doc.save(`Damage-Report-${report.asset_code}-${new Date().getTime()}.pdf`);
   };
 
   if (!isAdmin) {
@@ -1606,6 +1681,64 @@ export default function Admin() {
                     </table>
                   </div>
                 </div>
+              </Card>
+            </div>
+          )}
+
+          {currentSection === "damage-reports" && (
+            <div className="space-y-4">
+              <Card className="bg-card/40 border-primary/30 p-5 space-y-4">
+                <div>
+                  <h3 className="font-display text-primary text-sm uppercase">Damage Reports</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">View and export reports for items marked as damaged by operators.</p>
+                </div>
+
+                {damageReports.length === 0 ? (
+                  <div className="rounded-[1.4rem] border border-dashed border-primary/20 bg-background/30 px-5 py-10 text-center text-sm text-muted-foreground">
+                    No damage reports found in the system.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {damageReports.map((report) => (
+                      <div
+                        key={report.id}
+                        className="flex flex-col gap-4 rounded-[1.4rem] border border-primary/18 bg-background/40 p-4 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm font-bold text-primary">{report.asset_code}</span>
+                            <span className="font-display text-foreground">{report.asset_name}</span>
+                            <Badge variant="outline" className={report.status === "completed" ? "border-primary/40 text-primary bg-primary/5" : "border-amber-500/40 text-amber-400 bg-amber-500/5"}>
+                              {report.status.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                            <div><span className="opacity-60">Assigned to:</span> {profileMap[report.assigned_to] ?? "Unknown"}</div>
+                            <div><span className="opacity-60">Damaged on:</span> {report.damaged_date ? new Date(report.damaged_date).toLocaleDateString() : "Pending"}</div>
+                            <div><span className="opacity-60">Reported by:</span> {profileMap[report.reported_by] ?? "Admin"}</div>
+                            <div><span className="opacity-60">Created:</span> {new Date(report.created_at).toLocaleDateString()}</div>
+                          </div>
+                          {report.description && (
+                            <div className="mt-3 rounded-lg bg-black/20 p-3 text-xs text-foreground/80 italic border-l-2 border-primary/30">
+                              "{report.description}"
+                            </div>
+                          )}
+                        </div>
+                        <div className="shrink-0">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-2 border-primary/20 hover:border-primary/40"
+                            onClick={() => exportDamageReportPdf(report)}
+                          >
+                            <FileText size={14} />
+                            Export PDF
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Card>
             </div>
           )}
