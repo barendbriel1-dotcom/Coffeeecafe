@@ -17,7 +17,6 @@ import GroupSignouts from "./pages/GroupSignouts";
 import Handover from "./pages/Handover";
 import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
-import Users from "./pages/Users";
 import Install from "./pages/Install";
 import History from "./pages/History";
 import SignIn from "./pages/SignIn";
@@ -48,7 +47,7 @@ const App = () => (
               <Route path="/requests" element={<Requests />} />
               <Route path="/history" element={<History />} />
               <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
-              <Route path="/users" element={<ProtectedRoute requireRole="admin"><Users /></ProtectedRoute>} />
+              <Route path="/users" element={<ProtectedRoute requireRole="admin"><Navigate to="/admin?section=users-roles" replace /></ProtectedRoute>} />
               <Route path="/install" element={<Install />} />
             </Route>
             <Route path="*" element={<NotFound />} />

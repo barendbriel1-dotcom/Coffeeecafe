@@ -16,7 +16,6 @@ import {
   Package,
   PencilLine,
   Shield,
-  Users as UsersIcon,
   X,
 } from "lucide-react";
 
@@ -226,8 +225,6 @@ export default function AppLayout() {
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true, exact: true },
     { to: "/requests", label: "Requests", icon: Inbox, show: true, exact: true },
     { to: "/history", label: "History", icon: History, show: true, exact: true },
-    { to: "/admin", label: "Admin", icon: Shield, show: isAdmin, exact: true },
-    { to: "/users", label: "Users", icon: UsersIcon, show: isAdmin, exact: true },
   ].filter((entry) => entry.show);
 
   const roleLabel = isAdmin ? "ADMIN" : isAssetManager ? "ASSETS MANAGER" : isStaff ? "STAFF" : "VOLUNTEER";
