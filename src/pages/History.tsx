@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, Download, Search } from "lucide-react";
+import { AlertTriangle, Calendar, Download, FileText, Search, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { exportDamageReportPdf } from "@/lib/pdf";
-import { Shield, AlertTriangle, FileText } from "lucide-react";
 
 interface HistoryRecord {
   id: string;
@@ -24,6 +24,23 @@ interface HistoryRecord {
   asset: { code: string; name: string; serial_number: string | null };
 }
 
+interface DamageReport {
+  id: string;
+  asset_id: string;
+  asset_code: string;
+  asset_name: string;
+  assigned_to: string;
+  reported_by: string;
+  description: string | null;
+  damaged_date: string | null;
+  damaged_time: string | null;
+  damage_type: string | null;
+  other_details: string | null;
+  admin_conclusion_notes: string | null;
+  admin_conclusion_status: string | null;
+  created_at: string;
+}
+
 export default function History() {
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +50,7 @@ export default function History() {
   const [dateTo, setDateTo] = useState("");
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [userMap, setUserMap] = useState<Record<string, string>>({});
-  const [damageReports, setDamageReports] = useState<any[]>([]);
+  const [damageReports, setDamageReports] = useState<DamageReport[]>([]);
   const [activeTab, setActiveTab] = useState("logs");
 
   const load = async () => {
@@ -57,7 +74,7 @@ export default function History() {
 
     const profiles = Object.fromEntries((profileRows ?? []).map((profile) => [profile.id, profile.display_name]));
     setHistory((historyRows as any) ?? []);
-    setDamageReports(drRows ?? []);
+    setDamageReports((drRows ?? []) as DamageReport[]);
     setUsers((profileRows ?? []).map((profile) => ({ id: profile.id, name: profile.display_name })));
     setUserMap(profiles);
     setLoading(false);
@@ -291,7 +308,7 @@ export default function History() {
                     <th className="px-4 py-3 font-normal">Type</th>
                     <th className="px-4 py-3 font-normal">Resolution</th>
                     <th className="px-4 py-3 font-normal">Reported By</th>
-                    <th className="px-4 py-3 font-normal text-right">Action</th>
+                    <th className="px-4 py-3 font-normal text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-primary/10">
@@ -330,6 +347,7 @@ export default function History() {
                             size="sm" 
                             className="h-8 w-8 p-0 text-primary hover:bg-primary/10"
                             onClick={() => exportDamageReportPdf(report, userMap)}
+                            title="Export PDF"
                           >
                             <FileText size={16} />
                           </Button>

@@ -12,7 +12,19 @@ ALTER TABLE public.damage_reports
   ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES auth.users(id);
 
--- 2. Update the notification trigger to include more details
+-- 2. Make sure admins can conclude and remove detailed reports.
+DROP POLICY IF EXISTS "damage_reports_admin_update" ON public.damage_reports;
+CREATE POLICY "damage_reports_admin_update" ON public.damage_reports
+  FOR UPDATE TO authenticated
+  USING (public.is_admin(auth.uid()))
+  WITH CHECK (public.is_admin(auth.uid()));
+
+DROP POLICY IF EXISTS "damage_reports_admin_delete" ON public.damage_reports;
+CREATE POLICY "damage_reports_admin_delete" ON public.damage_reports
+  FOR DELETE TO authenticated
+  USING (public.is_admin(auth.uid()));
+
+-- 3. Update the notification trigger to include more details
 CREATE OR REPLACE FUNCTION public.on_damage_report_completed()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -41,3 +53,11 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS tr_damage_report_completed ON public.damage_reports;
+CREATE TRIGGER tr_damage_report_completed
+  AFTER UPDATE ON public.damage_reports
+  FOR EACH ROW
+  EXECUTE FUNCTION public.on_damage_report_completed();
+
+NOTIFY pgrst, 'reload schema';

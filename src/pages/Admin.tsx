@@ -15,8 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { ASSET_STATUSES, generateNameCode, getAssetStatusLabel, getStatusBadgeClass } from "@/lib/assets";
-import { exportAssetQrPdf, type AssetQrLabel } from "@/lib/qr";
 import { exportDamageReportPdf } from "@/lib/pdf";
+import { exportAssetQrPdf, type AssetQrLabel } from "@/lib/qr";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "staff" | "volunteer" | "asset_manager";
@@ -180,6 +180,7 @@ export default function Admin() {
   const [conclusionNotes, setConclusionNotes] = useState("");
   const [conclusionStatus, setConclusionStatus] = useState<ManagedStatus>("available");
   const [concludingBusy, setConcludingBusy] = useState(false);
+  const [deletingDamageReportId, setDeletingDamageReportId] = useState<string | null>(null);
 
   const setSection = (section: AdminSection) => {
     const next = new URLSearchParams(searchParams);
@@ -802,11 +803,6 @@ export default function Admin() {
     }
   };
 
-  const exportDamageReportPdf = async (report: DamageReport) => {
-    const { exportDamageReportPdf: generatePdf } = await import("@/lib/pdf");
-    generatePdf(report, profileMap);
-  };
-
   const submitConclusion = async () => {
     if (!concludingReport || !user) return;
 
@@ -820,7 +816,6 @@ export default function Admin() {
           admin_conclusion_status: conclusionStatus,
           reviewed_at: new Date().toISOString(),
           reviewed_by: user.id,
-          status: "concluded" as any
         })
         .eq("id", concludingReport.id);
 
@@ -842,6 +837,51 @@ export default function Admin() {
       toast.error(error?.message ?? "Failed to submit conclusion.");
     } finally {
       setConcludingBusy(false);
+    }
+  };
+
+  const deleteDamageReport = async (report: DamageReport) => {
+    if (!window.confirm(`Delete the damage report for ${report.asset_code}? The asset timeline will keep a note showing who had the item.`)) {
+      return;
+    }
+
+    setDeletingDamageReportId(report.id);
+    try {
+      const damageType = report.damage_type || "Damage";
+      const damagedWhen = report.damaged_date
+        ? `${new Date(report.damaged_date).toLocaleDateString()}${report.damaged_time ? ` ${report.damaged_time}` : ""}`
+        : new Date(report.created_at).toLocaleDateString();
+      const assignedName = profileMap[report.assigned_to] ?? "Unknown user";
+      const notes = [
+        "Damage report deleted by admin. Asset remains marked as having a damage incident.",
+        `User at time: ${assignedName}.`,
+        `Type: ${damageType}${report.other_details ? ` (${report.other_details})` : ""}.`,
+        `Date: ${damagedWhen}.`,
+        report.admin_conclusion_status ? `Resolution: ${report.admin_conclusion_status.replace(/_/g, " ")}.` : "",
+        report.admin_conclusion_notes ? `Admin notes: ${report.admin_conclusion_notes}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const { error: historyError } = await supabase.from("asset_history").insert({
+        asset_id: report.asset_id,
+        action: "marked_damaged",
+        performed_by: user?.id ?? report.reported_by,
+        from_user: report.assigned_to,
+        notes,
+      });
+
+      if (historyError) throw historyError;
+
+      const { error: deleteError } = await supabase.from("damage_reports" as any).delete().eq("id", report.id);
+      if (deleteError) throw deleteError;
+
+      toast.success("Damage report deleted. The asset timeline still keeps the damage note.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to delete damage report.");
+    } finally {
+      setDeletingDamageReportId(null);
     }
   };
 
@@ -1734,6 +1774,16 @@ export default function Admin() {
                           >
                             <FileText size={14} />
                             Export PDF
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 border-destructive/25 text-destructive hover:bg-destructive/10"
+                            onClick={() => deleteDamageReport(report)}
+                            disabled={deletingDamageReportId === report.id}
+                          >
+                            <Trash2 size={14} />
+                            {deletingDamageReportId === report.id ? "Deleting..." : "Delete"}
                           </Button>
                           {report.status === "completed" && !report.admin_conclusion_status && (
                             <Button 

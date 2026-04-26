@@ -43,6 +43,7 @@ interface AssetHistory {
   created_at: string;
   notes: string | null;
   performed_by_name?: string;
+  from_user_name?: string;
   to_user_name?: string;
 }
 
@@ -130,6 +131,7 @@ export default function AssetDetail() {
         .select(`
           id, action, created_at, notes,
           performed_by,
+          from_user,
           to_user
         `)
         .eq("asset_id", id)
@@ -140,6 +142,7 @@ export default function AssetDetail() {
       // Get unique user IDs from history
       const userIds = Array.from(new Set([
         ...h.map(x => x.performed_by),
+        ...h.map(x => x.from_user),
         ...h.map(x => x.to_user)
       ].filter(Boolean)));
 
@@ -154,6 +157,7 @@ export default function AssetDetail() {
       setHistory(h.map((x: any) => ({
         ...x,
         performed_by_name: profileMap[x.performed_by] || x.performed_by,
+        from_user_name: profileMap[x.from_user] || x.from_user,
         to_user_name: profileMap[x.to_user] || x.to_user
       })));
 
@@ -431,6 +435,7 @@ export default function AssetDetail() {
                   
                   <div className="text-xs font-mono text-foreground/80 mb-1">
                     Operative: <span className="text-primary/70">{h.performed_by_name || "SYSTEM"}</span>
+                    {h.from_user_name && <span> | User at time: <span className="text-primary/70">{h.from_user_name}</span></span>}
                     {h.to_user_name && <span> → Receiver: <span className="text-primary/70">{h.to_user_name}</span></span>}
                   </div>
                   
