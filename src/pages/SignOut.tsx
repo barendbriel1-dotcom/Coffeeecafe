@@ -186,46 +186,14 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     setBusy(true);
 
     try {
-      const signOutAt = new Date();
-      const { data: signout, error } = await supabase
-        .from("signouts")
-        .insert({
-          signed_out_by: user!.id,
-          signed_out_to: user!.id,
-          to_department_id: traveling.id,
-          package_name: bulk ? "Bulk package" : null,
-          notes: notes || null,
-          expected_return: signOutAt.toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (error) throw error;
-
       const ids = [...selected];
-      const { error: itemsError } = await supabase.from("signout_items").insert(ids.map((asset_id) => ({ signout_id: signout.id, asset_id })));
-      if (itemsError) throw itemsError;
-
-      const { error: updateError } = await supabase
-        .from("assets")
-        .update({
-          status: "signed_out",
-          current_holder: user!.id,
-          current_location_id: traveling.id,
-        } as any)
-        .in("id", ids);
-
-      if (updateError) throw updateError;
-
-      await supabase.from("asset_history").insert(
-        ids.map((asset_id) => ({
-          asset_id,
-          action: "signed_out",
-          performed_by: user!.id,
-          to_user: user!.id,
-          notes: bulk ? "Bulk package created. Location moved to Traveling." : "Location moved to Traveling.",
-        })),
-      );
+      const { error } = await supabase.rpc("sign_out_assets", {
+        target_asset_ids: ids,
+        notes: notes || null,
+        package_name: bulk ? "Bulk package" : null,
+        recipient_user_id: user!.id,
+      });
+      if (error) throw error;
 
       toast.success(`Signed out ${ids.length} asset(s). Location moved to Traveling.`);
       setSelected(new Set());

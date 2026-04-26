@@ -121,27 +121,14 @@ export default function Users() {
 
     setUpdatingId(userId);
 
-    const { error: deleteError } = await supabase.from("user_roles").delete().eq("user_id", userId);
-    if (deleteError) {
-      toast.error(deleteError.message);
-      setUpdatingId(null);
-      return false;
-    }
+    const { error } = await supabase.rpc("admin_assign_user_role", {
+      target_user_id: userId,
+      next_role: nextRole,
+      next_asset_manager_location_id: nextRole === "asset_manager" ? assetManagerLocationId ?? null : null,
+    });
 
-    const { error: insertError } = await supabase.from("user_roles").insert({ user_id: userId, role: nextRole });
-    if (insertError) {
-      toast.error(insertError.message);
-      setUpdatingId(null);
-      return false;
-    }
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ asset_manager_location_id: nextRole === "asset_manager" ? assetManagerLocationId : null })
-      .eq("id", userId);
-
-    if (profileError) {
-      toast.error(profileError.message);
+    if (error) {
+      toast.error(error.message);
       setUpdatingId(null);
       return false;
     }

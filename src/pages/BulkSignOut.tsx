@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PackagePlus, Save, Search, Trash2, User2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -145,6 +145,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const [groupSignoutLocationId, setGroupSignoutLocationId] = useState("all");
   const [signoutNotes, setSignoutNotes] = useState("");
   const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const assignmentsRef = useRef<Record<string, string>>({});
+  const previousAssignedAssetIdsRef = useRef<string[]>([]);
 
   const load = async (preferredPacketId?: string | "new" | null) => {
     setLoading(true);
@@ -227,6 +229,53 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     if (!user || (!isAdmin && !isAssetManager)) return;
     load();
   }, [user, isAdmin, isAssetManager]);
+
+  const extractAssignedAssetIds = (assignmentMap: Record<string, string>) =>
+    Array.from(new Set(Object.values(assignmentMap).filter((assetId): assetId is string => Boolean(assetId) && assetId !== "unassigned")));
+
+  const releaseAssetLocks = async (assetIds: string[]) => {
+    if (!user || assetIds.length === 0) return;
+
+    const uniqueAssetIds = [...new Set(assetIds)];
+    setAssets((current) =>
+      current.map((asset) =>
+        uniqueAssetIds.includes(asset.id) ? { ...asset, locked_by: null, locked_at: null } : asset,
+      ),
+    );
+
+    const { error } = await supabase
+      .from("assets")
+      .update({ locked_by: null, locked_at: null } as any)
+      .in("id", uniqueAssetIds)
+      .eq("locked_by", user.id);
+
+    if (error) {
+      console.error("Failed to release asset locks", error);
+    }
+  };
+
+  useEffect(() => {
+    assignmentsRef.current = assignments;
+  }, [assignments]);
+
+  useEffect(() => {
+    const nextAssignedAssetIds = extractAssignedAssetIds(assignments);
+    const removedAssetIds = previousAssignedAssetIdsRef.current.filter(
+      (assetId) => !nextAssignedAssetIds.includes(assetId),
+    );
+
+    previousAssignedAssetIdsRef.current = nextAssignedAssetIds;
+
+    if (removedAssetIds.length > 0) {
+      void releaseAssetLocks(removedAssetIds);
+    }
+  }, [assignments]);
+
+  useEffect(() => {
+    return () => {
+      void releaseAssetLocks(extractAssignedAssetIds(assignmentsRef.current));
+    };
+  }, [user]);
 
   const activeSavedPacket = useMemo(
     () => (activePacketId && activePacketId !== "new" ? packets.find((packet) => packet.id === activePacketId) ?? null : null),
@@ -549,6 +598,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
   const updateAssignment = async (lineId: string, assetId: string) => {
     const oldAssetId = assignments[lineId];
+    if (oldAssetId === assetId || (oldAssetId === "" && assetId === "unassigned")) return;
+    const lockTimestamp = new Date().toISOString();
 
     setAssignments((current) => ({
       ...current,
@@ -556,8 +607,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     }));
 
     if (assetId !== "unassigned" && assetId) {
-      setAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, locked_by: user!.id, locked_at: new Date().toISOString() } : asset));
-      await supabase.from("assets").update({ locked_by: user!.id, locked_at: new Date().toISOString() } as any).eq("id", assetId);
+      setAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, locked_by: user!.id, locked_at: lockTimestamp } : asset));
+      await supabase.from("assets").update({ locked_by: user!.id, locked_at: lockTimestamp } as any).eq("id", assetId);
     }
     
     if (oldAssetId && oldAssetId !== "unassigned") {
@@ -641,52 +692,20 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         return;
       }
 
-      const signedOutAt = new Date().toISOString();
-      const { data: signout, error: signoutError } = await supabase
-        .from("signouts")
-        .insert({
-          signed_out_by: user.id,
-          signed_out_to: recipientId,
-          to_department_id: traveling.id,
-          package_name: activePacketForSignout.name,
-          notes: signoutNotes.trim() || activePacketForSignout.notes || null,
-          expected_return: signedOutAt,
-        })
-        .select("id")
-        .single();
+      const { error: signoutError } = await supabase.rpc("sign_out_assets", {
+        target_asset_ids: assignedAssetIds,
+        notes: signoutNotes.trim() || activePacketForSignout.notes || null,
+        package_name: activePacketForSignout.name,
+        recipient_user_id: recipientId,
+        history_notes_by_asset: Object.fromEntries(
+          packetItems.map((item) => [
+            assignments[item.id],
+            `Group: ${activePacketForSignout.name} | Line: ${item.line_label}${signoutNotes.trim() ? ` | ${signoutNotes.trim()}` : ""}`,
+          ]),
+        ),
+      });
 
       if (signoutError) throw signoutError;
-
-      const { error: signoutItemsError } = await supabase.from("signout_items").insert(
-        assignedAssetIds.map((assetId) => ({
-          signout_id: signout.id,
-          asset_id: assetId,
-        })),
-      );
-
-      if (signoutItemsError) throw signoutItemsError;
-
-      const { error: updateAssetsError } = await supabase
-        .from("assets")
-        .update({
-          status: "signed_out",
-          current_holder: recipientId,
-          current_location_id: traveling.id,
-        } as any)
-        .in("id", assignedAssetIds);
-
-      if (updateAssetsError) throw updateAssetsError;
-
-      const historyRows = packetItems.map((item) => ({
-        asset_id: assignments[item.id],
-        action: "signed_out",
-        performed_by: user.id,
-        to_user: recipientId,
-        notes: `Group: ${activePacketForSignout.name} | Line: ${item.line_label}${signoutNotes.trim() ? ` | ${signoutNotes.trim()}` : ""}`,
-      }));
-
-      const { error: historyError } = await supabase.from("asset_history").insert(historyRows);
-      if (historyError) throw historyError;
 
       toast.success(`Group "${activePacketForSignout.name}" signed out to ${profileMap[recipientId] ?? "selected user"}.`);
       setRecipientId("");

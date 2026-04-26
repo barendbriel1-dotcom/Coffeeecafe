@@ -361,17 +361,12 @@ export default function Admin() {
     setBusyKey(`role-${uid}`);
 
     try {
-      const { error: deleteError } = await supabase.from("user_roles").delete().eq("user_id", uid);
-      if (deleteError) throw deleteError;
-
-      const { error: insertError } = await supabase.from("user_roles").insert({ user_id: uid, role });
-      if (insertError) throw insertError;
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ asset_manager_location_id: role === "asset_manager" ? assetManagerLocationId : null })
-        .eq("id", uid);
-      if (profileError) throw profileError;
+      const { error } = await supabase.rpc("admin_assign_user_role", {
+        target_user_id: uid,
+        next_role: role,
+        next_asset_manager_location_id: role === "asset_manager" ? assetManagerLocationId ?? null : null,
+      });
+      if (error) throw error;
 
       toast.success("Role updated");
       await load();

@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
-import { isAssetLocked, normalizeAssetStatus } from "@/lib/assets";
 
 interface Req {
   id: string; requested_by: string; asset_id: string | null;
@@ -73,74 +72,28 @@ export default function Requests() {
     setBusy(true);
     try {
       if (status === "approved" && r.asset_id) {
-        const { data: liveAsset, error: liveAssetError } = await supabase
-          .from("assets")
-          .select("id, code, name, status, locked_by, locked_at")
-          .eq("id", r.asset_id)
-          .maybeSingle();
-
-        if (liveAssetError) throw liveAssetError;
-        if (!liveAsset) {
-          throw new Error("This asset could not be found anymore. Refresh the request list and review it again.");
-        }
-
-        if (normalizeAssetStatus(liveAsset.status) !== "available") {
-          throw new Error(`${liveAsset.code} is no longer available, so this request cannot be auto-approved.`);
-        }
-
-        if (isAssetLocked(liveAsset.locked_by, liveAsset.locked_at, user!.id)) {
-          throw new Error(`${liveAsset.code} is currently locked by another workflow. Try again after the lock is cleared.`);
-        }
-
-        const { data: locations } = await supabase.from("locations").select("id, name");
-        const travelingId = locations?.find((location: any) => location.name === "Traveling")?.id;
-
-        // Automatic Sign-Out workflow
-        const { data: signout, error: soError } = await supabase
-          .from("signouts")
-          .insert({
-            signed_out_by: user!.id,
-            signed_out_to: r.requested_by,
-            to_department_id: travelingId ?? null,
-            notes: `Auto-approved request: ${r.needed_for || "No details"}`,
-            status: "active",
-          })
-          .select("id")
-          .single();
-
-        if (soError) throw soError;
-
-        await supabase.from("signout_items").insert({
-          signout_id: signout.id,
-          asset_id: r.asset_id,
+        const { error } = await supabase.rpc("approve_asset_request", {
+          target_request_id: r.id,
+          admin_notes: notes ?? null,
         });
-
-        await supabase.from("assets").update({
-          status: "signed_out",
-          current_holder: r.requested_by,
-          current_location_id: travelingId ?? null,
-        }).eq("id", r.asset_id);
-
-        await supabase.from("asset_history").insert({
-          asset_id: r.asset_id,
-          action: "signed_out",
-          performed_by: user!.id,
-          to_user: r.requested_by,
-          notes: `Auto-approved request ID: ${r.id}`,
+        if (error) throw error;
+      } else if (status === "approved") {
+        const { error } = await supabase.rpc("approve_asset_request", {
+          target_request_id: r.id,
+          admin_notes: notes ?? null,
         });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("asset_requests").update({
+          status,
+          reviewed_by: user!.id,
+          reviewed_at: new Date().toISOString(),
+          admin_notes: notes || null,
+        }).eq("id", r.id);
 
-        // Mark request as fulfilled instead of just approved if it's an immediate sign-out
-        status = "approved"; 
+        if (error) throw error;
       }
 
-      const { error } = await supabase.from("asset_requests").update({
-        status: status === "approved" ? "approved" : status,
-        reviewed_by: user!.id,
-        reviewed_at: new Date().toISOString(),
-        admin_notes: notes || null,
-      }).eq("id", r.id);
-
-      if (error) throw error;
       toast.success(`Request ${status}`);
       load();
     } catch (err: any) {

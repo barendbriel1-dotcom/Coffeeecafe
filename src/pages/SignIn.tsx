@@ -289,62 +289,28 @@ export default function SignIn() {
 
     setProcessing(true);
     try {
-      await Promise.all(
-        entries.map(({ item, nextStatus }) =>
-          supabase
-            .from("assets")
-            .update({ status: nextStatus, current_holder: null, current_location_id: targetLocationId } as any)
-            .eq("id", item.id),
-        ),
-      );
-
-      const signoutItemIds = entries.map(({ item }) => item.signout_item_id).filter(Boolean) as string[];
-      if (signoutItemIds.length > 0) {
-        await supabase.from("signout_items").update({ returned: true }).in("id", signoutItemIds);
-      }
-
-      const signoutIds = [...new Set(entries.map(({ item }) => item.signout_id).filter(Boolean) as string[])];
-      await Promise.all(
-        signoutIds.map(async (signoutId) => {
-          const { data: remaining } = await supabase
-            .from("signout_items")
-            .select("id")
-            .eq("signout_id", signoutId)
-            .eq("returned", false);
-
-          if (!remaining || remaining.length === 0) {
-            await supabase
-              .from("signouts")
-              .update({ status: "returned", signed_in_at: new Date().toISOString(), signed_in_by: user?.id })
-              .eq("id", signoutId);
-          }
-        }),
-      );
-
-      const returnLocationName = locations.find((location) => location.id === targetLocationId)?.name ?? "Unknown location";
-      const noteText = notes.trim() || notePrefix;
-      await supabase.from("asset_history").insert(
-        entries.map(({ item, nextStatus }) => ({
-          asset_id: item.id,
-          action:
-            nextStatus === "available"
-              ? "signed_in"
-              : nextStatus === "out_for_repairs"
-                ? "sent_for_repairs"
-                : "marked_damaged",
-          performed_by: user?.id,
-          from_user: item.holder_id,
-          notes: `${noteText} Returned to ${returnLocationName}.`,
+      const { data, error } = await supabase.rpc("sign_in_assets", {
+        signin_payload: entries.map((entry) => ({
+          asset_id: entry.item.id,
+          next_status: entry.nextStatus,
         })),
-      );
+        target_location_id: targetLocationId,
+        notes: notes.trim() || null,
+        note_prefix: notePrefix,
+      });
 
-      const statusCounts = entries.reduce<Record<"available" | "out_for_repairs" | "damaged", number>>(
-        (counts, entry) => {
-          counts[entry.nextStatus] += 1;
-          return counts;
-        },
-        { available: 0, out_for_repairs: 0, damaged: 0 },
-      );
+      if (error) throw error;
+
+      const result = (data ?? {}) as {
+        available_count?: number;
+        repairs_count?: number;
+        damaged_count?: number;
+      };
+      const statusCounts = {
+        available: result.available_count ?? 0,
+        out_for_repairs: result.repairs_count ?? 0,
+        damaged: result.damaged_count ?? 0,
+      };
       const statusSummary = [
         statusCounts.available > 0 ? `${statusCounts.available} Available` : null,
         statusCounts.out_for_repairs > 0 ? `${statusCounts.out_for_repairs} Out for Repairs` : null,
@@ -1031,15 +997,23 @@ export default function SignIn() {
                 </div>
 
                 <div className="rounded-[1.6rem] border border-primary/18 bg-secondary/75 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="font-mono text-xs uppercase tracking-[0.18em] text-primary/72">
-                      Scanned items ({scanItems.length})
-                    </div>
-                    {scanItems.length > 0 && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setScanItems([])}>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="font-mono text-xs uppercase tracking-[0.18em] text-primary/72">
+                        Scanned items ({scanItems.length})
+                      </div>
+                      {scanItems.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setScanItems([]);
+                          setScanStatusOverrides({});
+                        }}
+                      >
                         Clear all
                       </Button>
-                    )}
+                      )}
                   </div>
 
                   {scanItems.length === 0 ? (
@@ -1161,7 +1135,7 @@ export default function SignIn() {
                 <div className="space-y-2 rounded-[1.25rem] border border-primary/12 bg-primary/6 p-3 text-sm">
                   <div className="flex items-start gap-2 text-foreground">
                     <AlertCircle size={14} className="mt-0.5 shrink-0 text-primary" />
-                    Every scanned item will be signed in together under one capture with the same return location, status, and notes.
+                    Every scanned item will be signed in together under one capture with the same return location and notes. Each item can still carry its own condition status.
                   </div>
                   <div className="flex items-start gap-2 text-foreground">
                     <MapPin size={14} className="mt-0.5 shrink-0 text-primary" />

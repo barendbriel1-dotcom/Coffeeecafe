@@ -569,6 +569,18 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: void
       }
+      admin_assign_user_role: {
+        Args: {
+          next_asset_manager_location_id?: string | null
+          next_role: Database["public"]["Enums"]["app_role"]
+          target_user_id: string
+        }
+        Returns: Json
+      }
+      approve_asset_request: {
+        Args: { admin_notes?: string | null; target_request_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -578,6 +590,25 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_staff_or_admin: { Args: { _user_id: string }; Returns: boolean }
+      sign_in_assets: {
+        Args: {
+          note_prefix?: string | null
+          notes?: string | null
+          signin_payload: Json
+          target_location_id: string
+        }
+        Returns: Json
+      }
+      sign_out_assets: {
+        Args: {
+          history_notes_by_asset?: Json
+          notes?: string | null
+          package_name?: string | null
+          recipient_user_id?: string | null
+          target_asset_ids: string[]
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "staff" | "volunteer" | "asset_manager"
