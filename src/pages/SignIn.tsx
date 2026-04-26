@@ -467,10 +467,7 @@ export default function SignIn() {
     setScannerError(null);
     setScannerStarting(true);
 
-    const scanner = new Html5Qrcode(SCAN_IN_READER_ID, {
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      verbose: false,
-    });
+    let scanner: Html5Qrcode | null = null;
     let cancelled = false;
 
     const waitForReaderElement = async () => {
@@ -489,6 +486,11 @@ export default function SignIn() {
         setScannerError("Camera area did not load correctly. Close the dialog and try Scan In again.");
         return;
       }
+
+      scanner = new Html5Qrcode(SCAN_IN_READER_ID, {
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        verbose: false,
+      });
 
       try {
         await scanner.start(
@@ -568,10 +570,12 @@ export default function SignIn() {
 
     return () => {
       cancelled = true;
-      scanner
-        .stop()
-        .catch(() => undefined)
-        .then(() => scanner.clear().catch(() => undefined));
+      if (scanner) {
+        scanner
+          .stop()
+          .catch(() => undefined)
+          .then(() => scanner?.clear().catch(() => undefined));
+      }
     };
   }, [assetManagerLocationId, divisionMap, isAssetManager, locationNameMap, profileMap, rows, scanOpen]);
 
