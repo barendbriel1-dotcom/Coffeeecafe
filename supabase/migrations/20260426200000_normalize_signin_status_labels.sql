@@ -205,11 +205,46 @@ create or replace function public.sign_in_assets_safe(
   note_prefix text default 'Manual sign-in completed.'
 )
 returns jsonb
-language sql
+language plpgsql
 security definer
 set search_path = public, auth
 as $$
-  select public.sign_in_assets(signin_payload, target_location_id, notes, note_prefix);
+declare
+  v_entry jsonb;
+  v_next_status_text text;
+  v_sanitized_payload jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(signin_payload) <> 'array' then
+    raise exception 'No sign-in items were provided';
+  end if;
+
+  for v_entry in
+    select value
+    from jsonb_array_elements(signin_payload)
+  loop
+    v_next_status_text := lower(trim(coalesce(v_entry ->> 'next_status', 'available')));
+    v_next_status_text := replace(replace(v_next_status_text, '-', '_'), ' ', '_');
+
+    if v_next_status_text in ('available', 'returned') then
+      v_next_status_text := 'available';
+    elsif v_next_status_text in ('out_for_repair', 'out_for_repairs', 'sign_out_for_repair', 'sign_out_for_repairs', 'signed_out_for_repair', 'signed_out_for_repairs', 'repair', 'repairs', 'maintenance') then
+      v_next_status_text := 'out_for_repairs';
+    elsif v_next_status_text in ('damaged', 'damage') then
+      v_next_status_text := 'damaged';
+    else
+      raise exception 'Invalid next status for scanned or selected item: %', v_entry ->> 'next_status';
+    end if;
+
+    v_sanitized_payload := v_sanitized_payload || jsonb_build_array(
+      jsonb_build_object(
+        'asset_id', v_entry ->> 'asset_id',
+        'next_status', v_next_status_text
+      )
+    );
+  end loop;
+
+  return public.sign_in_assets(v_sanitized_payload, target_location_id, notes, note_prefix);
+end;
 $$;
 
 grant execute on function public.sign_in_assets_safe(jsonb, uuid, text, text) to authenticated;

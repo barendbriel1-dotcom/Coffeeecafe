@@ -43,14 +43,19 @@ export const STATUS_BADGE_CLASSES: Record<string, string> = {
 };
 
 export function getAssetStatusLabel(status: string) {
-  return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+  const normalizedStatus = normalizeAssetStatus(status);
+  return STATUS_LABELS[normalizedStatus] ?? normalizedStatus.replace(/_/g, " ");
 }
 
 export function normalizeAssetStatus(status: string): AssetStatus {
-  if (status === "maintenance") return "out_for_repairs";
-  if (status === "retired" || status === "lost") return "damaged";
-  if (status === "in_handover") return "signed_out";
-  return (ASSET_STATUSES.includes(status as AssetStatus) ? status : "available") as AssetStatus;
+  const normalized = (status ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["out_for_repair", "out_for_repairs", "sign_out_for_repair", "sign_out_for_repairs", "signed_out_for_repair", "signed_out_for_repairs", "repair", "repairs", "maintenance"].includes(normalized)) {
+    return "out_for_repairs";
+  }
+  if (["damaged", "damage", "retired", "lost"].includes(normalized)) return "damaged";
+  if (["signed_out", "sign_out", "checked_out", "in_handover"].includes(normalized)) return "signed_out";
+  if (normalized === "not_assigned") return "not_assigned";
+  return (ASSET_STATUSES.includes(normalized as AssetStatus) ? normalized : "available") as AssetStatus;
 }
 
 export function getStatusBadgeClass(status: string) {
