@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import MatrixRain from "@/components/MatrixRain";
+import DamageReportDialog from "@/components/DamageReportDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -471,6 +472,7 @@ export default function AppLayout() {
           </form>
         </DialogContent>
       </Dialog>
+      <DamageReportDialog />
     </div>
   );
 }
