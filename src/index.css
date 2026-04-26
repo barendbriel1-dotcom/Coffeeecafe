@@ -268,10 +268,10 @@
     color: var(--enhanced-glow-color);
     background: linear-gradient(180deg, hsl(150 46% 13%), var(--btn-color));
     box-shadow:
-      0 0 0.65em 0.12em hsl(142 86% 54% / 0.72),
-      0 0 2.2em 0.45em var(--glow-spread-color),
-      inset 0 0 0.55em 0.12em hsl(142 86% 54% / 0.48);
-    text-shadow: 0 0 0.45em hsl(142 86% 54% / 0.9);
+      0 0 0.45em 0.08em var(--glow-color),
+      0 0 1.25em 0.24em var(--glow-spread-color),
+      inset 0 0 0.38em 0.08em var(--glow-color);
+    text-shadow: 0 0 0.32em var(--glow-color);
   }
 
   .matrix-button::after {
@@ -295,9 +295,9 @@
     background: var(--glow-color);
     transform: translateY(-1px);
     box-shadow:
-      0 0 0.75em 0.16em hsl(142 86% 54% / 0.84),
-      0 0 3.2em 0.8em var(--glow-spread-color),
-      inset 0 0 0.65em 0.14em hsl(151 92% 70% / 0.62);
+      0 0 0.55em 0.1em var(--glow-color),
+      0 0 1.8em 0.38em var(--glow-spread-color),
+      inset 0 0 0.45em 0.1em var(--enhanced-glow-color);
   }
 
   .matrix-button:hover::after {
@@ -308,9 +308,9 @@
   .matrix-button:active {
     transform: translateY(0);
     box-shadow:
-      0 0 0.5em 0.12em hsl(142 86% 54% / 0.78),
-      0 0 2em 0.7em var(--glow-spread-color),
-      inset 0 0 0.45em 0.12em hsl(142 86% 54% / 0.5);
+      0 0 0.4em 0.08em var(--glow-color),
+      0 0 1.2em 0.32em var(--glow-spread-color),
+      inset 0 0 0.34em 0.08em var(--glow-color);
   }
 
   .matrix-button-destructive {
@@ -318,6 +318,13 @@
     --glow-spread-color: hsl(0 78% 52% / 0.4);
     --enhanced-glow-color: hsl(0 92% 78%);
     --btn-color: hsl(0 42% 12%);
+    color: hsl(0 92% 78%);
+    background: linear-gradient(180deg, hsl(0 48% 18%), hsl(0 46% 12%));
+  }
+
+  .matrix-button-destructive:hover {
+    color: hsl(0 0% 100%);
+    background: hsl(0 78% 44%);
   }
 
   .matrix-button-outline,
