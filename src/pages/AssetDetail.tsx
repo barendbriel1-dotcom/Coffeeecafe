@@ -14,6 +14,10 @@ import { toast } from "sonner";
 import { 
   ArrowLeft, 
   Package, 
+import { toast } from "sonner";
+import { 
+  ArrowLeft, 
+  Package, 
   MapPin, 
   User, 
   History as HistoryIcon, 
@@ -22,8 +26,11 @@ import {
   Hash,
   AlertTriangle,
   CheckCircle2,
-  Clock
+  Clock,
+  Download,
+  FileText
 } from "lucide-react";
+import { exportDamageReportPdf } from "@/lib/pdf";
 import { cn } from "@/lib/utils";
 
 interface Asset {
@@ -43,6 +50,24 @@ interface AssetHistory {
   to_user_name?: string;
 }
 
+interface DamageReport {
+  id: string;
+  asset_code: string;
+  asset_name: string;
+  assigned_to: string;
+  reported_by: string;
+  description: string | null;
+  damaged_date: string | null;
+  damaged_time: string | null;
+  damage_type: string | null;
+  other_details: string | null;
+  admin_conclusion_notes: string | null;
+  admin_conclusion_status: string | null;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
 interface DivisionOption {
   id: string;
   name: string;
@@ -55,6 +80,7 @@ export default function AssetDetail() {
   
   const [asset, setAsset] = useState<Asset | null>(null);
   const [history, setHistory] = useState<AssetHistory[]>([]);
+  const [damageReports, setDamageReports] = useState<DamageReport[]>([]);
   const [divisions, setDivisions] = useState<DivisionOption[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -65,6 +91,11 @@ export default function AssetDetail() {
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editDivisionId, setEditDivisionId] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [profileMapState, setProfileMapState] = useState<Record<string, string>>({});
+
+  const exportReport = async (report: DamageReport, profiles: Record<string, string>) => {
+    exportDamageReportPdf(report, profiles);
+  };
 
   const loadAsset = async () => {
     setLoading(true);
@@ -129,6 +160,37 @@ export default function AssetDetail() {
         performed_by_name: profileMap[x.performed_by] || x.performed_by,
         to_user_name: profileMap[x.to_user] || x.to_user
       })));
+
+      // Fetch completed damage reports for this asset
+      const { data: dr } = await supabase
+        .from("damage_reports")
+        .select("*")
+        .eq("asset_id", id)
+        .eq("status", "completed")
+        .not("admin_conclusion_status", "is", null)
+        .order("created_at", { ascending: false });
+
+      setDamageReports((dr ?? []) as DamageReport[]);
+      
+      // Also need to ensure we have profiles for damage report users if not already fetched
+      const drUserIds = Array.from(new Set([
+        ...(dr ?? []).map(x => x.assigned_to),
+        ...(dr ?? []).map(x => x.reported_by)
+      ].filter(Boolean)));
+      
+      const missingUserIds = drUserIds.filter(uid => !profileMap[uid]);
+      if (missingUserIds.length > 0) {
+        const { data: moreProfiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", missingUserIds);
+        
+        (moreProfiles ?? []).forEach(p => {
+          profileMap[p.id] = p.display_name;
+        });
+      }
+
+      setProfileMapState(profileMap);
 
     } catch (err: any) {
       toast.error(err.message);
@@ -375,6 +437,50 @@ export default function AssetDetail() {
               ))}
             </div>
           </Card>
+
+          {damageReports.length > 0 && (
+            <Card className="bg-card/40 border-rose-500/30 p-6">
+              <h2 className="font-display text-rose-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 text-sm">
+                <AlertTriangle size={16} className="text-rose-500/60" /> Damage & Repair History
+              </h2>
+              
+              <div className="space-y-4 max-h-[400px] overflow-auto pr-2">
+                {damageReports.map((report) => (
+                  <div key={report.id} className="rounded-[1.2rem] border border-rose-500/18 bg-rose-500/5 p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="border-rose-500/40 text-rose-400 bg-rose-500/10 font-mono text-[9px] uppercase">
+                            {report.damage_type || "Damage Report"}
+                          </Badge>
+                          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                            {report.damaged_date ? new Date(report.damaged_date).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                        <div className="text-xs text-foreground/80 font-mono mt-2 italic">
+                          &gt; {report.description}
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 border-rose-500/20 text-rose-300 hover:bg-rose-500/10 gap-2"
+                        onClick={() => exportReport(report, profileMapState)}
+                      >
+                        <Download size={14} />
+                        Report PDF
+                      </Button>
+                    </div>
+
+                    <div className="pt-2 border-t border-rose-500/10 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
+                      <div>REPORTED BY: <span className="text-rose-300/80">{profileMapState[report.reported_by] || "OPERATIVE"}</span></div>
+                      <div className="sm:text-right">RESOLUTION: <span className="text-primary/80 uppercase tracking-widest">{report.admin_conclusion_status?.replace(/_/g, " ")}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>

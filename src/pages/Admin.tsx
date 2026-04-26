@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { ASSET_STATUSES, generateNameCode, getAssetStatusLabel, getStatusBadgeClass } from "@/lib/assets";
 import { exportAssetQrPdf, type AssetQrLabel } from "@/lib/qr";
+import { exportDamageReportPdf } from "@/lib/pdf";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "staff" | "volunteer" | "asset_manager";
@@ -239,6 +240,7 @@ export default function Admin() {
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.id, profile.display_name])), [profiles]);
   const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
   const pendingDeleteAssetIdSet = useMemo(() => new Set(pendingDeleteRequests.map((request) => request.asset_id)), [pendingDeleteRequests]);
+  const activeDamageReports = useMemo(() => damageReports.filter(r => !r.admin_conclusion_status), [damageReports]);
 
   const pendingDeleteDetails = useMemo(
     () =>
@@ -799,60 +801,15 @@ export default function Admin() {
     }
   };
 
+  const setSection = (section: AdminSection) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("section", section);
+    setSearchParams(next, { replace: true });
+  };
+
   const exportDamageReportPdf = async (report: DamageReport) => {
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF();
-    const primaryColor = [34, 197, 94]; // Matrix green
-
-    // Header
-    doc.setFillColor(5, 10, 7);
-    doc.rect(0, 0, 210, 40, "F");
-    
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.setFontSize(22);
-    doc.text("DAMAGE REPORT", 20, 25);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Generated on ${new Date().toLocaleString()}`, 140, 25);
-
-    // Body
-    let y = 55;
-    const addField = (label: string, value: string) => {
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text(label.toUpperCase(), 20, y);
-      y += 6;
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.text(value || "N/A", 20, y);
-      y += 12;
-    };
-
-    addField("Asset Tag", report.asset_code);
-    addField("Asset Name", report.asset_name);
-    addField("Status", report.status.toUpperCase());
-    addField("Assigned User", profileMap[report.assigned_to] ?? "Unknown");
-    addField("Reported By", profileMap[report.reported_by] ?? "Admin");
-    addField("Date Damaged", report.damaged_date ? new Date(report.damaged_date).toLocaleDateString() : "Unknown");
-    addField("Report Date", new Date(report.created_at).toLocaleDateString());
-    
-    if (report.completed_at) {
-      addField("Completed On", new Date(report.completed_at).toLocaleString());
-    }
-
-    y += 5;
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text("DESCRIPTION / EXPLANATION", 20, y);
-    y += 8;
-    doc.setFontSize(11);
-    doc.setTextColor(40, 40, 40);
-    
-    const lines = doc.splitTextToSize(report.description || "No description provided.", 170);
-    doc.text(lines, 20, y);
-
-    doc.save(`Damage-Report-${report.asset_code}-${new Date().getTime()}.pdf`);
+    const { exportDamageReportPdf: generatePdf } = await import("@/lib/pdf");
+    generatePdf(report, profileMap);
   };
 
   const submitConclusion = async () => {
@@ -1741,13 +1698,13 @@ export default function Admin() {
                   <p className="mt-1 text-xs text-muted-foreground">View and export reports for items marked as damaged by operators.</p>
                 </div>
 
-                {damageReports.length === 0 ? (
+                {activeDamageReports.length === 0 ? (
                   <div className="rounded-[1.4rem] border border-dashed border-primary/20 bg-background/30 px-5 py-10 text-center text-sm text-muted-foreground">
-                    No damage reports found in the system.
+                    No active damage reports waiting for conclusion.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {damageReports.map((report) => (
+                    {activeDamageReports.map((report) => (
                       <div
                         key={report.id}
                         className="flex flex-col gap-4 rounded-[1.4rem] border border-primary/18 bg-background/40 p-4 lg:flex-row lg:items-center lg:justify-between"
@@ -1777,7 +1734,7 @@ export default function Admin() {
                             variant="outline" 
                             size="sm" 
                             className="gap-2 border-primary/20 hover:border-primary/40"
-                            onClick={() => exportDamageReportPdf(report)}
+                            onClick={() => exportDamageReportPdf(report, profileMap)}
                           >
                             <FileText size={14} />
                             Export PDF
