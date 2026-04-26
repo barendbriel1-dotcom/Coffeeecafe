@@ -26,9 +26,9 @@ BEGIN
       'Barend@encounterchurch.co.za',
       format('Damage Report Concluded: %s (%s)', NEW.asset_name, NEW.asset_code),
       format(
-        'An admin has concluded the damage report for: %s (%s).' || char(10) ||
-        'Final Status: %s' || char(10) ||
-        'Admin Notes: %s' || char(10) ||
+        'An admin has concluded the damage report for: %s (%s).' || chr(10) ||
+        'Final Status: %s' || chr(10) ||
+        'Admin Notes: %s' || chr(10) ||
         'Reviewed on: %s',
         NEW.asset_name, NEW.asset_code,
         NEW.admin_conclusion_status,
