@@ -172,6 +172,19 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     setSelected(next);
   };
 
+  const handleDialogSelectionChange = (id: string, checked: boolean) => {
+    const alreadySelected = selected.has(id);
+    if (checked && !alreadySelected) {
+      toggle(id);
+      setActiveGroupKey(null);
+      return;
+    }
+
+    if (!checked && alreadySelected) {
+      toggle(id);
+    }
+  };
+
   const allFilteredAvailableIds = useMemo(() => {
     return filteredGroups.flatMap(group => 
       group.items
@@ -483,7 +496,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                       <Checkbox
                         checked={selected.has(asset.id)}
                         disabled={disabled}
-                        onCheckedChange={() => toggle(asset.id)}
+                        onCheckedChange={(checked) => handleDialogSelectionChange(asset.id, checked === true)}
                       />
 
                       <div className="min-w-0 flex-1">
