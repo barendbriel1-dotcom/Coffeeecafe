@@ -233,6 +233,7 @@ export default function AssetDetail() {
     signed_out: { label: "Signed Out", color: "text-yellow-400 border-yellow-500/40 bg-yellow-500/10", icon: Clock },
     out_for_repairs: { label: "Out for Repairs", color: "text-cyan-300 border-cyan-500/40 bg-cyan-500/10", icon: Clock },
     damaged: { label: "Damaged", color: "text-rose-400 border-rose-500/40 bg-rose-500/10", icon: AlertTriangle },
+    permanent: { label: "Permanent", color: "text-violet-300 border-violet-500/40 bg-violet-500/10", icon: CheckCircle2 },
     not_assigned: { label: "Not Assigned", color: "text-zinc-300 border-zinc-500/40 bg-zinc-500/10", icon: AlertTriangle },
   };
 

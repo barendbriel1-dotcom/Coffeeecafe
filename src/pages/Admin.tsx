@@ -20,7 +20,7 @@ import { exportAssetQrPdf, type AssetQrLabel } from "@/lib/qr";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "staff" | "volunteer" | "asset_manager";
-type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "not_assigned";
+type ManagedStatus = "available" | "signed_out" | "out_for_repairs" | "damaged" | "permanent" | "not_assigned";
 type AdminSection = "pending-approvals" | "users-roles" | "status" | "locations" | "divisions" | "qrcodes" | "deletions" | "unassigned" | "damage-reports";
 
 interface Profile {
@@ -99,10 +99,23 @@ interface AssetRequestRow {
   created_at: string;
 }
 
+interface PermanentAssetRequestRow {
+  id: string;
+  asset_id: string;
+  requested_by: string;
+  target_user_id: string;
+  status: "pending" | "approved" | "rejected";
+  notes: string | null;
+  admin_notes: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+}
+
 const FALLBACK_NAME = "Not Assigned";
 const FALLBACK_LOCATION_CODE = "N";
 const FALLBACK_DIVISION_CODE = "NASS";
-const PROTECTED_STATUS_USAGE: ManagedStatus[] = ["available", "signed_out"];
+const PROTECTED_STATUS_USAGE: ManagedStatus[] = ["available", "signed_out", "permanent"];
 const ROLE_OPTIONS: Role[] = ["admin", "staff", "volunteer", "asset_manager"];
 const DEFAULT_ADMIN_SECTION: AdminSection = "pending-approvals";
 
@@ -144,6 +157,7 @@ export default function Admin() {
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [damageReports, setDamageReports] = useState<DamageReport[]>([]);
   const [assetRequests, setAssetRequests] = useState<AssetRequestRow[]>([]);
+  const [permanentRequests, setPermanentRequests] = useState<PermanentAssetRequestRow[]>([]);
   const [newLocCode, setNewLocCode] = useState("");
   const [newLocName, setNewLocName] = useState("");
   const [newDivisionName, setNewDivisionName] = useState("");
@@ -168,6 +182,7 @@ export default function Admin() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = useState<Profile | null>(null);
   const [assetRequestBusyId, setAssetRequestBusyId] = useState<string | null>(null);
+  const [permanentRequestBusyId, setPermanentRequestBusyId] = useState<string | null>(null);
   const [unassignedSearch, setUnassignedSearch] = useState("");
   const [unassignedLocationFilter, setUnassignedLocationFilter] = useState("all");
   const [unassignedStatusFilter, setUnassignedStatusFilter] = useState<ManagedStatus | "all">("all");
@@ -199,6 +214,7 @@ export default function Admin() {
       { data: deleteRequestRows },
       { data: requestRows },
       { data: damageRows },
+      { data: permanentRows },
     ] = await Promise.all([
       supabase.from("profiles").select("id, display_name, email, asset_manager_location_id").order("display_name"),
       supabase.from("user_roles").select("user_id, role"),
@@ -208,6 +224,7 @@ export default function Admin() {
       supabase.from("asset_delete_requests").select("id, asset_id, requested_by, created_at").order("created_at", { ascending: false }),
       supabase.from("asset_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("damage_reports").select("*").order("created_at", { ascending: false }),
+      supabase.from("permanent_asset_requests" as any).select("*").order("created_at", { ascending: false }),
     ]);
 
     const nextLocs = (l ?? []) as Loc[];
@@ -221,6 +238,7 @@ export default function Admin() {
     setDamageReports((damageRows ?? []) as DamageReport[]);
     setPendingDeleteRequests((deleteRequestRows ?? []) as AssetDeleteRequestRow[]);
     setAssetRequests((requestRows ?? []) as AssetRequestRow[]);
+    setPermanentRequests((permanentRows ?? []) as unknown as PermanentAssetRequestRow[]);
     setLocationDrafts(Object.fromEntries(nextLocs.map((location) => [location.id, { code: location.code, name: location.name }])));
     setDivisionDrafts(Object.fromEntries(nextDivisions.map((division) => [division.id, { code: division.code ?? "", name: division.name }])));
   };
@@ -235,6 +253,7 @@ export default function Admin() {
   const pendingUsers = useMemo(() => profiles.filter((profile) => rolesFor(profile.id).length === 0), [profiles, userRoles]);
   const approvedUsers = useMemo(() => profiles.filter((profile) => rolesFor(profile.id).length > 0), [profiles, userRoles]);
   const pendingAssetRequests = useMemo(() => assetRequests.filter((request) => request.status === "pending"), [assetRequests]);
+  const pendingPermanentRequests = useMemo(() => permanentRequests.filter((request) => request.status === "pending"), [permanentRequests]);
   const fallbackLocation = useMemo(() => locs.find((location) => location.name.toLowerCase() === FALLBACK_NAME.toLowerCase()) ?? null, [locs]);
   const fallbackDivision = useMemo(() => divisions.find((division) => division.name.toLowerCase() === FALLBACK_NAME.toLowerCase()) ?? null, [divisions]);
   const isSuperAdmin = user?.email === "barend@encounterchurch.co.za";
@@ -420,7 +439,11 @@ export default function Admin() {
 
   const managedStatuses = ASSET_STATUSES.filter(
     (status): status is ManagedStatus =>
-      ["available", "signed_out", "out_for_repairs", "damaged", "not_assigned"].includes(status),
+      ["available", "signed_out", "out_for_repairs", "damaged", "permanent", "not_assigned"].includes(status),
+  );
+  const directAssignableStatuses = useMemo(
+    () => managedStatuses.filter((status) => status !== "permanent"),
+    [managedStatuses],
   );
 
   const statusCounts = useMemo(
@@ -522,6 +545,30 @@ export default function Admin() {
       toast.error(error?.message ?? "Failed to process request");
     } finally {
       setAssetRequestBusyId(null);
+    }
+  };
+
+  const reviewPermanentRequest = async (request: PermanentAssetRequestRow, approveRequest: boolean) => {
+    if (!isSuperAdmin) {
+      toast.error("Only barend@encounterchurch.co.za can approve permanent assignments.");
+      return;
+    }
+
+    setPermanentRequestBusyId(request.id);
+    try {
+      const { error } = await supabase.rpc("review_permanent_asset_request" as any, {
+        target_request_id: request.id,
+        approve_request: approveRequest,
+        review_notes: null,
+      });
+      if (error) throw error;
+
+      toast.success(approveRequest ? "Permanent assignment approved." : "Permanent assignment rejected.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to review permanent assignment.");
+    } finally {
+      setPermanentRequestBusyId(null);
     }
   };
 
@@ -788,6 +835,10 @@ export default function Admin() {
       toast.error("Choose at least one field to update.");
       return;
     }
+    if (unassignedDraftStatus === "permanent") {
+      toast.error("Use the permanent assignment request controls. Permanent status requires main-user approval.");
+      return;
+    }
 
     const payload: Record<string, any> = {};
     if (unassignedDraftDivisionId !== "skip") payload.division_id = unassignedDraftDivisionId === "none" ? null : unassignedDraftDivisionId;
@@ -1019,6 +1070,66 @@ export default function Admin() {
                               className="border-destructive text-destructive"
                               onClick={() => reviewAssetRequest(request, "rejected")}
                               disabled={assetRequestBusyId === request.id}
+                            >
+                              <X size={14} className="mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="bg-card/40 border-primary/30 p-5 space-y-4">
+                <div>
+                  <h3 className="font-display text-primary text-sm uppercase">Permanent assignment approvals</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Permanent assignments and transfers are reviewed by barend@encounterchurch.co.za before the item is locked to a holder.</p>
+                </div>
+                {pendingPermanentRequests.length === 0 ? (
+                  <div className="rounded-[1.4rem] border border-dashed border-primary/20 bg-background/30 px-5 py-10 text-center text-sm text-muted-foreground">
+                    No permanent assignments are waiting for approval.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingPermanentRequests.map((request) => {
+                      const asset = assetById[request.asset_id];
+                      return (
+                        <div key={request.id} className="rounded-[1.4rem] border border-violet-500/20 bg-violet-500/5 p-4 space-y-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Requested by</span>{" "}
+                                <span className="text-primary">{profileMap[request.requested_by] ?? "Unknown admin"}</span>
+                              </div>
+                              <div className="mt-1 font-display text-foreground">
+                                {asset ? `${asset.code} · ${asset.name}` : "Unknown asset"}
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                Permanent holder: <span className="text-violet-300">{profileMap[request.target_user_id] ?? "Unknown user"}</span>
+                              </div>
+                              {request.notes && <div className="mt-2 text-xs italic text-muted-foreground">{request.notes}</div>}
+                            </div>
+                            <Badge variant="outline" className="border-violet-500/40 bg-violet-500/10 text-violet-300">
+                              Pending
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => reviewPermanentRequest(request, true)}
+                              disabled={!isSuperAdmin || permanentRequestBusyId === request.id}
+                            >
+                              <Check size={14} className="mr-1" />
+                              Approve Permanent
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-destructive text-destructive"
+                              onClick={() => reviewPermanentRequest(request, false)}
+                              disabled={!isSuperAdmin || permanentRequestBusyId === request.id}
                             >
                               <X size={14} className="mr-1" />
                               Reject
@@ -1639,7 +1750,7 @@ export default function Admin() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="skip">Leave unchanged</SelectItem>
-                        {managedStatuses.map((status) => (
+                        {directAssignableStatuses.map((status) => (
                           <SelectItem key={status} value={status}>
                             {getAssetStatusLabel(status)}
                           </SelectItem>

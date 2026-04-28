@@ -54,6 +54,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [divisions, setDivisions] = useState<Div[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
+  const [signoutMode, setSignoutMode] = useState<"standard" | "permanent_request">("standard");
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("available");
@@ -177,27 +178,33 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       return;
     }
 
-    const traveling = locations.find((location) => location.name === "Traveling");
-    if (!traveling) {
-      toast.error("Traveling location was not found.");
-      return;
-    }
-
     setBusy(true);
 
     try {
       const ids = [...selected];
-      const { error } = await supabase.rpc("sign_out_assets", {
-        target_asset_ids: ids,
-        notes: notes || null,
-        package_name: bulk ? "Bulk package" : null,
-        recipient_user_id: user!.id,
-      });
+      const { error } =
+        signoutMode === "permanent_request"
+          ? await supabase.rpc("request_permanent_asset_assignment" as any, {
+              target_asset_ids: ids,
+              target_user_id: user!.id,
+              request_notes: notes || null,
+            })
+          : await supabase.rpc("sign_out_assets", {
+              target_asset_ids: ids,
+              notes: notes || null,
+              package_name: bulk ? "Bulk package" : null,
+              recipient_user_id: user!.id,
+            });
       if (error) throw error;
 
-      toast.success(`Signed out ${ids.length} asset(s). Location moved to Traveling.`);
+      toast.success(
+        signoutMode === "permanent_request"
+          ? `Sent ${ids.length} permanent request${ids.length === 1 ? "" : "s"} to Pending Approvals.`
+          : `Signed out ${ids.length} asset(s). Location moved to Traveling.`,
+      );
       setSelected(new Set());
       setNotes("");
+      setSignoutMode("standard");
       setActiveGroupKey(null);
       load();
     } catch (error: any) {
@@ -231,6 +238,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
               <SelectItem value="signed_out">Signed Out</SelectItem>
               <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
               <SelectItem value="damaged">Damaged</SelectItem>
+              <SelectItem value="permanent">Permanent</SelectItem>
             </SelectContent>
           </Select>
 
@@ -263,6 +271,24 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Sign out type</Label>
+            <Select value={signoutMode} onValueChange={(value) => setSignoutMode(value as "standard" | "permanent_request")}>
+              <SelectTrigger><SelectValue placeholder="Choose sign out type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard sign out</SelectItem>
+                <SelectItem value="permanent_request">Permanent request</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-[1rem] border border-primary/12 bg-background px-4 py-3 text-sm text-muted-foreground">
+            {signoutMode === "permanent_request"
+              ? "This sends the selected items to Pending Approvals. They only become permanently assigned after approval by barend@encounterchurch.co.za."
+              : "This signs the selected items out to you immediately and moves them to Traveling."}
+          </div>
         </div>
 
         <div className="space-y-4 rounded-[1.5rem] border border-primary/12 bg-card p-4">
@@ -324,11 +350,19 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
         <div className="space-y-2">
           <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Notes</Label>
-          <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional checkout notes..." />
+          <Textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder={signoutMode === "permanent_request" ? "Optional approval notes..." : "Optional checkout notes..."}
+          />
         </div>
 
         <Button onClick={submit} disabled={busy || selected.size === 0} className="w-full">
-          {busy ? "Processing..." : `Confirm sign out (${selected.size})`}
+          {busy
+            ? "Processing..."
+            : signoutMode === "permanent_request"
+              ? `Send permanent request (${selected.size})`
+              : `Confirm sign out (${selected.size})`}
         </Button>
       </Card>
 

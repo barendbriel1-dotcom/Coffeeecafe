@@ -3,6 +3,7 @@ export const ASSET_STATUSES = [
   "signed_out",
   "out_for_repairs",
   "damaged",
+  "permanent",
   "not_assigned",
 ] as const;
 
@@ -23,6 +24,7 @@ export const STATUS_LABELS: Record<string, string> = {
   signed_out: "Signed Out",
   out_for_repairs: "Out for Repairs",
   damaged: "Damaged",
+  permanent: "Permanent",
   not_assigned: "Not Assigned",
   in_handover: "Signed Out",
   maintenance: "Out for Repairs",
@@ -35,6 +37,7 @@ export const STATUS_BADGE_CLASSES: Record<string, string> = {
   signed_out: "border-amber-500/35 bg-amber-500/12 text-amber-300",
   out_for_repairs: "border-cyan-500/35 bg-cyan-500/12 text-cyan-300",
   damaged: "border-rose-500/35 bg-rose-500/12 text-rose-300",
+  permanent: "border-violet-500/35 bg-violet-500/12 text-violet-300",
   not_assigned: "border-zinc-500/35 bg-zinc-500/12 text-zinc-300",
   in_handover: "border-amber-500/35 bg-amber-500/12 text-amber-300",
   maintenance: "border-cyan-500/35 bg-cyan-500/12 text-cyan-300",
@@ -53,6 +56,7 @@ export function normalizeAssetStatus(status: string): AssetStatus {
     return "out_for_repairs";
   }
   if (["damaged", "damage", "retired", "lost"].includes(normalized)) return "damaged";
+  if (["permanent", "permanent_assignment", "permanently_assigned"].includes(normalized)) return "permanent";
   if (["signed_out", "sign_out", "checked_out", "in_handover"].includes(normalized)) return "signed_out";
   if (normalized === "not_assigned") return "not_assigned";
   return (ASSET_STATUSES.includes(normalized as AssetStatus) ? normalized : "available") as AssetStatus;
