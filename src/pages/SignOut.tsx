@@ -47,11 +47,17 @@ interface Div {
   name: string;
 }
 
+interface Profile {
+  id: string;
+  display_name: string;
+}
+
 export default function SignOut({ bulk = false }: { bulk?: boolean }) {
-  const { user, isStaff, isAssetManager, assetManagerLocationId } = useAuth();
+  const { user, isAdmin, isStaff, isAssetManager, assetManagerLocationId } = useAuth();
   const [available, setAvailable] = useState<Asset[]>([]);
   const [locations, setLocations] = useState<Loc[]>([]);
   const [divisions, setDivisions] = useState<Div[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
   const [signoutMode, setSignoutMode] = useState<"standard" | "permanent_request">("standard");
@@ -59,6 +65,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [q, setQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("available");
   const [filterLocation, setFilterLocation] = useState("all");
+  const [recipientUserId, setRecipientUserId] = useState("");
 
   useEffect(() => {
     if (isAssetManager && assetManagerLocationId) {
@@ -69,13 +76,14 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 
   const load = async () => {
-    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }] = await Promise.all([
+    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: profileRows }] = await Promise.all([
       supabase
         .from("assets")
         .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, locked_by, locked_at")
         .order("name"),
       supabase.from("locations").select("id, name"),
       supabase.from("divisions").select("id, name"),
+      supabase.from("profiles").select("id, display_name").order("display_name"),
     ]);
 
     const orderedLocations = (locationRows ?? []).sort((a: Loc, b: Loc) => {
@@ -87,6 +95,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     setAvailable(assetRows ?? []);
     setLocations(orderedLocations);
     setDivisions(divisionRows ?? []);
+    setProfiles(profileRows ?? []);
   };
 
   useEffect(() => {
@@ -94,8 +103,18 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     load();
   }, [user]);
 
+  useEffect(() => {
+    if (user?.id) {
+      setRecipientUserId(user.id);
+    }
+  }, [user?.id]);
+
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
+  const recipientLabel = useMemo(
+    () => profiles.find((profile) => profile.id === recipientUserId)?.display_name ?? "Your account",
+    [profiles, recipientUserId],
+  );
 
   const groupedAssets = useMemo(
     () =>
@@ -178,6 +197,11 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       return;
     }
 
+    if (!recipientUserId) {
+      toast.error("Choose who these items should be signed out to.");
+      return;
+    }
+
     setBusy(true);
 
     try {
@@ -186,14 +210,14 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
         signoutMode === "permanent_request"
           ? await supabase.rpc("request_permanent_asset_assignment" as any, {
               target_asset_ids: ids,
-              target_user_id: user!.id,
+              target_user_id: recipientUserId,
               request_notes: notes || null,
             })
           : await supabase.rpc("sign_out_assets", {
               target_asset_ids: ids,
               notes: notes || null,
               package_name: bulk ? "Bulk package" : null,
-              recipient_user_id: user!.id,
+              recipient_user_id: recipientUserId,
             });
       if (error) throw error;
 
@@ -206,6 +230,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       setNotes("");
       setSignoutMode("standard");
       setActiveGroupKey(null);
+      setRecipientUserId(user?.id ?? "");
       load();
     } catch (error: any) {
       const message = error?.message ?? "Failed to sign out the selected assets.";
@@ -289,6 +314,30 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
               ? "This sends the selected items to Pending Approvals. They only become permanently assigned after approval by barend@encounterchurch.co.za."
               : "This signs the selected items out to you immediately and moves them to Traveling."}
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+            {signoutMode === "permanent_request" ? "Permanent holder" : "Sign out to"}
+          </Label>
+          {isAdmin ? (
+            <Select value={recipientUserId} onValueChange={setRecipientUserId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a user" />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex h-10 items-center rounded-md border border-primary/20 bg-primary/10 px-3 font-mono text-sm text-primary/90">
+              {recipientLabel}
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 rounded-[1.5rem] border border-primary/12 bg-card p-4">
