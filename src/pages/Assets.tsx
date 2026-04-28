@@ -738,9 +738,9 @@ export default function Assets() {
           </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Status</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               <SelectItem value="available">Available</SelectItem>
               <SelectItem value="signed_out">Signed Out</SelectItem>
               <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
@@ -751,9 +751,9 @@ export default function Assets() {
           </Select>
 
           <Select value={locationFilter} onValueChange={setLocationFilter}>
-            <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Location</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               {locations.map((location) => (
                 <SelectItem key={location.id} value={location.id}>
                   {location.name}
