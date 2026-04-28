@@ -114,7 +114,7 @@ export default function Requests() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="font-display text-2xl text-primary glow">// Asset Requests</h1>
+      <h1 className="font-display text-2xl text-primary glow">Asset Requests</h1>
 
       <Card className="bg-card/40 border-primary/30 p-4 space-y-3">
         <h2 className="font-display text-primary text-sm uppercase">Submit a Request</h2>

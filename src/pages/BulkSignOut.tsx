@@ -775,7 +775,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="font-display text-lg text-foreground glow-soft">Group management</div>
-            <div className="text-sm text-muted-foreground">Create reusable groups, then edit or remove them anytime.</div>
           </div>
           <Button type="button" onClick={createNewPacket} className="gap-2">
             <PackagePlus size={16} /> New group
@@ -940,9 +939,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                 <div className="flex items-center justify-between border-b border-primary/10 bg-primary/8 px-4 py-3">
                   <div>
                     <div className="font-display text-sm uppercase tracking-[0.18em] text-primary">Items Added To Group</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Selected search results collect here before you save the group.
-                    </div>
                   </div>
                   <Badge variant="outline" className="border-primary/20 bg-card px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                     {selectedGroupItems.length}
@@ -951,9 +947,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
                 <div className="p-3">
                   {selectedGroupItems.length === 0 ? (
-                    <div className="rounded-[1rem] border border-primary/10 bg-background px-3 py-5 text-sm text-muted-foreground">
-                      Search for an item above and choose it to add it into this group.
-                    </div>
+                    <div className="rounded-[1rem] border border-primary/10 bg-background px-3 py-5 text-sm text-muted-foreground" />
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {selectedGroupItems.map((item) => (
@@ -1007,7 +1001,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="font-display text-lg text-foreground glow-soft">Group signout</div>
-            <div className="text-sm text-muted-foreground">Choose a saved group, assign one real asset to each line, and sign the full group out to one user.</div>
           </div>
           {activePacketForSignout && (
             <Badge variant="outline" className="border-primary/20 bg-card px-3 py-1.5 font-mono text-primary">

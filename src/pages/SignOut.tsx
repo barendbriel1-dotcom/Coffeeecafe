@@ -340,11 +340,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                 : "This signs the selected items out to you immediately and moves them to Traveling."}
             </div>
           </div>
-        ) : (
-          <div className="rounded-[1rem] border border-primary/12 bg-background px-4 py-3 text-sm text-muted-foreground">
-            This signs the selected items out to you immediately and moves them to Traveling.
-          </div>
-        )}
+        ) : null}
 
         <div className="space-y-2">
           <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">

@@ -93,7 +93,7 @@ export default function Handover() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="font-display text-2xl text-primary glow">// Handovers</h1>
+      <h1 className="font-display text-2xl text-primary glow">Handovers</h1>
 
       {incoming.length > 0 && (
         <Card className="bg-card/50 border-yellow-500/40 p-4 space-y-3 box-glow-soft">
