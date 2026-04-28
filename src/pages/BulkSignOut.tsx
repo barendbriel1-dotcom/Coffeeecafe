@@ -224,10 +224,17 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     }
   };
 
+  const showGroupings = mode === "groupings";
+  const showSignouts = mode === "signouts";
+  const canManageGroups = isAdmin || isAssetManager;
+  const canUseGroupSignouts = isAdmin || isAssetManager;
+  const lockToAssetManagerLocation = isAssetManager && !isAdmin;
+
   useEffect(() => {
-    if (!user || (!isAdmin && !isAssetManager)) return;
+    const canLoad = showGroupings ? canManageGroups : canUseGroupSignouts;
+    if (!user || !canLoad) return;
     load();
-  }, [user, isAdmin, isAssetManager]);
+  }, [user, showGroupings, canManageGroups, canUseGroupSignouts]);
 
   const extractAssignedAssetIds = (assignmentMap: Record<string, string>) =>
     Array.from(new Set(Object.values(assignmentMap).filter((assetId): assetId is string => Boolean(assetId) && assetId !== "unassigned")));
@@ -324,11 +331,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const profileMap = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.id, profile.display_name])), [profiles]);
   const assetMap = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
-  const selectedRecipient = useMemo(
-    () => profiles.find((profile) => profile.id === recipientId) ?? null,
-    [profiles, recipientId],
-  );
-
   const availableAssets = useMemo(
     () => assets.filter((asset) => normalizeAssetStatus(asset.status) === "available"),
     [assets],
@@ -399,13 +401,23 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const activePacketForSignout = activeSavedPacket;
 
   useEffect(() => {
-    if (isAssetManager) {
+    if (lockToAssetManagerLocation) {
       setGroupSignoutLocationId(assetManagerLocationId ?? "");
-      return;
+    }
+  }, [assetManagerLocationId, lockToAssetManagerLocation]);
+
+  const changeGroupSignoutLocation = (locationId: string) => {
+    if (locationId === groupSignoutLocationId) return;
+
+    const assignedAssetIds = extractAssignedAssetIds(assignments);
+    if (assignedAssetIds.length > 0) {
+      void releaseAssetLocks(assignedAssetIds);
     }
 
-    setGroupSignoutLocationId(selectedRecipient?.department_id ?? "");
-  }, [activePacketId, assetManagerLocationId, isAssetManager, selectedRecipient]);
+    setAssignments({});
+    setActiveAssignmentLineId(null);
+    setGroupSignoutLocationId(locationId);
+  };
 
   const candidateAssetsForLine = (item: BulkPacketItemDraft) => {
     const normalizedLineLabel = item.line_label.trim().toLowerCase();
@@ -662,9 +674,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
       if (!groupSignoutLocationId) {
         toast.error(
-          isAssetManager
+          lockToAssetManagerLocation
             ? "Your Assets Manager role does not have a locked location yet. Update the role assignment before using Group signout."
-            : "This user does not have a registered location yet. Update their profile before using Group signout.",
+            : "Choose the location to sign this group out from.",
         );
         return;
       }
@@ -755,10 +767,8 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
     }
   };
 
-  if (!isAdmin && !isAssetManager) return null;
-
-  const showGroupings = mode === "groupings";
-  const showSignouts = mode === "signouts";
+  if (showGroupings && !canManageGroups) return null;
+  if (showSignouts && !canUseGroupSignouts) return null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1059,22 +1069,33 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
             </div>
 
             <div className="grid gap-4">
-                <div className="space-y-2">
-                  <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
-                    {isAssetManager ? "Assets manager location" : "Registered user location"}
-                  </Label>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+                  Signout location
+                </Label>
+                {lockToAssetManagerLocation ? (
                   <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 font-mono text-sm text-primary/90">
-                    {isAssetManager
-                      ? groupSignoutLocationId
-                        ? locationMap[groupSignoutLocationId] ?? "Assigned location not found"
-                        : "Your Assets Manager role has no assigned location"
-                      : recipientId
-                      ? groupSignoutLocationId
-                        ? locationMap[groupSignoutLocationId] ?? "Registered location not found"
-                        : "This user has no registered location"
-                      : "Choose user first"}
+                    {groupSignoutLocationId
+                      ? locationMap[groupSignoutLocationId] ?? "Assigned location not found"
+                      : "Your Assets Manager role has no assigned location"}
                   </div>
-                </div>
+                ) : (
+                  <Select value={groupSignoutLocationId} onValueChange={changeGroupSignoutLocation}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose signout location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations
+                        .filter((location) => location.name !== "Traveling")
+                        .map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
