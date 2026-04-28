@@ -258,17 +258,20 @@
   }
 
   .matrix-button {
-    --matrix-button-border: hsl(142 84% 82%);
-    --matrix-button-bg: hsl(220 16% 13%);
-    --matrix-button-text: hsl(142 84% 82%);
+    --matrix-button-border: hsl(142 86% 82%);
+    --matrix-button-bg: hsl(143 62% 31%);
+    --matrix-button-bg-strong: hsl(143 68% 26%);
+    --matrix-button-text: hsl(144 28% 95%);
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    border: 2px solid var(--matrix-button-border);
+    border: 3px solid var(--matrix-button-border);
     border-radius: 0.9rem;
     color: var(--matrix-button-text) !important;
-    background: transparent !important;
-    box-shadow: none;
+    background: var(--matrix-button-bg) !important;
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.12),
+      0 10px 24px hsl(140 70% 4% / 0.22);
     text-shadow: none;
   }
 
@@ -292,12 +295,14 @@
     width: calc(100% + 6px);
     height: calc(100% + 2px);
     transform: scaleY(1);
+    background: linear-gradient(180deg, hsl(0 0% 100% / 0.1), var(--matrix-button-bg));
   }
 
   .matrix-button::after {
     width: calc(100% + 4px);
     height: calc(100% - 46px);
     transform: scaleY(1);
+    background: var(--matrix-button-bg-strong);
   }
 
   .matrix-button__content {
@@ -315,8 +320,11 @@
   .matrix-button:hover {
     border-color: var(--matrix-button-border);
     color: var(--matrix-button-text) !important;
-    background: transparent !important;
-    box-shadow: 0 0 20px hsl(142 76% 48% / 0.1);
+    background: var(--matrix-button-bg) !important;
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.14),
+      0 0 20px hsl(142 76% 48% / 0.18),
+      0 12px 28px hsl(140 70% 4% / 0.26);
   }
 
   .matrix-button:hover::before {
@@ -331,27 +339,36 @@
 
   .matrix-button:active {
     transform: translateY(0);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.08),
+      0 8px 18px hsl(140 70% 4% / 0.2);
   }
 
   .matrix-button:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px hsl(142 76% 48% / 0.16);
+    box-shadow:
+      0 0 0 3px hsl(142 76% 48% / 0.18),
+      0 12px 28px hsl(140 70% 4% / 0.26);
   }
 
   .matrix-button-destructive,
   .matrix-button.text-destructive,
   .matrix-button.border-destructive\/25,
   .matrix-button.hover\:text-destructive {
-    --matrix-button-border: hsl(0 84% 86%);
-    --matrix-button-bg: hsl(0 28% 14%);
-    --matrix-button-text: hsl(0 92% 88%);
+    --matrix-button-border: hsl(0 88% 85%);
+    --matrix-button-bg: hsl(0 62% 37%);
+    --matrix-button-bg-strong: hsl(0 68% 31%);
+    --matrix-button-text: hsl(0 0% 98%);
   }
 
   .matrix-button-destructive:hover,
   .matrix-button.text-destructive:hover,
   .matrix-button.border-destructive\/25:hover,
   .matrix-button.hover\:text-destructive:hover {
-    box-shadow: 0 0 20px hsl(0 78% 52% / 0.12);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.12),
+      0 0 20px hsl(0 78% 52% / 0.22),
+      0 12px 28px hsl(0 60% 6% / 0.24);
   }
 
   .matrix-button-outline,
