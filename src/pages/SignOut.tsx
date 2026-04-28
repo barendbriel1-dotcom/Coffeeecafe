@@ -304,7 +304,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
             <Select value={signoutMode} onValueChange={(value) => setSignoutMode(value as "standard" | "permanent_request")}>
               <SelectTrigger><SelectValue placeholder="Choose sign out type" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="standard">Standard sign out</SelectItem>
+                <SelectItem value="standard">Sign out</SelectItem>
                 <SelectItem value="permanent_request">Permanent request</SelectItem>
               </SelectContent>
             </Select>
