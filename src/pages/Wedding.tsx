@@ -67,8 +67,9 @@ export default function Wedding() {
   }, [loadBudget]);
 
   const totals = useMemo(() => {
-    const quotedExpenses = expenses.reduce((sum, row) => sum + toMoney(row.quoted_amount), 0);
-    const paidExpenses = expenses.reduce((sum, row) => sum + toMoney(row.paid_amount), 0);
+    const barendBiancaExpenses = expenses.filter((row) => row.section === "barend_bianca");
+    const quotedExpenses = barendBiancaExpenses.reduce((sum, row) => sum + toMoney(row.quoted_amount), 0);
+    const paidExpenses = barendBiancaExpenses.reduce((sum, row) => sum + toMoney(row.paid_amount), 0);
     const promisedDonations = donations.reduce((sum, row) => sum + toMoney(row.quoted_amount), 0);
     const paidDonations = donations.reduce((sum, row) => sum + toMoney(row.paid_amount), 0);
 
@@ -214,8 +215,8 @@ export default function Wedding() {
   };
 
   const moneyCards = [
-    { label: "Quoted expenses", value: totals.quotedExpenses },
-    { label: "Paid expenses", value: totals.paidExpenses },
+    { label: "Quoted B&B expenses", value: totals.quotedExpenses },
+    { label: "Paid B&B expenses", value: totals.paidExpenses },
     { label: "Promised donations", value: totals.promisedDonations },
     { label: "Paid donations", value: totals.paidDonations },
   ];
