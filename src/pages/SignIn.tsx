@@ -825,7 +825,7 @@ export default function SignIn() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="standard">Regular Sign In</SelectItem>
-              {isAdmin && <SelectItem value="permanent_request">Permenent Sign In</SelectItem>}
+              {isAdmin && <SelectItem value="permanent_request">Permanent Sign In</SelectItem>}
             </SelectContent>
           </Select>
         </div>
@@ -834,7 +834,7 @@ export default function SignIn() {
         <div className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="font-display text-xl text-violet-200 glow-soft">Permenent Sign In</h2>
+              <h2 className="font-display text-xl text-violet-200 glow-soft">Permanent Sign In</h2>
               <p className="text-sm text-muted-foreground">Select permanent items and send a sign-in request for approval by barend@encounterchurch.co.za.</p>
             </div>
             {filteredPermanentRows.length > 0 && (
@@ -927,7 +927,7 @@ export default function SignIn() {
           )}
 
           <Button onClick={requestPermanentSignIn} disabled={processing || permanentSelectedIds.size === 0}>
-            {processing ? "Processing..." : `Send Permenent Sign In Request (${permanentSelectedIds.size})`}
+            {processing ? "Processing..." : `Send Permanent Sign In Request (${permanentSelectedIds.size})`}
           </Button>
         </div>
       )}

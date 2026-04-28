@@ -330,7 +330,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                 <SelectTrigger><SelectValue placeholder="Choose sign out type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="standard">Sign out</SelectItem>
-                  <SelectItem value="permanent_request">Permenent Sign Out</SelectItem>
+                  <SelectItem value="permanent_request">Permanent Sign Out</SelectItem>
                 </SelectContent>
               </Select>
             </div>
