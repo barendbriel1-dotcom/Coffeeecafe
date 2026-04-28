@@ -104,6 +104,8 @@ interface PermanentAssetRequestRow {
   asset_id: string;
   requested_by: string;
   target_user_id: string;
+  request_type: "assignment" | "sign_in";
+  return_location_id: string | null;
   status: "pending" | "approved" | "rejected";
   notes: string | null;
   admin_notes: string | null;
@@ -1084,12 +1086,12 @@ export default function Admin() {
 
               <Card className="bg-card/40 border-primary/30 p-5 space-y-4">
                 <div>
-                  <h3 className="font-display text-primary text-sm uppercase">Permanent assignment approvals</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">Permanent assignments and transfers are reviewed by barend@encounterchurch.co.za before the item is locked to a holder.</p>
+                  <h3 className="font-display text-primary text-sm uppercase">Permanent approvals</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Permanent sign-outs, assignments, transfers, and sign-ins are reviewed by barend@encounterchurch.co.za before the item changes state.</p>
                 </div>
                 {pendingPermanentRequests.length === 0 ? (
                   <div className="rounded-[1.4rem] border border-dashed border-primary/20 bg-background/30 px-5 py-10 text-center text-sm text-muted-foreground">
-                    No permanent assignments are waiting for approval.
+                    No permanent requests are waiting for approval.
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1106,13 +1108,24 @@ export default function Admin() {
                               <div className="mt-1 font-display text-foreground">
                                 {asset ? `${asset.code} · ${asset.name}` : "Unknown asset"}
                               </div>
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                Permanent holder: <span className="text-violet-300">{profileMap[request.target_user_id] ?? "Unknown user"}</span>
-                              </div>
+                              {request.request_type === "sign_in" ? (
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Sign in from permanent holder: <span className="text-violet-300">{profileMap[request.target_user_id] ?? "Unknown user"}</span>
+                                  {request.return_location_id && (
+                                    <>
+                                      {" "}to <span className="text-violet-300">{locationMap[request.return_location_id] ?? "Unknown location"}</span>
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Permanent holder: <span className="text-violet-300">{profileMap[request.target_user_id] ?? "Unknown user"}</span>
+                                </div>
+                              )}
                               {request.notes && <div className="mt-2 text-xs italic text-muted-foreground">{request.notes}</div>}
                             </div>
                             <Badge variant="outline" className="border-violet-500/40 bg-violet-500/10 text-violet-300">
-                              Pending
+                              {request.request_type === "sign_in" ? "Permanent Sign In" : "Permanent Sign Out"}
                             </Badge>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -1122,7 +1135,7 @@ export default function Admin() {
                               disabled={!isSuperAdmin || permanentRequestBusyId === request.id}
                             >
                               <Check size={14} className="mr-1" />
-                              Approve Permanent
+                              {request.request_type === "sign_in" ? "Approve Sign In" : "Approve Permanent"}
                             </Button>
                             <Button
                               size="sm"

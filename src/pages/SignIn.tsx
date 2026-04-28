@@ -54,6 +54,20 @@ interface ProfileRow {
   display_name: string;
 }
 
+interface PermanentAssetRow {
+  id: string;
+  code: string;
+  name: string;
+  serial_number: string | null;
+  department_id: string;
+  division_id: string | null;
+  division_name: string;
+  current_location_id: string | null;
+  location_name: string;
+  holder_id: string | null;
+  holder_name: string;
+}
+
 interface SignInEntry {
   item: AssetReturn;
   nextStatus: "available" | "out_for_repairs" | "damaged";
@@ -108,18 +122,23 @@ export default function SignIn() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [rows, setRows] = useState<AssetReturn[]>([]);
+  const [permanentRows, setPermanentRows] = useState<PermanentAssetRow[]>([]);
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [divisionMap, setDivisionMap] = useState<Record<string, string>>({});
   const [locationNameMap, setLocationNameMap] = useState<Record<string, string>>({});
 
   const [searchQ, setSearchQ] = useState("");
+  const [permanentSearchQ, setPermanentSearchQ] = useState("");
   const [holderFilter, setHolderFilter] = useState("all");
   const [divisionFilter, setDivisionFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [packageFilter, setPackageFilter] = useState("all");
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [permanentSelectedIds, setPermanentSelectedIds] = useState<Set<string>>(new Set());
+  const [permanentReturnLocationId, setPermanentReturnLocationId] = useState("");
+  const [permanentNotes, setPermanentNotes] = useState("");
 
   const [bulkDecision, setBulkDecision] = useState<BulkDecision | null>(null);
   const [returnLocationId, setReturnLocationId] = useState("");
@@ -147,6 +166,7 @@ export default function SignIn() {
     try {
       const [
         { data: assets, error: assetError },
+        { data: permanentAssets, error: permanentAssetError },
         { data: profiles },
         { data: locationRows },
         { data: divisionRows },
@@ -164,12 +184,17 @@ export default function SignIn() {
             )
           `)
           .eq("status", "signed_out"),
+        supabase
+          .from("assets")
+          .select("id, code, name, status, current_holder, serial_number, department_id, division_id, current_location_id")
+          .eq("status", "permanent"),
         supabase.from("profiles").select("id, display_name"),
         supabase.from("locations").select("id, name"),
         supabase.from("divisions").select("id, name"),
       ]);
 
       if (assetError) throw assetError;
+      if (permanentAssetError) throw permanentAssetError;
 
       const orderedLocations = (locationRows ?? []).sort((a: LocationRow, b: LocationRow) => {
         const aIndex = LOCATION_NAMES.indexOf(a.name as (typeof LOCATION_NAMES)[number]);
@@ -189,8 +214,24 @@ export default function SignIn() {
           }),
         )
         .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+      const formattedPermanentRows = (permanentAssets ?? [])
+        .map((asset: any) => ({
+          id: asset.id,
+          code: asset.code,
+          name: asset.name,
+          serial_number: asset.serial_number ?? null,
+          department_id: asset.department_id,
+          division_id: asset.division_id ?? null,
+          division_name: nextDivisionMap[asset.division_id ?? ""] || "â€”",
+          current_location_id: asset.current_location_id ?? null,
+          location_name: nextLocationMap[asset.current_location_id ?? ""] || "â€”",
+          holder_id: asset.current_holder ?? null,
+          holder_name: nextProfileMap[asset.current_holder ?? ""] || "Unknown user",
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
       setRows(formattedRows);
+      setPermanentRows(formattedPermanentRows);
       setLocations(orderedLocations);
       setProfileMap(nextProfileMap);
       setDivisionMap(nextDivisionMap);
@@ -213,6 +254,13 @@ export default function SignIn() {
         ? rows.filter((item) => item.department_id === assetManagerLocationId)
         : rows,
     [assetManagerLocationId, isAssetManager, rows],
+  );
+  const scopedPermanentRows = useMemo(
+    () =>
+      isAssetManager && assetManagerLocationId
+        ? permanentRows.filter((item) => item.department_id === assetManagerLocationId)
+        : permanentRows,
+    [assetManagerLocationId, isAssetManager, permanentRows],
   );
 
   const scopedHolderOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.holder_name))].sort(), [scopedRows]);
@@ -244,9 +292,25 @@ export default function SignIn() {
       return matchesSearch && matchesHolder && matchesDivision && matchesLocation && matchesPackage;
     });
   }, [divisionFilter, holderFilter, locationFilter, packageFilter, scopedRows, searchQ]);
+  const filteredPermanentRows = useMemo(() => {
+    const q = permanentSearchQ.trim().toLowerCase();
+    return scopedPermanentRows.filter((item) => {
+      return (
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        (item.serial_number ?? "").toLowerCase().includes(q) ||
+        item.holder_name.toLowerCase().includes(q) ||
+        item.location_name.toLowerCase().includes(q) ||
+        item.division_name.toLowerCase().includes(q)
+      );
+    });
+  }, [permanentSearchQ, scopedPermanentRows]);
 
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id));
   const selectedCount = selectedIds.size;
+  const allFilteredPermanentSelected =
+    filteredPermanentRows.length > 0 && filteredPermanentRows.every((row) => permanentSelectedIds.has(row.id));
 
   const toggleItem = (id: string) => {
     setSelectedIds((current) => {
@@ -267,6 +331,29 @@ export default function SignIn() {
         filteredRows.forEach((row) => next.delete(row.id));
       } else {
         filteredRows.forEach((row) => next.add(row.id));
+      }
+      return next;
+    });
+  };
+  const togglePermanentItem = (id: string) => {
+    setPermanentSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllFilteredPermanent = () => {
+    setPermanentSelectedIds((current) => {
+      const next = new Set(current);
+      if (allFilteredPermanentSelected) {
+        filteredPermanentRows.forEach((row) => next.delete(row.id));
+      } else {
+        filteredPermanentRows.forEach((row) => next.add(row.id));
       }
       return next;
     });
@@ -391,6 +478,46 @@ export default function SignIn() {
     if (success) {
       setBulkDecision(null);
       setSelectedIds(new Set());
+    }
+  };
+
+  const requestPermanentSignIn = async () => {
+    if (!isAdmin) {
+      toast.error("Only Admin can request permanent sign-ins.");
+      return;
+    }
+
+    const targetIds = Array.from(permanentSelectedIds);
+    if (targetIds.length === 0) {
+      toast.error("Select at least one permanent asset.");
+      return;
+    }
+
+    if (!permanentReturnLocationId) {
+      toast.error("Choose the location where the permanent items will be signed in.");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const { error } = await supabase.rpc("request_permanent_asset_signin" as any, {
+        target_asset_ids: targetIds,
+        target_location_id: permanentReturnLocationId,
+        request_notes: permanentNotes.trim() || null,
+      });
+
+      if (error) throw error;
+
+      toast.success(`Sent ${targetIds.length} permanent sign-in request${targetIds.length === 1 ? "" : "s"} to Pending Approvals.`);
+      setPermanentSelectedIds(new Set());
+      setPermanentNotes("");
+      setPermanentSearchQ("");
+      setPermanentReturnLocationId("");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to request permanent sign-in.");
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -681,6 +808,108 @@ export default function SignIn() {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {isAdmin && (
+        <div className="rounded-[1.6rem] border border-violet-500/18 bg-violet-500/5 p-4 space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="font-display text-xl text-violet-200 glow-soft">Permenent Sign In</h2>
+              <p className="text-sm text-muted-foreground">Select permanent items and send a sign-in request for approval by barend@encounterchurch.co.za.</p>
+            </div>
+            {filteredPermanentRows.length > 0 && (
+              <Button type="button" variant="outline" size="sm" onClick={toggleAllFilteredPermanent}>
+                {allFilteredPermanentSelected ? <CheckSquare size={14} className="mr-1" /> : <Square size={14} className="mr-1" />}
+                {allFilteredPermanentSelected ? "Deselect all" : `Select all (${filteredPermanentRows.length})`}
+              </Button>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search permanent items by name, tag, holder or serial..."
+                value={permanentSearchQ}
+                onChange={(event) => setPermanentSearchQ(event.target.value)}
+              />
+            </div>
+
+            <Select value={permanentReturnLocationId} onValueChange={setPermanentReturnLocationId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose sign-in location" />
+              </SelectTrigger>
+              <SelectContent>
+                {locationOptions.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Notes (optional)</Label>
+            <Textarea
+              value={permanentNotes}
+              onChange={(event) => setPermanentNotes(event.target.value)}
+              placeholder="Optional approval notes for this permanent sign-in request."
+            />
+          </div>
+
+          {filteredPermanentRows.length === 0 ? (
+            <div className="rounded-[1.5rem] border border-primary/12 bg-card/70 px-6 py-12 text-center font-mono text-sm text-muted-foreground/70">
+              No permanent items match your search.
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {filteredPermanentRows.map((item) => {
+                const isSelected = permanentSelectedIds.has(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => togglePermanentItem(item.id)}
+                    className={cn(
+                      "group flex w-full flex-col gap-1 rounded-[1.3rem] border px-4 py-3 text-left transition-all sm:min-w-[240px] sm:w-auto",
+                      isSelected
+                        ? "border-violet-400/55 bg-violet-500/10 shadow-[0_0_12px_rgba(139,92,246,0.12)]"
+                        : "border-violet-500/18 bg-card/50 hover:border-violet-400/40 hover:bg-violet-500/5",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isSelected ? (
+                        <CheckSquare size={14} className="shrink-0 text-violet-300" />
+                      ) : (
+                        <Square size={14} className="shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground" />
+                      )}
+                      <span className="font-mono text-xs text-violet-300">{item.code}</span>
+                      <Badge variant="outline" className={cn("ml-auto text-[10px] uppercase tracking-wider", getStatusBadgeClass("permanent"))}>
+                        Permanent
+                      </Badge>
+                    </div>
+
+                    <div className="pl-5 space-y-0.5">
+                      <p className="text-sm font-medium text-foreground leading-tight">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.holder_name}</p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-muted-foreground/60">
+                        {item.division_name !== "â€”" && <span>{item.division_name}</span>}
+                        {item.location_name !== "â€”" && <span>{item.location_name}</span>}
+                        {item.serial_number && <span>{item.serial_number}</span>}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <Button onClick={requestPermanentSignIn} disabled={processing || permanentSelectedIds.size === 0}>
+            {processing ? "Processing..." : `Send Permenent Sign In Request (${permanentSelectedIds.size})`}
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
         <Button type="button" onClick={() => setScanOpen(true)}>
