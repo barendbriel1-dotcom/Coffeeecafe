@@ -138,6 +138,7 @@ export default function Assets() {
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
   const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
+  const selectedLocationLabel = locationFilter === "all" ? "Location" : locationMap[locationFilter] ?? "Location";
 
   useEffect(() => {
     if (searchParams.get("status")) {
@@ -737,36 +738,34 @@ export default function Assets() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="signed_out">Signed Out</SelectItem>
-                <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
-                <SelectItem value="damaged">Damaged</SelectItem>
-                <SelectItem value="permanent">Permanent</SelectItem>
-                <SelectItem value="not_assigned">Not Assigned</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger>
+              <SelectValue>{statusFilter === "all" ? "Status" : getAssetStatusLabel(statusFilter)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="signed_out">Signed Out</SelectItem>
+              <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
+              <SelectItem value="damaged">Damaged</SelectItem>
+              <SelectItem value="permanent">Permanent</SelectItem>
+              <SelectItem value="not_assigned">Not Assigned</SelectItem>
+            </SelectContent>
+          </Select>
 
-          <div className="space-y-2">
-            <Label>Location</Label>
-            <Select value={locationFilter} onValueChange={setLocationFilter}>
-              <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {locations.map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    {location.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger>
+              <SelectValue>{selectedLocationLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

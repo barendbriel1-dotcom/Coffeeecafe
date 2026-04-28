@@ -235,7 +235,7 @@ export default function AppLayout() {
   const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   const SidebarInner = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <div className={cn("border-b border-primary/12 p-5", collapsed ? "px-3 text-center" : "px-5")}>
         {collapsed ? (
           <div className="font-display text-2xl font-semibold tracking-tight text-foreground glow-soft">A</div>
@@ -277,17 +277,17 @@ export default function AppLayout() {
       >
         {collapsed ? <ChevronRight size={14} /> : (<><ChevronLeft size={14} /> Collapse</>)}
       </button>
-    </>
+    </div>
   );
 
   return (
-    <div className="relative isolate flex min-h-screen bg-transparent text-foreground">
+    <div className="relative isolate flex h-screen overflow-hidden bg-transparent text-foreground">
       <MatrixRain className="-z-20 opacity-55" />
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.08),transparent_24%),linear-gradient(180deg,rgba(5,10,7,0.32),rgba(5,10,7,0.6))]" />
 
       <aside
         className={cn(
-          "hidden shrink-0 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)] transition-[width] duration-200 md:flex",
+          "hidden h-screen shrink-0 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)] transition-[width] duration-200 md:flex",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -297,13 +297,13 @@ export default function AppLayout() {
       {mobileOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-strong)] md:hidden">
+          <aside className="fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-strong)] md:hidden">
             <SidebarInner onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
       )}
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
         {showInstallBanner && isMobileDevice && (
           <div className="px-4 pt-4 sm:px-6">
             <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-card px-4 py-3 shadow-[var(--shadow-soft)]">
@@ -395,7 +395,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 pb-6 sm:px-6 sm:pb-8">
+        <main className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 sm:pb-8">
           <div className="mx-auto w-full max-w-7xl">
             <Outlet />
           </div>
