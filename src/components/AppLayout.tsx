@@ -60,7 +60,6 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [headerHidden, setHeaderHidden] = useState(false);
   const [now, setNow] = useState(new Date());
   const [displayName, setDisplayName] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -78,17 +77,6 @@ export default function AppLayout() {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const syncHeaderVisibility = () => {
-      setHeaderHidden(window.scrollY > 20);
-    };
-
-    syncHeaderVisibility();
-    window.addEventListener("scroll", syncHeaderVisibility, { passive: true });
-
-    return () => window.removeEventListener("scroll", syncHeaderVisibility);
   }, []);
 
   useEffect(() => {
@@ -283,13 +271,13 @@ export default function AppLayout() {
   );
 
   return (
-    <div className="relative isolate flex h-screen overflow-hidden bg-transparent text-foreground">
+    <div className="relative isolate flex min-h-screen bg-transparent text-foreground">
       <MatrixRain className="-z-20 opacity-55" />
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.08),transparent_24%),linear-gradient(180deg,rgba(5,10,7,0.32),rgba(5,10,7,0.6))]" />
 
       <aside
         className={cn(
-          "hidden h-screen shrink-0 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)] transition-[width] duration-200 md:flex",
+          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)] transition-[width] duration-200 md:flex",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -305,7 +293,7 @@ export default function AppLayout() {
         </>
       )}
 
-      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         {showInstallBanner && isMobileDevice && (
           <div className="px-4 pt-4 sm:px-6">
             <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-card px-4 py-3 shadow-[var(--shadow-soft)]">
@@ -331,10 +319,7 @@ export default function AppLayout() {
         )}
 
         <header
-          className={cn(
-            "sticky top-0 z-30 px-4 py-4 transition-all duration-300 sm:px-6",
-            headerHidden ? "pointer-events-none -translate-y-6 opacity-0" : "translate-y-0 opacity-100",
-          )}
+          className="sticky top-0 z-30 px-4 py-4 sm:px-6"
         >
           <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/92 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
             <div className="flex min-w-0 items-center gap-3">
@@ -397,7 +382,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 sm:px-6 sm:pb-8">
+        <main className="flex-1 px-4 pb-6 sm:px-6 sm:pb-8">
           <div className="mx-auto w-full max-w-7xl">
             <Outlet />
           </div>
