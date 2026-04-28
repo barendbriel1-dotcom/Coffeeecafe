@@ -305,7 +305,7 @@ export default function AppLayout() {
         </>
       )}
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {showInstallBanner && isMobileDevice && (
           <div className="px-4 pt-4 sm:px-6">
             <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-card px-4 py-3 shadow-[var(--shadow-soft)]">
@@ -397,7 +397,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 sm:pb-8">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 sm:px-6 sm:pb-8">
           <div className="mx-auto w-full max-w-7xl">
             <Outlet />
           </div>

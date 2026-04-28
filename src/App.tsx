@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,10 +21,10 @@ import Admin from "./pages/Admin";
 import Install from "./pages/Install";
 import History from "./pages/History";
 import SignIn from "./pages/SignIn";
-import Wedding from "./pages/Wedding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const Wedding = lazy(() => import("./pages/Wedding"));
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -47,7 +48,16 @@ const App = () => (
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/history" element={<History />} />
-              <Route path="/wedding" element={<EmailProtectedRoute allowedEmail="barend@encounterchurch.co.za"><Wedding /></EmailProtectedRoute>} />
+              <Route
+                path="/wedding"
+                element={
+                  <EmailProtectedRoute allowedEmail="barend@encounterchurch.co.za">
+                    <Suspense fallback={null}>
+                      <Wedding />
+                    </Suspense>
+                  </EmailProtectedRoute>
+                }
+              />
               <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute requireRole="admin"><Navigate to="/admin?section=users-roles" replace /></ProtectedRoute>} />
               <Route path="/install" element={<Install />} />
