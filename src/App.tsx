@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import ApprovalPending from "@/components/ApprovalPending";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { EmailProtectedRoute, ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Assets from "./pages/Assets";
@@ -20,6 +20,7 @@ import Admin from "./pages/Admin";
 import Install from "./pages/Install";
 import History from "./pages/History";
 import SignIn from "./pages/SignIn";
+import Wedding from "./pages/Wedding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/handover" element={<Handover />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/history" element={<History />} />
+              <Route path="/wedding" element={<EmailProtectedRoute allowedEmail="barend@encounterchurch.co.za"><Wedding /></EmailProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireRole="admin"><Admin /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute requireRole="admin"><Navigate to="/admin?section=users-roles" replace /></ProtectedRoute>} />
               <Route path="/install" element={<Install />} />

@@ -447,6 +447,75 @@ export type Database = {
           },
         ]
       }
+      wedding_donations: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          paid_amount: number
+          person_name: string
+          quoted_amount: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          paid_amount?: number
+          person_name: string
+          quoted_amount?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          paid_amount?: number
+          person_name?: string
+          quoted_amount?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wedding_expenses: {
+        Row: {
+          created_at: string
+          id: string
+          item_name: string
+          note: string | null
+          paid_amount: number
+          quoted_amount: number
+          section: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_name: string
+          note?: string | null
+          paid_amount?: number
+          quoted_amount?: number
+          section: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_name?: string
+          note?: string | null
+          paid_amount?: number
+          quoted_amount?: number
+          section?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       signout_items: {
         Row: {
           asset_id: string

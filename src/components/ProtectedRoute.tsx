@@ -80,3 +80,20 @@ export function ProtectedRoute({
 
   return <>{children}</>;
 }
+
+export function EmailProtectedRoute({
+  children,
+  allowedEmail,
+}: {
+  children: ReactNode;
+  allowedEmail: string;
+}) {
+  const { user } = useAuth();
+  const normalizedEmail = user?.email?.toLowerCase() ?? "";
+
+  if (normalizedEmail !== allowedEmail.toLowerCase()) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}

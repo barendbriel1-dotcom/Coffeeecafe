@@ -7,6 +7,7 @@ import {
   Clock,
   Download,
   History,
+  Heart,
   Inbox,
   Layers,
   LayoutGrid,
@@ -228,6 +229,7 @@ export default function AppLayout() {
     { to: "/handover", label: "Handovers", icon: ArrowLeftRight, show: true, exact: true },
     { to: "/users", label: "Users", icon: Users, show: isAdmin, exact: true },
     { to: "/history", label: "History", icon: History, show: true, exact: true },
+    { to: "/wedding", label: "Wedding", icon: Heart, show: user?.email?.toLowerCase() === "barend@encounterchurch.co.za", exact: true },
   ].filter((entry) => entry.show);
 
   const roleLabel = isAdmin ? "ADMIN" : isAssetManager ? "ASSETS MANAGER" : isStaff ? "STAFF" : "VOLUNTEER";
