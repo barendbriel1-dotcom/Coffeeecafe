@@ -102,6 +102,7 @@ interface AssetRequestRow {
 const FALLBACK_NAME = "Not Assigned";
 const FALLBACK_LOCATION_CODE = "N";
 const FALLBACK_DIVISION_CODE = "NASS";
+const PROTECTED_STATUS_USAGE: ManagedStatus[] = ["available", "signed_out"];
 const ROLE_OPTIONS: Role[] = ["admin", "staff", "volunteer", "asset_manager"];
 const DEFAULT_ADMIN_SECTION: AdminSection = "pending-approvals";
 
@@ -703,6 +704,11 @@ export default function Admin() {
   };
 
   const moveStatusToFallback = async (status: ManagedStatus) => {
+    if (PROTECTED_STATUS_USAGE.includes(status)) {
+      toast.error(`${getAssetStatusLabel(status)} is protected by the asset lifecycle and cannot be deleted.`);
+      return;
+    }
+
     if (status === "not_assigned") {
       toast.error("Not Assigned is already the fallback status.");
       return;
@@ -1164,7 +1170,7 @@ export default function Admin() {
           {currentSection === "status" && (
             <div className="space-y-3">
               <Card className="bg-card/40 border-primary/30 p-4 text-sm text-muted-foreground">
-                Delete any status here and all linked items will be moved into <span className="text-foreground">Not Assigned</span>.
+                Delete non-core status usage here and all linked items will be moved into <span className="text-foreground">Not Assigned</span>.
               </Card>
 
               <div className="grid gap-3">
@@ -1186,9 +1192,9 @@ export default function Admin() {
                         type="button"
                         variant="destructive"
                         onClick={() => moveStatusToFallback(status)}
-                        disabled={busyKey === `status-delete-${status}` || status === "not_assigned"}
+                        disabled={busyKey === `status-delete-${status}` || status === "not_assigned" || PROTECTED_STATUS_USAGE.includes(status)}
                       >
-                        {busyKey === `status-delete-${status}` ? "Deleting..." : "Delete"}
+                        {PROTECTED_STATUS_USAGE.includes(status) ? "Protected" : busyKey === `status-delete-${status}` ? "Deleting..." : "Delete"}
                       </Button>
                     </div>
                   </Card>

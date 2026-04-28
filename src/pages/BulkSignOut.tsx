@@ -610,23 +610,38 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
 
   const updateAssignment = async (lineId: string, assetId: string) => {
     const oldAssetId = assignments[lineId];
-    if (oldAssetId === assetId || (oldAssetId === "" && assetId === "unassigned")) return;
+    if (oldAssetId === assetId || (oldAssetId === "" && assetId === "unassigned")) return true;
     const lockTimestamp = new Date().toISOString();
+    const lockExpiresBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
+    if (assetId !== "unassigned" && assetId) {
+      const { data: lockedAsset, error: lockError } = await supabase
+        .from("assets")
+        .update({ locked_by: user!.id, locked_at: lockTimestamp } as any)
+        .eq("id", assetId)
+        .or(`locked_by.is.null,locked_by.eq.${user!.id},locked_at.is.null,locked_at.lt.${lockExpiresBefore}`)
+        .select("id")
+        .maybeSingle();
+
+      if (lockError || !lockedAsset) {
+        toast.error(lockError?.message ?? "That asset is already locked by another workflow.");
+        return false;
+      }
+
+      setAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, locked_by: user!.id, locked_at: lockTimestamp } : asset));
+    }
 
     setAssignments((current) => ({
       ...current,
       [lineId]: assetId === "unassigned" ? "" : assetId,
     }));
 
-    if (assetId !== "unassigned" && assetId) {
-      setAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, locked_by: user!.id, locked_at: lockTimestamp } : asset));
-      await supabase.from("assets").update({ locked_by: user!.id, locked_at: lockTimestamp } as any).eq("id", assetId);
-    }
-    
     if (oldAssetId && oldAssetId !== "unassigned") {
       setAssets((current) => current.map((asset) => asset.id === oldAssetId ? { ...asset, locked_by: null, locked_at: null } : asset));
-      await supabase.from("assets").update({ locked_by: null, locked_at: null } as any).eq("id", oldAssetId);
+      await supabase.from("assets").update({ locked_by: null, locked_at: null } as any).eq("id", oldAssetId).eq("locked_by", user!.id);
     }
+
+    return true;
   };
 
   const submitBulkSignout = async () => {
@@ -1188,9 +1203,9 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                         key={asset.id}
                         type="button"
                         disabled={disabled}
-                        onClick={() => {
-                          updateAssignment(activeAssignmentLine.id, asset.id);
-                          setActiveAssignmentLineId(null);
+                        onClick={async () => {
+                          const locked = await updateAssignment(activeAssignmentLine.id, asset.id);
+                          if (locked) setActiveAssignmentLineId(null);
                         }}
                         className={cn(
                           "w-full rounded-[1.2rem] border p-4 text-left transition-all",
