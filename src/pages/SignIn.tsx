@@ -130,6 +130,7 @@ export default function SignIn() {
 
   const [searchQ, setSearchQ] = useState("");
   const [permanentSearchQ, setPermanentSearchQ] = useState("");
+  const [signInMode, setSignInMode] = useState<"standard" | "permanent_request">("standard");
   const [holderFilter, setHolderFilter] = useState("all");
   const [divisionFilter, setDivisionFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
@@ -808,8 +809,29 @@ export default function SignIn() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {isAdmin && (
-        <div className="rounded-[1.6rem] border border-violet-500/18 bg-violet-500/5 p-4 space-y-4">
+      <div className="rounded-[1.6rem] border border-primary/12 bg-card/70 p-4 space-y-4">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px] md:items-end">
+          <div>
+            <h2 className="font-display text-xl text-foreground glow-soft">Sign in type</h2>
+            <p className="text-sm text-muted-foreground">
+              {signInMode === "permanent_request"
+                ? "Select permanent items and send a sign-in request for approval by barend@encounterchurch.co.za."
+                : "Choose how you want to process the selected sign-in."}
+            </p>
+          </div>
+          <Select value={signInMode} onValueChange={(value: "standard" | "permanent_request") => setSignInMode(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose sign-in type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">Regular Sign In</SelectItem>
+              {isAdmin && <SelectItem value="permanent_request">Permenent Sign In</SelectItem>}
+            </SelectContent>
+          </Select>
+        </div>
+
+      {isAdmin && signInMode === "permanent_request" && (
+        <div className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="font-display text-xl text-violet-200 glow-soft">Permenent Sign In</h2>
@@ -910,6 +932,8 @@ export default function SignIn() {
         </div>
       )}
 
+      {signInMode === "standard" && (
+        <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-3xl text-foreground glow-soft">Sign in</h1>
         <Button type="button" onClick={() => setScanOpen(true)}>
@@ -1122,6 +1146,10 @@ export default function SignIn() {
           })}
         </div>
       )}
+        </>
+      )}
+
+      </div>
 
       <Dialog open={!!bulkDecision} onOpenChange={(open) => !open && setBulkDecision(null)}>
         <DialogContent className="bg-card/95" aria-describedby={bulkDecisionDescriptionId}>
