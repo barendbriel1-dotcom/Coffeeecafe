@@ -258,124 +258,91 @@
   }
 
   .matrix-button {
-    --matrix-button-border: hsl(142 86% 82%);
-    --matrix-button-bg: hsl(143 62% 31%);
-    --matrix-button-bg-strong: hsl(143 68% 26%);
-    --matrix-button-text: hsl(144 28% 95%);
+    --glow-color: hsl(142 86% 54%);
+    --glow-spread-color: hsl(142 86% 42% / 0.18);
+    --enhanced-glow-color: hsl(151 92% 70%);
+    --btn-color: hsl(150 42% 10%);
     position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    border: 3px solid var(--matrix-button-border);
-    border-radius: 0.9rem;
-    color: var(--matrix-button-text) !important;
-    background: var(--matrix-button-bg) !important;
+    overflow: visible;
+    border: 0.16em solid var(--glow-color);
+    color: var(--enhanced-glow-color);
+    background: linear-gradient(180deg, hsl(150 46% 13%), var(--btn-color));
     box-shadow:
-      inset 0 1px 0 hsl(0 0% 100% / 0.12),
-      0 10px 24px hsl(140 70% 4% / 0.22);
+      inset 0 0 0.18em 0.03em hsl(142 86% 54% / 0.32),
+      0 8px 18px hsl(140 70% 4% / 0.26);
     text-shadow: none;
   }
 
-  .matrix-button::before,
   .matrix-button::after {
     content: "";
-    position: absolute;
-    top: -2px;
-    left: -2px;
     pointer-events: none;
-    background: var(--matrix-button-bg);
-    z-index: 0;
-    transition:
-      transform 0.3s ease-out,
-      height 0.3s ease-out,
-      opacity 0.3s ease-out,
-      background-color 0.3s ease-out;
-  }
-
-  .matrix-button::before {
-    width: calc(100% + 6px);
-    height: calc(100% + 2px);
-    transform: scaleY(1);
-    background: linear-gradient(180deg, hsl(0 0% 100% / 0.1), var(--matrix-button-bg));
-  }
-
-  .matrix-button::after {
-    width: calc(100% + 4px);
-    height: calc(100% - 46px);
-    transform: scaleY(1);
-    background: var(--matrix-button-bg-strong);
-  }
-
-  .matrix-button__content {
-    position: relative;
-    z-index: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    width: 100%;
-    height: 100%;
-    background: transparent;
+    position: absolute;
+    top: 112%;
+    left: 12%;
+    height: 85%;
+    width: 76%;
+    border-radius: inherit;
+    background: var(--glow-spread-color);
+    filter: blur(1.35em);
+    opacity: 0;
+    transform: perspective(1.5em) rotateX(35deg) scale(1, 0.52);
+    transition: opacity 220ms ease, transform 220ms ease;
   }
 
   .matrix-button:hover {
-    border-color: var(--matrix-button-border);
-    color: var(--matrix-button-text) !important;
-    background: var(--matrix-button-bg) !important;
+    color: hsl(150 52% 8%);
+    background: var(--glow-color);
+    transform: translateY(-1px);
     box-shadow:
-      inset 0 1px 0 hsl(0 0% 100% / 0.14),
-      0 0 20px hsl(142 76% 48% / 0.18),
-      0 12px 28px hsl(140 70% 4% / 0.26);
-  }
-
-  .matrix-button:hover::before {
-    transform: translateY(-25px);
-    height: 0;
+      inset 0 0 0.18em 0.03em hsl(151 92% 70% / 0.35),
+      0 10px 22px hsl(140 70% 4% / 0.3);
   }
 
   .matrix-button:hover::after {
-    transform: scaleX(0);
-    transition-delay: 0.15s;
+    opacity: 0;
+    transform: perspective(1.5em) rotateX(35deg) scale(1.08, 0.6);
   }
 
   .matrix-button:active {
     transform: translateY(0);
     box-shadow:
-      inset 0 1px 0 hsl(0 0% 100% / 0.08),
-      0 8px 18px hsl(140 70% 4% / 0.2);
-  }
-
-  .matrix-button:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 3px hsl(142 76% 48% / 0.18),
-      0 12px 28px hsl(140 70% 4% / 0.26);
+      inset 0 0 0.14em 0.03em hsl(142 86% 54% / 0.26),
+      0 6px 14px hsl(140 70% 4% / 0.24);
   }
 
   .matrix-button-destructive,
   .matrix-button.text-destructive,
   .matrix-button.border-destructive\/25,
   .matrix-button.hover\:text-destructive {
-    --matrix-button-border: hsl(0 88% 85%);
-    --matrix-button-bg: hsl(0 62% 37%);
-    --matrix-button-bg-strong: hsl(0 68% 31%);
-    --matrix-button-text: hsl(0 0% 98%);
+    --glow-color: hsl(0 78% 62%);
+    --glow-spread-color: hsl(0 78% 52% / 0.18);
+    --enhanced-glow-color: hsl(0 92% 78%);
+    --btn-color: hsl(0 42% 12%);
+    color: hsl(0 92% 78%);
+    background: linear-gradient(180deg, hsl(0 48% 18%), hsl(0 46% 12%));
+    box-shadow:
+      0 0 0.26em 0.05em hsl(0 78% 62% / 0.58),
+      0 0 0.9em 0.14em hsl(0 78% 52% / 0.24),
+      inset 0 0 0.22em 0.05em hsl(0 78% 62% / 0.42);
+    text-shadow: 0 0 0.22em hsl(0 78% 62% / 0.72);
   }
 
   .matrix-button-destructive:hover,
   .matrix-button.text-destructive:hover,
   .matrix-button.border-destructive\/25:hover,
   .matrix-button.hover\:text-destructive:hover {
+    color: hsl(0 0% 100%);
+    background: hsl(0 78% 44%);
     box-shadow:
-      inset 0 1px 0 hsl(0 0% 100% / 0.12),
-      0 0 20px hsl(0 78% 52% / 0.22),
-      0 12px 28px hsl(0 60% 6% / 0.24);
+      0 0 0.34em 0.06em hsl(0 78% 62% / 0.68),
+      0 0 1.15em 0.2em hsl(0 78% 52% / 0.3),
+      inset 0 0 0.28em 0.06em hsl(0 92% 78% / 0.48);
   }
 
   .matrix-button-outline,
   .matrix-button-secondary {
-    --matrix-button-border: hsl(142 34% 40%);
-    --matrix-button-bg: hsl(220 18% 14%);
-    --matrix-button-text: hsl(146 20% 78%);
+    --glow-spread-color: hsl(142 74% 38% / 0.12);
+    background: linear-gradient(180deg, hsl(220 20% 13% / 0.96), hsl(150 34% 9% / 0.94));
   }
 
   .matrix-button-ghost {
@@ -384,10 +351,8 @@
     background: transparent;
     box-shadow: none;
     text-shadow: none;
-    overflow: visible;
   }
 
-  .matrix-button-ghost::before,
   .matrix-button-ghost::after,
   .matrix-button-link::after {
     display: none;
@@ -395,17 +360,16 @@
 
   .matrix-button-ghost:hover {
     color: hsl(var(--primary));
-    background: hsl(var(--primary) / 0.1) !important;
+    background: hsl(var(--primary) / 0.1);
     box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.2);
   }
 
   .matrix-button-link {
     border-color: transparent;
     color: hsl(var(--primary));
-    background: transparent !important;
+    background: transparent;
     box-shadow: none;
     text-shadow: 0 0 0.35em hsl(var(--primary) / 0.45);
-    overflow: visible;
   }
 
   .matrix-button-link:hover {
