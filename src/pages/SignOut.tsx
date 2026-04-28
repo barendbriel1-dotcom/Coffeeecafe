@@ -334,11 +334,6 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="rounded-[1rem] border border-primary/12 bg-background px-4 py-3 text-sm text-muted-foreground">
-              {signoutMode === "permanent_request"
-                ? "This sends the selected items to Pending Approvals. They only become permanently assigned after approval by barend@encounterchurch.co.za."
-                : "This signs the selected items out to you immediately and moves them to Traveling."}
-            </div>
           </div>
         ) : null}
 
