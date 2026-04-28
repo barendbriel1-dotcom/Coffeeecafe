@@ -409,12 +409,6 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
   const changeGroupSignoutLocation = (locationId: string) => {
     if (locationId === groupSignoutLocationId) return;
 
-    const assignedAssetIds = extractAssignedAssetIds(assignments);
-    if (assignedAssetIds.length > 0) {
-      void releaseAssetLocks(assignedAssetIds);
-    }
-
-    setAssignments({});
     setActiveAssignmentLineId(null);
     setGroupSignoutLocationId(locationId);
   };
@@ -1152,7 +1146,7 @@ export default function BulkSignOut({ mode = "groupings" }: { mode?: "groupings"
                         className="justify-start border-primary/12 bg-background text-left text-foreground hover:bg-primary/8"
                         onClick={() => setActiveAssignmentLineId(item.id)}
                       >
-                        {selectedAsset ? `Choose item | ${selectedAsset.code}${selectedAsset.serial_number ? ` | ${selectedAsset.serial_number}` : ""}` : "Choose exact item"}
+                        {selectedAsset ? `Replace item | ${selectedAsset.code}${selectedAsset.serial_number ? ` | ${selectedAsset.serial_number}` : ""}` : "Choose exact item"}
                       </Button>
 
                       {selectedAsset && (
