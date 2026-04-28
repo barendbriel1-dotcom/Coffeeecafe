@@ -737,30 +737,36 @@ export default function Assets() {
             />
           </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="available">Available</SelectItem>
-              <SelectItem value="signed_out">Signed Out</SelectItem>
-              <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
-              <SelectItem value="damaged">Damaged</SelectItem>
-              <SelectItem value="permanent">Permanent</SelectItem>
-              <SelectItem value="not_assigned">Not Assigned</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="signed_out">Signed Out</SelectItem>
+                <SelectItem value="out_for_repairs">Out for Repairs</SelectItem>
+                <SelectItem value="damaged">Damaged</SelectItem>
+                <SelectItem value="permanent">Permanent</SelectItem>
+                <SelectItem value="not_assigned">Not Assigned</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select value={locationFilter} onValueChange={setLocationFilter}>
-            <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location.id} value={location.id}>
-                  {location.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Location</Label>
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {locations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
