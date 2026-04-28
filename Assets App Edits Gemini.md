@@ -98,3 +98,65 @@ This follow-up conversation introduced a new **Permanent** asset status with a s
 ## Next Required Change
 - Modify the **Sign Out** page so that selecting **Permanent** sends an approval request to **Pending Approvals** instead of immediately completing a normal sign-out.
 - After approval, the asset should become permanently assigned to the chosen user.
+
+---
+
+# Assets App Edits - Sign Out, Navigation, and Filter UI Follow-Up
+
+## Overview
+This follow-up conversation refined the sign-out workflow, sidebar navigation order, Assets page filters, and the overall dashboard scrolling behavior. The focus was on making the interface clearer for Admin while preserving the existing role restrictions already implemented in the app.
+
+## Confirmed Changes
+
+### 1. Admin Recipient Selection on Sign Out
+- Updated the **Sign Out** page so that an **Admin** can choose which user an item is being signed out to.
+- This works for both:
+- **Sign out**
+- **Permanent request**
+- Non-admin users still sign items out to themselves.
+- The existing Assets Manager location lock behavior remains unchanged.
+- **File**: `src/pages/SignOut.tsx`
+
+### 2. Sign Out Label Cleanup
+- Renamed **Standard sign out** to **Sign out** on the Sign Out page.
+- **File**: `src/pages/SignOut.tsx`
+
+### 3. Dashboard Navigation Reordered
+- Reordered the main sidebar/dashboard navigation to:
+- Dashboard
+- Assets
+- Sign Out
+- Group Sign Out
+- Sign In
+- Groupings
+- Requests
+- Handovers
+- Users
+- History
+- Existing role-based visibility was preserved.
+- Added **Users** into the main navigation for Admin only, using the existing locked route.
+- **File**: `src/components/AppLayout.tsx`
+
+### 4. Assets Page Filter Bubble Behavior
+- Adjusted the **Assets** page filters so the filter bubbles themselves show:
+- **Status**
+- **Location**
+- There should not be separate labels above the bubbles.
+- Inside each dropdown, the neutral/default option remains **All**.
+- When a specific option is chosen, the bubble updates to show the selected value.
+- **File**: `src/pages/Assets.tsx`
+
+### 5. Separate Scroll Regions
+- Updated the app layout so the collapsible page-selection sidebar scrolls independently from the main page content.
+- The page itself now has its own scroll area, instead of sharing scroll behavior with the sidebar.
+- **File**: `src/components/AppLayout.tsx`
+
+## Verification
+- Verified these UI changes with TypeScript:
+- `npm.cmd exec tsc -- --noEmit`
+
+## Related Commits
+- `b38b86e` - Allow admin recipient selection on sign out
+- `6be9982` - Rename standard sign out label
+- `e54af3b` - Reorder dashboard navigation
+- `8889409` - Refine asset filters and split layout scrolling

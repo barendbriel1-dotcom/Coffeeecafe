@@ -109,6 +109,12 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!isAdmin && signoutMode === "permanent_request") {
+      setSignoutMode("standard");
+    }
+  }, [isAdmin, signoutMode]);
+
   const divisionMap = useMemo(() => Object.fromEntries(divisions.map((division) => [division.id, division.name])), [divisions]);
   const locationMap = useMemo(() => Object.fromEntries(locations.map((location) => [location.id, location.name])), [locations]);
   const recipientLabel = useMemo(
@@ -199,6 +205,11 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
 
     if (!recipientUserId) {
       toast.error("Choose who these items should be signed out to.");
+      return;
+    }
+
+    if (signoutMode === "permanent_request" && !isAdmin) {
+      toast.error("Only Admin can create permanent sign-out requests.");
       return;
     }
 
@@ -298,23 +309,29 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
           </Select>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Sign out type</Label>
-            <Select value={signoutMode} onValueChange={(value) => setSignoutMode(value as "standard" | "permanent_request")}>
-              <SelectTrigger><SelectValue placeholder="Choose sign out type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">Sign out</SelectItem>
-                <SelectItem value="permanent_request">Permanent request</SelectItem>
-              </SelectContent>
-            </Select>
+        {isAdmin ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">Sign out type</Label>
+              <Select value={signoutMode} onValueChange={(value) => setSignoutMode(value as "standard" | "permanent_request")}>
+                <SelectTrigger><SelectValue placeholder="Choose sign out type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Sign out</SelectItem>
+                  <SelectItem value="permanent_request">Permanent request</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-[1rem] border border-primary/12 bg-background px-4 py-3 text-sm text-muted-foreground">
+              {signoutMode === "permanent_request"
+                ? "This sends the selected items to Pending Approvals. They only become permanently assigned after approval by barend@encounterchurch.co.za."
+                : "This signs the selected items out to you immediately and moves them to Traveling."}
+            </div>
           </div>
+        ) : (
           <div className="rounded-[1rem] border border-primary/12 bg-background px-4 py-3 text-sm text-muted-foreground">
-            {signoutMode === "permanent_request"
-              ? "This sends the selected items to Pending Approvals. They only become permanently assigned after approval by barend@encounterchurch.co.za."
-              : "This signs the selected items out to you immediately and moves them to Traveling."}
+            This signs the selected items out to you immediately and moves them to Traveling.
           </div>
-        </div>
+        )}
 
         <div className="space-y-2">
           <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
