@@ -38,10 +38,13 @@ const weddingSurface =
   "rounded-[1.5rem] border border-black/10 bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)]";
 
 const weddingButton =
-  "!border-black !bg-black !text-white !shadow-none hover:!bg-white hover:!text-black";
+  "!border-black/15 !bg-white !text-black !shadow-none hover:!bg-black hover:!text-white";
 
 const weddingGhostButton =
   "!border-black/18 !bg-white !text-black !shadow-none hover:!bg-black hover:!text-white";
+
+const weddingField =
+  "!border-black/12 !bg-white !text-black !shadow-none";
 
 export default function Wedding() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
@@ -462,7 +465,7 @@ function EditableTable(props: EditableTableProps) {
                         value={row.item_name}
                         onChange={(event) => props.onUpdate(row.id, { item_name: event.target.value })}
                         maxLength={140}
-                        className="border-black/12 bg-white text-black"
+                        className={weddingField}
                       />
                     </TableCell>
                     <TableCell>
@@ -472,7 +475,7 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.quoted_amount)}
                         onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className={cn(weddingField, "font-mono")}
                       />
                     </TableCell>
                     <TableCell>
@@ -482,14 +485,14 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.paid_amount)}
                         onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className={cn(weddingField, "font-mono")}
                       />
                     </TableCell>
                     <TableCell>
                       <Textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
+                        className={cn("min-h-[44px] rounded-[1rem] py-2", weddingField)}
                         maxLength={240}
                       />
                     </TableCell>
@@ -509,7 +512,7 @@ function EditableTable(props: EditableTableProps) {
                         value={row.person_name}
                         onChange={(event) => props.onUpdate(row.id, { person_name: event.target.value })}
                         maxLength={140}
-                        className="border-black/12 bg-white text-black"
+                        className={weddingField}
                       />
                     </TableCell>
                     <TableCell>
@@ -519,7 +522,7 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.quoted_amount)}
                         onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className={cn(weddingField, "font-mono")}
                       />
                     </TableCell>
                     <TableCell>
@@ -529,14 +532,14 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.paid_amount)}
                         onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className={cn(weddingField, "font-mono")}
                       />
                     </TableCell>
                     <TableCell>
                       <Textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
+                        className={cn("min-h-[44px] rounded-[1rem] py-2", weddingField)}
                         maxLength={240}
                       />
                     </TableCell>
