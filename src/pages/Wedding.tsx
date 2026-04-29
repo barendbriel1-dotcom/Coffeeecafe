@@ -248,7 +248,7 @@ export default function Wedding() {
                 <Heart className="size-3.5" />
                 Wedding Budget
               </div>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-black sm:text-5xl">Barend & Bianca</h1>
+              <h1 className="font-wedding mt-4 text-5xl font-semibold leading-none text-black sm:text-6xl">Barend & Bianca</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-black/68 sm:text-base">
                 Keep the planning in one place with a softer black-and-white look for this page only.
               </p>
@@ -405,7 +405,7 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-3 border-b border-black/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 className="text-2xl font-semibold text-black">{title}</h2>
+        <h2 className="font-wedding text-[2rem] font-semibold leading-none text-black sm:text-[2.2rem]">{title}</h2>
         <div className="text-[11px] uppercase tracking-[0.2em] text-black/42">{subtitle}</div>
       </div>
       <button type="button" onClick={onAdd} disabled={adding} className={cn(weddingButton, "sm:w-auto")}>
