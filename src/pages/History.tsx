@@ -38,6 +38,7 @@ interface DamageReport {
   other_details: string | null;
   admin_conclusion_notes: string | null;
   admin_conclusion_status: string | null;
+  status: "pending" | "completed" | "concluded";
   created_at: string;
 }
 
@@ -68,7 +69,6 @@ export default function History() {
       supabase
         .from("damage_reports")
         .select("*")
-        .not("admin_conclusion_status", "is", null)
         .order("created_at", { ascending: false })
     ]);
 
@@ -144,6 +144,9 @@ export default function History() {
 
   const filteredDamageReports = useMemo(() => {
     return damageReports.filter((report) => {
+      const isArchivedForHistory = report.admin_conclusion_status !== null || report.status === "concluded";
+      if (!isArchivedForHistory) return false;
+
       const searchBlob = [
         report.asset_code,
         report.asset_name,

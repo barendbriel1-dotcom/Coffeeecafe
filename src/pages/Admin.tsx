@@ -199,6 +199,7 @@ export default function Admin() {
   const [conclusionStatus, setConclusionStatus] = useState<ManagedStatus>("available");
   const [concludingBusy, setConcludingBusy] = useState(false);
   const [deletingDamageReportId, setDeletingDamageReportId] = useState<string | null>(null);
+  const [archivingDamageReportId, setArchivingDamageReportId] = useState<string | null>(null);
 
   const setSection = (section: AdminSection) => {
     const next = new URLSearchParams(searchParams);
@@ -945,6 +946,29 @@ export default function Admin() {
       toast.error(error?.message ?? "Failed to delete damage report.");
     } finally {
       setDeletingDamageReportId(null);
+    }
+  };
+
+  const archiveDamageReport = async (report: DamageReport) => {
+    setArchivingDamageReportId(report.id);
+    try {
+      const { error } = await supabase
+        .from("damage_reports")
+        .update({
+          status: "concluded",
+          reviewed_at: report.reviewed_at ?? new Date().toISOString(),
+          reviewed_by: report.reviewed_by ?? user?.id ?? null,
+        })
+        .eq("id", report.id);
+
+      if (error) throw error;
+
+      toast.success("Damage report archived to History.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to archive damage report.");
+    } finally {
+      setArchivingDamageReportId(null);
     }
   };
 
@@ -1900,6 +1924,16 @@ export default function Admin() {
                           )}
                         </div>
                         <div className="shrink-0 flex flex-col gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 border-primary/20 hover:border-primary/40"
+                            onClick={() => archiveDamageReport(report)}
+                            disabled={archivingDamageReportId === report.id}
+                          >
+                            <Shield size={14} />
+                            {archivingDamageReportId === report.id ? "Archiving..." : "Archive"}
+                          </Button>
                           <Button 
                             variant="outline" 
                             size="sm" 
