@@ -35,13 +35,13 @@ const nextSortOrder = (rows: Array<{ sort_order: number }>) =>
   rows.length === 0 ? 10 : Math.max(...rows.map((row) => row.sort_order)) + 10;
 
 const weddingSurface =
-  "rounded-[1.5rem] border border-white/55 bg-white/82 shadow-[0_24px_64px_rgba(0,0,0,0.22)] backdrop-blur-md";
+  "rounded-[1.5rem] border border-black/10 bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)]";
 
 const weddingButton =
-  "border border-black bg-black text-white shadow-none hover:bg-white hover:text-black";
+  "!border-black !bg-black !text-white !shadow-none hover:!bg-white hover:!text-black";
 
 const weddingGhostButton =
-  "border border-black/18 bg-white/90 text-black shadow-none hover:bg-black hover:text-white";
+  "!border-black/18 !bg-white !text-black !shadow-none hover:!bg-black hover:!text-white";
 
 export default function Wedding() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
@@ -235,14 +235,13 @@ export default function Wedding() {
         className="absolute inset-0 -z-20 bg-cover bg-center"
         style={{ backgroundImage: "url('/assets/wedding-background.jpg')" }}
       />
-      <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(248,248,248,0.36),rgba(244,244,244,0.7)_24%,rgba(255,255,255,0.86)_48%,rgba(255,255,255,0.96)_100%)]" />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_36%)]" />
+      <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.22),rgba(255,255,255,0.82)_30%,rgba(255,255,255,0.96)_58%,rgba(255,255,255,0.99)_100%)]" />
 
       <div className="space-y-6 px-4 py-6 sm:px-6 sm:py-8">
         <section className={cn(weddingSurface, "p-6 sm:p-8")}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/88 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-black shadow-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-black shadow-sm">
                 <Heart className="size-3.5" />
                 Wedding Budget
               </div>
@@ -254,7 +253,7 @@ export default function Wedding() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               {moneyCards.slice(0, 2).map((card) => (
-                <div key={card.label} className="rounded-[1.25rem] border border-black/12 bg-white/90 px-4 py-3 shadow-sm">
+                <div key={card.label} className="rounded-[1.25rem] border border-black/12 bg-white px-4 py-3 shadow-sm">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-black/45">{card.label}</div>
                   <div className="mt-2 text-2xl font-semibold text-black">{currency.format(card.value)}</div>
                 </div>
@@ -463,7 +462,7 @@ function EditableTable(props: EditableTableProps) {
                         value={row.item_name}
                         onChange={(event) => props.onUpdate(row.id, { item_name: event.target.value })}
                         maxLength={140}
-                        className="border-black/12 bg-white/94 text-black"
+                        className="border-black/12 bg-white text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -473,7 +472,7 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.quoted_amount)}
                         onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white/94 font-mono text-black"
+                        className="border-black/12 bg-white font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -483,14 +482,14 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.paid_amount)}
                         onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white/94 font-mono text-black"
+                        className="border-black/12 bg-white font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
                       <Textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white/94 py-2 text-black"
+                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
                         maxLength={240}
                       />
                     </TableCell>
@@ -510,7 +509,7 @@ function EditableTable(props: EditableTableProps) {
                         value={row.person_name}
                         onChange={(event) => props.onUpdate(row.id, { person_name: event.target.value })}
                         maxLength={140}
-                        className="border-black/12 bg-white/94 text-black"
+                        className="border-black/12 bg-white text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -520,7 +519,7 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.quoted_amount)}
                         onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white/94 font-mono text-black"
+                        className="border-black/12 bg-white font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -530,14 +529,14 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.paid_amount)}
                         onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white/94 font-mono text-black"
+                        className="border-black/12 bg-white font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
                       <Textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white/94 py-2 text-black"
+                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
                         maxLength={240}
                       />
                     </TableCell>

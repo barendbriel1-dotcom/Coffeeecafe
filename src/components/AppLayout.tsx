@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeftRight,
   ChevronLeft,
@@ -24,22 +24,10 @@ import {
 import MatrixRain from "@/components/MatrixRain";
 import DamageReportDialog from "@/components/DamageReportDialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -58,6 +46,7 @@ interface BeforeInstallPromptEvent extends Event {
 export default function AppLayout() {
   const { user, isAdmin, isStaff, isAssetManager, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [now, setNow] = useState(new Date());
@@ -73,6 +62,7 @@ export default function AppLayout() {
   const [isIosDevice, setIsIosDevice] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const isWeddingPage = location.pathname === "/wedding";
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -126,13 +116,9 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user) return;
 
-    (async () => {
+    void (async () => {
       const [{ data: profile }, { data: locationRows }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("display_name, phone, department_id")
-          .eq("id", user.id)
-          .single(),
+        supabase.from("profiles").select("display_name, phone, department_id").eq("id", user.id).single(),
         supabase.from("locations").select("id, name").order("name"),
       ]);
 
@@ -226,13 +212,21 @@ export default function AppLayout() {
 
   const SidebarInner = ({ onNavigate }: { onNavigate?: () => void }) => (
     <div className="flex h-full min-h-0 flex-col">
-      <div className={cn("border-b border-primary/12 p-5", collapsed ? "px-3 text-center" : "px-5")}>
+      <div
+        className={cn(
+          "p-5",
+          isWeddingPage ? "border-b border-black/10" : "border-b border-primary/12",
+          collapsed ? "px-3 text-center" : "px-5",
+        )}
+      >
         {collapsed ? (
-          <div className="font-display text-2xl font-semibold tracking-tight text-foreground glow-soft">A</div>
+          <div className={cn("font-display text-2xl font-semibold tracking-tight", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>A</div>
         ) : (
           <div className="min-w-0">
-            <div className="font-display text-lg font-semibold tracking-tight text-foreground glow-soft">ASSETS</div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary/52">Inventory operations</div>
+            <div className={cn("font-display text-lg font-semibold tracking-tight", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>ASSETS</div>
+            <div className={cn("font-mono text-[11px] uppercase tracking-[0.2em]", isWeddingPage ? "text-black/48" : "text-primary/52")}>
+              Inventory operations
+            </div>
           </div>
         )}
       </div>
@@ -249,9 +243,13 @@ export default function AppLayout() {
               cn(
                 "group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all",
                 collapsed && "justify-center px-3",
-                isActive
-                  ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
-                  : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
+                isWeddingPage
+                  ? isActive
+                    ? "border border-black/14 bg-black text-white shadow-none"
+                    : "text-black/62 hover:bg-black/6 hover:text-black"
+                  : isActive
+                    ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
+                    : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
               )
             }
           >
@@ -263,7 +261,12 @@ export default function AppLayout() {
 
       <button
         onClick={() => setCollapsed((value) => !value)}
-        className="hidden items-center justify-center gap-2 border-t border-primary/12 py-4 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-primary/46 transition hover:bg-primary/6 hover:text-primary md:flex"
+        className={cn(
+          "hidden items-center justify-center gap-2 py-4 font-mono text-xs font-semibold uppercase tracking-[0.2em] transition md:flex",
+          isWeddingPage
+            ? "border-t border-black/10 text-black/46 hover:bg-black/6 hover:text-black"
+            : "border-t border-primary/12 text-primary/46 hover:bg-primary/6 hover:text-primary",
+        )}
       >
         {collapsed ? <ChevronRight size={14} /> : (<><ChevronLeft size={14} /> Collapse</>)}
       </button>
@@ -271,13 +274,23 @@ export default function AppLayout() {
   );
 
   return (
-    <div className="relative isolate flex min-h-screen bg-transparent text-foreground">
-      <MatrixRain className="-z-20 opacity-55" />
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.08),transparent_24%),linear-gradient(180deg,rgba(5,10,7,0.32),rgba(5,10,7,0.6))]" />
+    <div className={cn("relative isolate flex min-h-screen bg-transparent text-foreground", isWeddingPage && "text-black")}>
+      {!isWeddingPage && <MatrixRain className="-z-20 opacity-55" />}
+      <div
+        className={cn(
+          "pointer-events-none fixed inset-0 -z-10",
+          isWeddingPage
+            ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,241,235,0.98))]"
+            : "bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.08),transparent_24%),linear-gradient(180deg,rgba(5,10,7,0.32),rgba(5,10,7,0.6))]",
+        )}
+      />
 
       <aside
         className={cn(
-          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)] transition-[width] duration-200 md:flex",
+          "sticky top-0 hidden h-screen shrink-0 flex-col transition-[width] duration-200 md:flex",
+          isWeddingPage
+            ? "border-r border-black/10 bg-white/90 text-black shadow-[0_16px_40px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+            : "border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-soft)]",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -287,7 +300,14 @@ export default function AppLayout() {
       {mobileOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-strong)] md:hidden">
+          <aside
+            className={cn(
+              "fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col md:hidden",
+              isWeddingPage
+                ? "border-r border-black/10 bg-white/95 text-black shadow-[0_16px_40px_rgba(0,0,0,0.08)]"
+                : "border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-strong)]",
+            )}
+          >
             <SidebarInner onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
@@ -296,20 +316,20 @@ export default function AppLayout() {
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         {showInstallBanner && isMobileDevice && (
           <div className="px-4 pt-4 sm:px-6">
-            <div className="flex items-center gap-3 rounded-[1.5rem] border border-primary/18 bg-card px-4 py-3 shadow-[var(--shadow-soft)]">
+            <div className={cn("flex items-center gap-3 rounded-[1.5rem] px-4 py-3", isWeddingPage ? "border border-black/10 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.06)]" : "border border-primary/18 bg-card shadow-[var(--shadow-soft)]")}>
               <div className="min-w-0 flex-1">
-                <div className="font-display text-sm text-foreground glow-soft">Download Mobile App</div>
-                <div className="text-xs text-muted-foreground">
+                <div className={cn("font-display text-sm", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>Download Mobile App</div>
+                <div className={cn("text-xs", isWeddingPage ? "text-black/60" : "text-muted-foreground")}>
                   {isIosDevice ? "Add this app to your phone dashboard." : "Install this app on your phone dashboard."}
                 </div>
               </div>
-              <Button type="button" size="sm" onClick={handleInstallClick} className="shrink-0 gap-1.5">
+              <Button type="button" size="sm" onClick={handleInstallClick} className={cn("shrink-0 gap-1.5", isWeddingPage && "border-black bg-black text-white hover:bg-white hover:text-black")}>
                 <Download size={14} /> Download
               </Button>
               <button
                 type="button"
                 onClick={dismissInstallBanner}
-                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                className={cn("shrink-0 transition-colors", isWeddingPage ? "text-black/52 hover:text-black" : "text-muted-foreground hover:text-foreground")}
                 aria-label="Dismiss install banner"
               >
                 <X size={16} />
@@ -318,21 +338,28 @@ export default function AppLayout() {
           </div>
         )}
 
-        <header
-          className="sticky top-0 z-30 px-4 py-4 sm:px-6"
-        >
-          <div className="flex items-center justify-between gap-3 rounded-[1.75rem] border border-primary/14 bg-background/92 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+        <header className="sticky top-0 z-30 px-4 py-4 sm:px-6">
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-[1.75rem] px-4 py-3 backdrop-blur-xl",
+              isWeddingPage
+                ? "border border-black/10 bg-white/88 shadow-[0_12px_30px_rgba(0,0,0,0.08)]"
+                : "border border-primary/14 bg-background/92 shadow-[var(--shadow-soft)]",
+            )}
+          >
             <div className="flex min-w-0 items-center gap-3">
-              <button className="text-foreground md:hidden" onClick={() => setMobileOpen((value) => !value)} aria-label="menu">
+              <button className={cn("md:hidden", isWeddingPage ? "text-black" : "text-foreground")} onClick={() => setMobileOpen((value) => !value)} aria-label="menu">
                 {mobileOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
 
               <div className="min-w-0">
-                <div className="font-display text-sm font-semibold uppercase tracking-[0.24em] text-primary/80 sm:text-base">Operations overview</div>
-                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground sm:text-base">
+                <div className={cn("font-display text-sm font-semibold uppercase tracking-[0.24em] sm:text-base", isWeddingPage ? "text-black/82" : "text-primary/80")}>
+                  Operations overview
+                </div>
+                <div className={cn("flex items-center gap-2 font-mono text-sm sm:text-base", isWeddingPage ? "text-black/62" : "text-muted-foreground")}>
                   <Clock size={14} className="opacity-70" />
                   <span className="tabular-nums">{timeStr}</span>
-                  <span className="hidden text-primary/35 sm:inline">•</span>
+                  <span className={cn("hidden sm:inline", isWeddingPage ? "text-black/30" : "text-primary/35")}>•</span>
                   <span className="hidden tabular-nums sm:inline">{dateStr}</span>
                 </div>
               </div>
@@ -343,7 +370,12 @@ export default function AppLayout() {
                 <button
                   type="button"
                   onClick={() => navigate("/admin")}
-                  className="hidden rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] text-primary transition-colors hover:border-primary/45 hover:bg-primary/16 sm:inline-flex"
+                  className={cn(
+                    "hidden rounded-full px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] transition-colors sm:inline-flex",
+                    isWeddingPage
+                      ? "border border-black bg-black text-white hover:bg-white hover:text-black"
+                      : "border border-primary/30 bg-primary/10 text-primary hover:border-primary/45 hover:bg-primary/16",
+                  )}
                 >
                   <Shield size={12} className="mr-1.5 opacity-80" />
                   {roleLabel}
@@ -352,9 +384,11 @@ export default function AppLayout() {
                 <span
                   className={cn(
                     "hidden rounded-full border px-3 py-1.5 font-mono text-[11px] font-semibold tracking-[0.18em] sm:inline-flex",
-                    isStaff
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                      : "border-primary/14 bg-muted/80 text-muted-foreground",
+                    isWeddingPage
+                      ? "border-black/18 bg-white text-black"
+                      : isStaff
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                        : "border-primary/14 bg-muted/80 text-muted-foreground",
                   )}
                 >
                   <Shield size={12} className="mr-1.5 opacity-80" />
@@ -365,7 +399,12 @@ export default function AppLayout() {
               <button
                 type="button"
                 onClick={() => setProfileOpen(true)}
-                className="hidden max-w-[220px] items-center truncate rounded-full border border-primary/18 bg-card px-4 py-1.5 text-sm text-foreground shadow-[var(--shadow-soft)] transition-colors hover:border-primary/26 hover:bg-card md:inline-flex"
+                className={cn(
+                  "hidden max-w-[220px] items-center truncate rounded-full border px-4 py-1.5 text-sm transition-colors md:inline-flex",
+                  isWeddingPage
+                    ? "border-black/12 bg-white text-black shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:bg-black hover:text-white"
+                    : "border-primary/18 bg-card text-foreground shadow-[var(--shadow-soft)] hover:border-primary/26 hover:bg-card",
+                )}
               >
                 <span className="truncate">{displayName}</span>
               </button>
@@ -374,7 +413,12 @@ export default function AppLayout() {
                 variant="outline"
                 size="sm"
                 onClick={handleSignOut}
-                className="gap-1.5 border-destructive/25 bg-card/70 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className={cn(
+                  "gap-1.5",
+                  isWeddingPage
+                    ? "border-black bg-white text-black hover:bg-black hover:text-white"
+                    : "border-destructive/25 bg-card/70 text-destructive hover:bg-destructive/10 hover:text-destructive",
+                )}
               >
                 <LogOut size={14} /> Logout
               </Button>
@@ -390,50 +434,41 @@ export default function AppLayout() {
       </div>
 
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        <DialogContent className="rounded-[1.8rem] border-primary/18 bg-card shadow-[var(--shadow-strong)]" aria-describedby={undefined}>
+        <DialogContent
+          className={cn(
+            "rounded-[1.8rem]",
+            isWeddingPage ? "border-black/12 bg-white shadow-[0_18px_50px_rgba(0,0,0,0.12)]" : "border-primary/18 bg-card shadow-[var(--shadow-strong)]",
+          )}
+          aria-describedby={undefined}
+        >
           <DialogHeader>
-            <DialogTitle className="font-display text-3xl text-foreground glow-soft">Profile</DialogTitle>
+            <DialogTitle className={cn("font-display text-3xl", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>Profile</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleProfileSave} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="profile-name" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+              <Label htmlFor="profile-name" className={cn("font-mono text-xs uppercase tracking-[0.14em]", isWeddingPage ? "text-black/72" : "text-primary/72")}>
                 Display name
               </Label>
-              <Input
-                id="profile-name"
-                value={profileName}
-                onChange={(event) => setProfileName(event.target.value)}
-                placeholder="Your name"
-                maxLength={80}
-                required
-              />
+              <Input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Your name" maxLength={80} required />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="profile-email" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+              <Label htmlFor="profile-email" className={cn("font-mono text-xs uppercase tracking-[0.14em]", isWeddingPage ? "text-black/72" : "text-primary/72")}>
                 Email address
               </Label>
               <Input id="profile-email" value={user?.email ?? ""} readOnly className="text-muted-foreground" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="profile-phone" className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
+              <Label htmlFor="profile-phone" className={cn("font-mono text-xs uppercase tracking-[0.14em]", isWeddingPage ? "text-black/72" : "text-primary/72")}>
                 Phone number
               </Label>
-              <Input
-                id="profile-phone"
-                value={profilePhone}
-                onChange={(event) => setProfilePhone(event.target.value)}
-                placeholder="Add your contact number"
-                maxLength={30}
-              />
+              <Input id="profile-phone" value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} placeholder="Add your contact number" maxLength={30} />
             </div>
 
             <div className="space-y-2">
-              <Label className="font-mono text-xs uppercase tracking-[0.14em] text-primary/72">
-                Home base
-              </Label>
+              <Label className={cn("font-mono text-xs uppercase tracking-[0.14em]", isWeddingPage ? "text-black/72" : "text-primary/72")}>Home base</Label>
               <Select value={profileDepartmentId} onValueChange={setProfileDepartmentId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a base location" />
@@ -450,10 +485,10 @@ export default function AppLayout() {
             </div>
 
             <DialogFooter className="pt-3">
-              <Button type="button" variant="outline" onClick={() => setProfileOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setProfileOpen(false)} className={cn(isWeddingPage && "border-black bg-white text-black hover:bg-black hover:text-white")}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={profileSaving} className="gap-2">
+              <Button type="submit" disabled={profileSaving} className={cn("gap-2", isWeddingPage && "border-black bg-black text-white hover:bg-white hover:text-black")}>
                 <PencilLine size={16} />
                 {profileSaving ? "Saving..." : "Save profile"}
               </Button>
