@@ -3,7 +3,6 @@ import { Check, Heart, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +17,7 @@ type BusyTarget = string | null;
 
 const sectionTitles: Record<ExpenseSection, string> = {
   barend_bianca: "Barend & Bianca Expenses",
-  others_to_pay: "Others to pay",
+  others_to_pay: "Others to Pay",
 };
 
 const currency = new Intl.NumberFormat("en-ZA", {
@@ -34,6 +33,9 @@ const toMoney = (value: number | string | null | undefined) => {
 
 const nextSortOrder = (rows: Array<{ sort_order: number }>) =>
   rows.length === 0 ? 10 : Math.max(...rows.map((row) => row.sort_order)) + 10;
+
+const weddingSurface =
+  "rounded-[1.25rem] border border-black/10 bg-white/90 shadow-[0_20px_60px_rgba(0,0,0,0.08)] backdrop-blur-sm";
 
 export default function Wedding() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
@@ -215,39 +217,54 @@ export default function Wedding() {
   };
 
   const moneyCards = [
-    { label: "Quoted B&B expenses", value: totals.quotedExpenses },
-    { label: "Paid B&B expenses", value: totals.paidExpenses },
-    { label: "Promised donations", value: totals.promisedDonations },
-    { label: "Paid donations", value: totals.paidDonations },
+    { label: "Quoted B&B Expenses", value: totals.quotedExpenses },
+    { label: "Paid B&B Expenses", value: totals.paidExpenses },
+    { label: "Promised Donations", value: totals.promisedDonations },
+    { label: "Paid Donations", value: totals.paidDonations },
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="app-kicker">Wedding budget</div>
-          <h1 className="app-title flex items-center gap-3">
-            <Heart className="size-8 text-primary" />
-            Barend & Bianca
-          </h1>
-          <p className="app-subtitle mt-2">Track quoted amounts, paid amounts, and the people contributing to the wedding.</p>
+    <div className="space-y-8 pb-8 animate-fade-in">
+      <section
+        className="relative min-h-[68vh] overflow-hidden rounded-[2rem] border border-white/30 text-white shadow-[0_30px_100px_rgba(0,0,0,0.28)]"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.38) 55%, rgba(0,0,0,0.62) 100%), url('/assets/wedding-background.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center 28%",
+        }}
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_35%,rgba(255,255,255,0.04)_70%,transparent)]" />
+        <div className="relative flex min-h-[68vh] items-end">
+          <div className="w-full px-6 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-14">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.24em] text-white/88 backdrop-blur-sm">
+                <Heart className="size-3.5" />
+                Wedding Budget
+              </div>
+              <h1 className="mt-5 font-display text-4xl text-white sm:text-5xl lg:text-6xl">Barend & Bianca</h1>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/82 sm:text-base">
+                A softer space for planning the day well. Track expenses, contributions, and what still needs to be settled without the usual operations styling.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {loading ? (
-        <Card className="app-panel p-6 text-sm text-muted-foreground">Loading wedding budget...</Card>
+        <div className={cn(weddingSurface, "px-6 py-10 text-center text-sm text-black/58")}>Loading wedding budget...</div>
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {moneyCards.map((card) => (
-              <Card key={card.label} className="app-panel p-5">
-                <div className="app-kicker">{card.label}</div>
-                <div className="mt-3 font-display text-3xl font-semibold text-foreground glow-soft">{currency.format(card.value)}</div>
-              </Card>
+              <section key={card.label} className={cn(weddingSurface, "p-5")}>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-black/45">{card.label}</div>
+                <div className="mt-3 font-display text-3xl font-semibold text-black">{currency.format(card.value)}</div>
+              </section>
             ))}
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-6">
             {(["barend_bianca", "others_to_pay"] as ExpenseSection[]).map((section) => (
               <ExpenseSectionCard
                 key={section}
@@ -298,7 +315,7 @@ function ExpenseSectionCard({
   const addTarget = title.startsWith("Barend") ? "add-barend_bianca" : "add-others_to_pay";
 
   return (
-    <Card className="app-panel overflow-hidden p-0">
+    <section className={cn(weddingSurface, "overflow-hidden p-0")}>
       <SectionHeader
         title={title}
         subtitle={`${currency.format(sectionTotal)} quoted / ${currency.format(sectionPaid)} paid`}
@@ -314,7 +331,7 @@ function ExpenseSectionCard({
         onSave={onSave}
         onUpdate={onUpdate}
       />
-    </Card>
+    </section>
   );
 }
 
@@ -337,9 +354,9 @@ function DonationSectionCard({
   const paid = rows.reduce((sum, row) => sum + toMoney(row.paid_amount), 0);
 
   return (
-    <Card className="app-panel overflow-hidden p-0">
+    <section className={cn(weddingSurface, "overflow-hidden p-0")}>
       <SectionHeader
-        title="People to donate"
+        title="People to Donate"
         subtitle={`${currency.format(promised)} promised / ${currency.format(paid)} paid in`}
         addLabel="Add person"
         adding={busyTarget === "add-donation"}
@@ -353,7 +370,7 @@ function DonationSectionCard({
         onSave={onSave}
         onUpdate={onUpdate}
       />
-    </Card>
+    </section>
   );
 }
 
@@ -371,10 +388,10 @@ function SectionHeader({
   onAdd: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-primary/14 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div className="flex flex-col gap-3 border-b border-black/8 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 className="font-display text-2xl text-foreground glow-soft">{title}</h2>
-        <div className="font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">{subtitle}</div>
+        <h2 className="font-display text-2xl text-black">{title}</h2>
+        <div className="text-[11px] uppercase tracking-[0.22em] text-black/42">{subtitle}</div>
       </div>
       <Button type="button" onClick={onAdd} disabled={adding} className="gap-2 sm:w-auto">
         <Plus size={16} />
@@ -404,110 +421,122 @@ type EditableTableProps =
 
 function EditableTable(props: EditableTableProps) {
   if (props.rows.length === 0) {
-    return <div className="px-5 py-10 text-center text-sm text-muted-foreground">No rows yet.</div>;
+    return <div className="px-5 py-10 text-center text-sm text-black/48">No rows yet.</div>;
   }
 
   const isExpenseTable = props.type === "expense";
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent">
-          <TableHead className="min-w-[220px]">{isExpenseTable ? "Item" : "Name"}</TableHead>
-          <TableHead className="min-w-[140px]">{isExpenseTable ? "Quoted" : "Amount promised"}</TableHead>
-          <TableHead className="min-w-[140px]">{isExpenseTable ? "Paid" : "Paid in"}</TableHead>
-          <TableHead className="min-w-[220px]">Note</TableHead>
-          <TableHead className="w-[140px] text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {isExpenseTable
-          ? props.rows.map((row) => {
-              const isBusy = props.busyTarget === row.id;
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-black/8 hover:bg-transparent">
+            <TableHead className="min-w-[220px] text-black/56">{isExpenseTable ? "Item" : "Name"}</TableHead>
+            <TableHead className="min-w-[140px] text-black/56">{isExpenseTable ? "Quoted" : "Amount Promised"}</TableHead>
+            <TableHead className="min-w-[140px] text-black/56">{isExpenseTable ? "Paid" : "Paid In"}</TableHead>
+            <TableHead className="min-w-[220px] text-black/56">Note</TableHead>
+            <TableHead className="w-[140px] text-right text-black/56">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isExpenseTable
+            ? props.rows.map((row) => {
+                const isBusy = props.busyTarget === row.id;
 
-              return (
-                <TableRow key={row.id} className={cn(isBusy && "opacity-60")}>
-                  <TableCell>
-                    <Input value={row.item_name} onChange={(event) => props.onUpdate(row.id, { item_name: event.target.value })} maxLength={140} />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={toMoney(row.quoted_amount)}
-                      onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                      className="font-mono"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={toMoney(row.paid_amount)}
-                      onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                      className="font-mono"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Textarea
-                      value={row.note ?? ""}
-                      onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                      className="min-h-[44px] rounded-[1.2rem] py-2"
-                      maxLength={240}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <RowActions isBusy={isBusy} onDelete={() => props.onDelete(row)} onSave={() => props.onSave(row)} />
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          : props.rows.map((row) => {
-              const isBusy = props.busyTarget === row.id;
+                return (
+                  <TableRow key={row.id} className={cn("border-black/6", isBusy && "opacity-60")}>
+                    <TableCell>
+                      <Input
+                        value={row.item_name}
+                        onChange={(event) => props.onUpdate(row.id, { item_name: event.target.value })}
+                        maxLength={140}
+                        className="border-black/12 bg-white text-black"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={toMoney(row.quoted_amount)}
+                        onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
+                        className="border-black/12 bg-white font-mono text-black"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={toMoney(row.paid_amount)}
+                        onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
+                        className="border-black/12 bg-white font-mono text-black"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Textarea
+                        value={row.note ?? ""}
+                        onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
+                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
+                        maxLength={240}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <RowActions isBusy={isBusy} onDelete={() => props.onDelete(row)} onSave={() => props.onSave(row)} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            : props.rows.map((row) => {
+                const isBusy = props.busyTarget === row.id;
 
-              return (
-                <TableRow key={row.id} className={cn(isBusy && "opacity-60")}>
-                  <TableCell>
-                    <Input value={row.person_name} onChange={(event) => props.onUpdate(row.id, { person_name: event.target.value })} maxLength={140} />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={toMoney(row.quoted_amount)}
-                      onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                      className="font-mono"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={toMoney(row.paid_amount)}
-                      onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                      className="font-mono"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Textarea
-                      value={row.note ?? ""}
-                      onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                      className="min-h-[44px] rounded-[1.2rem] py-2"
-                      maxLength={240}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <RowActions isBusy={isBusy} onDelete={() => props.onDelete(row)} onSave={() => props.onSave(row)} />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-      </TableBody>
-    </Table>
+                return (
+                  <TableRow key={row.id} className={cn("border-black/6", isBusy && "opacity-60")}>
+                    <TableCell>
+                      <Input
+                        value={row.person_name}
+                        onChange={(event) => props.onUpdate(row.id, { person_name: event.target.value })}
+                        maxLength={140}
+                        className="border-black/12 bg-white text-black"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={toMoney(row.quoted_amount)}
+                        onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
+                        className="border-black/12 bg-white font-mono text-black"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={toMoney(row.paid_amount)}
+                        onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
+                        className="border-black/12 bg-white font-mono text-black"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Textarea
+                        value={row.note ?? ""}
+                        onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
+                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
+                        maxLength={240}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <RowActions isBusy={isBusy} onDelete={() => props.onDelete(row)} onSave={() => props.onSave(row)} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -532,7 +561,7 @@ function RowActions({
         variant="outline"
         onClick={onDelete}
         disabled={isBusy}
-        className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        className="border-black/12 text-black/70 hover:bg-black/5 hover:text-black"
         aria-label="Delete row"
       >
         <Trash2 size={15} />
