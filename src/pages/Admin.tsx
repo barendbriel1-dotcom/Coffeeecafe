@@ -265,7 +265,7 @@ export default function Admin() {
   const assetById = useMemo(() => Object.fromEntries(assets.map((asset) => [asset.id, asset])), [assets]);
   const pendingDeleteAssetIdSet = useMemo(() => new Set(pendingDeleteRequests.map((request) => request.asset_id)), [pendingDeleteRequests]);
   const visibleDamageReports = useMemo(
-    () => damageReports.filter((report) => report.status === "pending" || report.status === "completed" || !!report.admin_conclusion_status),
+    () => damageReports.filter((report) => report.status === "pending" || report.status === "completed"),
     [damageReports],
   );
 
@@ -874,6 +874,7 @@ export default function Admin() {
       const { error: reportError } = await supabase
         .from("damage_reports")
         .update({
+          status: "concluded",
           admin_conclusion_notes: conclusionNotes.trim(),
           admin_conclusion_status: conclusionStatus,
           reviewed_at: new Date().toISOString(),
