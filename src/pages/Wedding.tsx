@@ -35,7 +35,13 @@ const nextSortOrder = (rows: Array<{ sort_order: number }>) =>
   rows.length === 0 ? 10 : Math.max(...rows.map((row) => row.sort_order)) + 10;
 
 const weddingSurface =
-  "rounded-[1.25rem] border border-black/10 bg-white/90 shadow-[0_20px_60px_rgba(0,0,0,0.08)] backdrop-blur-sm";
+  "rounded-[1.5rem] border border-white/55 bg-white/82 shadow-[0_24px_64px_rgba(0,0,0,0.22)] backdrop-blur-md";
+
+const weddingButton =
+  "border border-black bg-black text-white shadow-none hover:bg-white hover:text-black";
+
+const weddingGhostButton =
+  "border border-black/18 bg-white/90 text-black shadow-none hover:bg-black hover:text-white";
 
 export default function Wedding() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
@@ -224,71 +230,78 @@ export default function Wedding() {
   ];
 
   return (
-    <div className="space-y-8 pb-8 animate-fade-in">
-      <section
-        className="relative min-h-[68vh] overflow-hidden rounded-[2rem] border border-white/30 text-white shadow-[0_30px_100px_rgba(0,0,0,0.28)]"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.38) 55%, rgba(0,0,0,0.62) 100%), url('/assets/wedding-background.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center 28%",
-        }}
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_35%,rgba(255,255,255,0.04)_70%,transparent)]" />
-        <div className="relative flex min-h-[68vh] items-end">
-          <div className="w-full px-6 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-14">
+    <div className="relative isolate overflow-hidden rounded-[2rem] animate-fade-in">
+      <div
+        className="absolute inset-0 -z-20 bg-cover bg-center"
+        style={{ backgroundImage: "url('/assets/wedding-background.jpg')" }}
+      />
+      <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(248,248,248,0.36),rgba(244,244,244,0.7)_24%,rgba(255,255,255,0.86)_48%,rgba(255,255,255,0.96)_100%)]" />
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_36%)]" />
+
+      <div className="space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+        <section className={cn(weddingSurface, "p-6 sm:p-8")}>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.24em] text-white/88 backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/88 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-black shadow-sm">
                 <Heart className="size-3.5" />
                 Wedding Budget
               </div>
-              <h1 className="mt-5 font-display text-4xl text-white sm:text-5xl lg:text-6xl">Barend & Bianca</h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/82 sm:text-base">
-                A softer space for planning the day well. Track expenses, contributions, and what still needs to be settled without the usual operations styling.
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-black sm:text-5xl">Barend & Bianca</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-black/68 sm:text-base">
+                Keep the planning in one place with a softer black-and-white look for this page only.
               </p>
             </div>
-          </div>
-        </div>
-      </section>
 
-      {loading ? (
-        <div className={cn(weddingSurface, "px-6 py-10 text-center text-sm text-black/58")}>Loading wedding budget...</div>
-      ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {moneyCards.map((card) => (
-              <section key={card.label} className={cn(weddingSurface, "p-5")}>
-                <div className="text-[11px] uppercase tracking-[0.24em] text-black/45">{card.label}</div>
-                <div className="mt-3 font-display text-3xl font-semibold text-black">{currency.format(card.value)}</div>
-              </section>
-            ))}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {moneyCards.slice(0, 2).map((card) => (
+                <div key={card.label} className="rounded-[1.25rem] border border-black/12 bg-white/90 px-4 py-3 shadow-sm">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-black/45">{card.label}</div>
+                  <div className="mt-2 text-2xl font-semibold text-black">{currency.format(card.value)}</div>
+                </div>
+              ))}
+            </div>
           </div>
+        </section>
 
-          <div className="space-y-6">
-            {(["barend_bianca", "others_to_pay"] as ExpenseSection[]).map((section) => (
-              <ExpenseSectionCard
-                key={section}
-                title={sectionTitles[section]}
-                rows={expenses.filter((row) => row.section === section)}
+        {loading ? (
+          <div className={cn(weddingSurface, "px-6 py-10 text-center text-sm text-black/58")}>Loading wedding budget...</div>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {moneyCards.map((card) => (
+                <section key={card.label} className={cn(weddingSurface, "p-5")}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-black/45">{card.label}</div>
+                  <div className="mt-3 text-3xl font-semibold text-black">{currency.format(card.value)}</div>
+                </section>
+              ))}
+            </div>
+
+            <div className="space-y-6">
+              {(["barend_bianca", "others_to_pay"] as ExpenseSection[]).map((section) => (
+                <ExpenseSectionCard
+                  key={section}
+                  title={sectionTitles[section]}
+                  rows={expenses.filter((row) => row.section === section)}
+                  busyTarget={busyTarget}
+                  onAdd={() => addExpense(section)}
+                  onDelete={deleteExpense}
+                  onSave={saveExpense}
+                  onUpdate={updateExpense}
+                />
+              ))}
+
+              <DonationSectionCard
+                rows={donations}
                 busyTarget={busyTarget}
-                onAdd={() => addExpense(section)}
-                onDelete={deleteExpense}
-                onSave={saveExpense}
-                onUpdate={updateExpense}
+                onAdd={addDonation}
+                onDelete={deleteDonation}
+                onSave={saveDonation}
+                onUpdate={updateDonation}
               />
-            ))}
-
-            <DonationSectionCard
-              rows={donations}
-              busyTarget={busyTarget}
-              onAdd={addDonation}
-              onDelete={deleteDonation}
-              onSave={saveDonation}
-              onUpdate={updateDonation}
-            />
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -388,12 +401,12 @@ function SectionHeader({
   onAdd: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-black/8 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border-b border-black/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 className="font-display text-2xl text-black">{title}</h2>
-        <div className="text-[11px] uppercase tracking-[0.22em] text-black/42">{subtitle}</div>
+        <h2 className="text-2xl font-semibold text-black">{title}</h2>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-black/42">{subtitle}</div>
       </div>
-      <Button type="button" onClick={onAdd} disabled={adding} className="gap-2 sm:w-auto">
+      <Button type="button" onClick={onAdd} disabled={adding} className={cn("gap-2 sm:w-auto", weddingButton)}>
         <Plus size={16} />
         {adding ? "Adding..." : addLabel}
       </Button>
@@ -450,7 +463,7 @@ function EditableTable(props: EditableTableProps) {
                         value={row.item_name}
                         onChange={(event) => props.onUpdate(row.id, { item_name: event.target.value })}
                         maxLength={140}
-                        className="border-black/12 bg-white text-black"
+                        className="border-black/12 bg-white/94 text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -460,7 +473,7 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.quoted_amount)}
                         onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className="border-black/12 bg-white/94 font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -470,14 +483,14 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.paid_amount)}
                         onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className="border-black/12 bg-white/94 font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
                       <Textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
+                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white/94 py-2 text-black"
                         maxLength={240}
                       />
                     </TableCell>
@@ -497,7 +510,7 @@ function EditableTable(props: EditableTableProps) {
                         value={row.person_name}
                         onChange={(event) => props.onUpdate(row.id, { person_name: event.target.value })}
                         maxLength={140}
-                        className="border-black/12 bg-white text-black"
+                        className="border-black/12 bg-white/94 text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -507,7 +520,7 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.quoted_amount)}
                         onChange={(event) => props.onUpdate(row.id, { quoted_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className="border-black/12 bg-white/94 font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
@@ -517,14 +530,14 @@ function EditableTable(props: EditableTableProps) {
                         step="0.01"
                         value={toMoney(row.paid_amount)}
                         onChange={(event) => props.onUpdate(row.id, { paid_amount: toMoney(event.target.value) })}
-                        className="border-black/12 bg-white font-mono text-black"
+                        className="border-black/12 bg-white/94 font-mono text-black"
                       />
                     </TableCell>
                     <TableCell>
                       <Textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white py-2 text-black"
+                        className="min-h-[44px] rounded-[1rem] border-black/12 bg-white/94 py-2 text-black"
                         maxLength={240}
                       />
                     </TableCell>
@@ -551,7 +564,7 @@ function RowActions({
 }) {
   return (
     <div className="flex justify-end gap-2">
-      <Button type="button" size="sm" onClick={onSave} disabled={isBusy} className="gap-1.5">
+      <Button type="button" size="sm" onClick={onSave} disabled={isBusy} className={cn("gap-1.5", weddingButton)}>
         {isBusy ? <Check size={14} /> : <Save size={14} />}
         Save
       </Button>
@@ -561,7 +574,7 @@ function RowActions({
         variant="outline"
         onClick={onDelete}
         disabled={isBusy}
-        className="border-black/12 text-black/70 hover:bg-black/5 hover:text-black"
+        className={weddingGhostButton}
         aria-label="Delete row"
       >
         <Trash2 size={15} />
