@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Heart, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
@@ -38,13 +35,16 @@ const weddingSurface =
   "rounded-[1.5rem] border border-black/10 bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)]";
 
 const weddingButton =
-  "!border-black/15 !bg-white !text-black !shadow-none hover:!bg-black hover:!text-white";
+  "inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/15 bg-white px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-50";
 
 const weddingGhostButton =
-  "!border-black/18 !bg-white !text-black !shadow-none hover:!bg-black hover:!text-white";
+  "inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/18 bg-white text-black transition-colors hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-50";
 
 const weddingField =
-  "!border-black/12 !bg-white !text-black !shadow-none";
+  "flex h-11 w-full rounded-2xl border border-black/12 bg-white px-4 py-2 text-sm text-black outline-none transition-colors focus:border-black/25";
+
+const weddingTextareaField =
+  "flex min-h-[44px] w-full rounded-[1rem] border border-black/12 bg-white px-4 py-2 text-sm text-black outline-none transition-colors focus:border-black/25";
 
 export default function Wedding() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
@@ -408,10 +408,10 @@ function SectionHeader({
         <h2 className="text-2xl font-semibold text-black">{title}</h2>
         <div className="text-[11px] uppercase tracking-[0.2em] text-black/42">{subtitle}</div>
       </div>
-      <Button type="button" onClick={onAdd} disabled={adding} className={cn("gap-2 sm:w-auto", weddingButton)}>
+      <button type="button" onClick={onAdd} disabled={adding} className={cn(weddingButton, "sm:w-auto")}>
         <Plus size={16} />
         {adding ? "Adding..." : addLabel}
-      </Button>
+      </button>
     </div>
   );
 }
@@ -461,7 +461,7 @@ function EditableTable(props: EditableTableProps) {
                 return (
                   <TableRow key={row.id} className={cn("border-black/6", isBusy && "opacity-60")}>
                     <TableCell>
-                      <Input
+                      <input
                         value={row.item_name}
                         onChange={(event) => props.onUpdate(row.id, { item_name: event.target.value })}
                         maxLength={140}
@@ -469,7 +469,7 @@ function EditableTable(props: EditableTableProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
+                      <input
                         type="number"
                         min="0"
                         step="0.01"
@@ -479,7 +479,7 @@ function EditableTable(props: EditableTableProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
+                      <input
                         type="number"
                         min="0"
                         step="0.01"
@@ -489,10 +489,10 @@ function EditableTable(props: EditableTableProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Textarea
+                      <textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className={cn("min-h-[44px] rounded-[1rem] py-2", weddingField)}
+                        className={weddingTextareaField}
                         maxLength={240}
                       />
                     </TableCell>
@@ -508,7 +508,7 @@ function EditableTable(props: EditableTableProps) {
                 return (
                   <TableRow key={row.id} className={cn("border-black/6", isBusy && "opacity-60")}>
                     <TableCell>
-                      <Input
+                      <input
                         value={row.person_name}
                         onChange={(event) => props.onUpdate(row.id, { person_name: event.target.value })}
                         maxLength={140}
@@ -516,7 +516,7 @@ function EditableTable(props: EditableTableProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
+                      <input
                         type="number"
                         min="0"
                         step="0.01"
@@ -526,7 +526,7 @@ function EditableTable(props: EditableTableProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
+                      <input
                         type="number"
                         min="0"
                         step="0.01"
@@ -536,10 +536,10 @@ function EditableTable(props: EditableTableProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Textarea
+                      <textarea
                         value={row.note ?? ""}
                         onChange={(event) => props.onUpdate(row.id, { note: event.target.value })}
-                        className={cn("min-h-[44px] rounded-[1rem] py-2", weddingField)}
+                        className={weddingTextareaField}
                         maxLength={240}
                       />
                     </TableCell>
@@ -566,21 +566,19 @@ function RowActions({
 }) {
   return (
     <div className="flex justify-end gap-2">
-      <Button type="button" size="sm" onClick={onSave} disabled={isBusy} className={cn("gap-1.5", weddingButton)}>
+      <button type="button" onClick={onSave} disabled={isBusy} className={cn(weddingButton, "h-9 px-4 text-xs")}>
         {isBusy ? <Check size={14} /> : <Save size={14} />}
         Save
-      </Button>
-      <Button
+      </button>
+      <button
         type="button"
-        size="icon"
-        variant="outline"
         onClick={onDelete}
         disabled={isBusy}
         className={weddingGhostButton}
         aria-label="Delete row"
       >
         <Trash2 size={15} />
-      </Button>
+      </button>
     </div>
   );
 }
