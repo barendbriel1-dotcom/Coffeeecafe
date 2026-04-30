@@ -158,9 +158,45 @@ export default function SignIn() {
   const bulkDecisionDescriptionId = useId();
   const scanInDescriptionId = useId();
 
+  const restoreDialogSurface = () => {
+    document.body.style.removeProperty("pointer-events");
+    document.body.style.removeProperty("overflow");
+    document.documentElement.style.removeProperty("overflow");
+  };
+
+  const closeScanDialog = () => {
+    setScanOpen(false);
+    window.setTimeout(restoreDialogSurface, 0);
+  };
+
   useEffect(() => {
     scanItemsRef.current = scanItems;
   }, [scanItems]);
+
+  useEffect(() => {
+    const handleVisibilityRecovery = () => {
+      if (document.visibilityState === "hidden" && scanOpen) {
+        closeScanDialog();
+        return;
+      }
+
+      restoreDialogSurface();
+    };
+
+    const handlePageShow = () => {
+      restoreDialogSurface();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityRecovery);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("focus", handlePageShow);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityRecovery);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("focus", handlePageShow);
+    };
+  }, [scanOpen]);
 
   const load = async () => {
     setLoading(true);
@@ -783,7 +819,7 @@ export default function SignIn() {
       });
 
       if (success) {
-        setScanOpen(false);
+        closeScanDialog();
         setScanItems([]);
         setScanStatusOverrides({});
         setSelectedIds(new Set());
@@ -1237,7 +1273,16 @@ export default function SignIn() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+      <Dialog
+        open={scanOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeScanDialog();
+            return;
+          }
+          setScanOpen(true);
+        }}
+      >
         <DialogContent className="max-h-[92vh] overflow-y-auto border-primary/20 bg-card sm:max-w-3xl" aria-describedby={scanInDescriptionId}>
           <DialogHeader>
             <DialogTitle className="font-display text-foreground">Scan In</DialogTitle>
@@ -1421,7 +1466,7 @@ export default function SignIn() {
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setScanOpen(false)}>
+            <Button variant="ghost" onClick={closeScanDialog}>
               Cancel
             </Button>
             <Button onClick={confirmScanBatch} disabled={scanItems.length === 0 || scanBusy || processing}>
