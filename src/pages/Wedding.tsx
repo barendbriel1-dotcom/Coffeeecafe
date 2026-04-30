@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Heart, Plus, Save, Trash2 } from "lucide-react";
+import { Check, CheckSquare, Heart, ListChecks, Plus, Save, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +9,10 @@ import { cn } from "@/lib/utils";
 
 type ExpenseRow = Tables<"wedding_expenses">;
 type DonationRow = Tables<"wedding_donations">;
+type ChecklistDivision = Tables<"wedding_checklist_divisions">;
+type ChecklistItem = Tables<"wedding_checklist_items">;
 type ExpenseSection = "barend_bianca" | "others_to_pay";
+type WeddingTab = "budget" | "checklist";
 type BusyTarget = string | null;
 
 const sectionTitles: Record<ExpenseSection, string> = {
@@ -47,9 +50,13 @@ const weddingTextareaField =
   "flex min-h-[44px] w-full rounded-[1rem] border border-black/12 bg-white px-4 py-2 text-sm text-black outline-none transition-colors focus:border-black/25";
 
 export default function Wedding() {
+  const [activeTab, setActiveTab] = useState<WeddingTab>("budget");
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [donations, setDonations] = useState<DonationRow[]>([]);
+  const [divisions, setDivisions] = useState<ChecklistDivision[]>([]);
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checklistLoading, setChecklistLoading] = useState(false);
   const [busyTarget, setBusyTarget] = useState<BusyTarget>(null);
 
   const loadBudget = useCallback(async () => {
@@ -76,6 +83,33 @@ export default function Wedding() {
   useEffect(() => {
     void loadBudget();
   }, [loadBudget]);
+
+  const loadChecklist = useCallback(async () => {
+    setChecklistLoading(true);
+
+    const [{ data: divisionRows, error: divisionsError }, { data: itemRows, error: itemsError }] = await Promise.all([
+      supabase.from("wedding_checklist_divisions").select("*").order("sort_order"),
+      supabase.from("wedding_checklist_items").select("*").order("sort_order"),
+    ]);
+
+    setChecklistLoading(false);
+
+    if (divisionsError || itemsError) {
+      toast.error(divisionsError?.message ?? itemsError?.message ?? "Could not load wedding checklist");
+      setDivisions([]);
+      setChecklistItems([]);
+      return;
+    }
+
+    setDivisions(divisionRows ?? []);
+    setChecklistItems(itemRows ?? []);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "checklist" && divisions.length === 0 && checklistItems.length === 0) {
+      void loadChecklist();
+    }
+  }, [activeTab, checklistItems.length, divisions.length, loadChecklist]);
 
   const totals = useMemo(() => {
     const barendBiancaExpenses = expenses.filter((row) => row.section === "barend_bianca");
@@ -225,6 +259,144 @@ export default function Wedding() {
     await loadBudget();
   };
 
+  const updateDivision = (id: string, patch: Partial<ChecklistDivision>) => {
+    setDivisions((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const updateChecklistItem = (id: string, patch: Partial<ChecklistItem>) => {
+    setChecklistItems((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const addDivision = async () => {
+    setBusyTarget("add-division");
+    const { error } = await supabase.from("wedding_checklist_divisions").insert({
+      name: "New division",
+      sort_order: nextSortOrder(divisions),
+    });
+
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Division added");
+    await loadChecklist();
+  };
+
+  const saveDivision = async (division: ChecklistDivision) => {
+    const name = division.name.trim();
+    if (!name) {
+      toast.error("Division name is required");
+      return;
+    }
+
+    setBusyTarget(division.id);
+    const { error } = await supabase.from("wedding_checklist_divisions").update({ name }).eq("id", division.id);
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Division saved");
+    await loadChecklist();
+  };
+
+  const deleteDivision = async (division: ChecklistDivision) => {
+    setBusyTarget(division.id);
+    const { error } = await supabase.from("wedding_checklist_divisions").delete().eq("id", division.id);
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Division deleted");
+    await loadChecklist();
+  };
+
+  const addChecklistItem = async (divisionId: string) => {
+    const divisionItems = checklistItems.filter((row) => row.division_id === divisionId);
+    setBusyTarget(`add-item-${divisionId}`);
+    const { error } = await supabase.from("wedding_checklist_items").insert({
+      division_id: divisionId,
+      item_text: "New item",
+      sort_order: nextSortOrder(divisionItems),
+    });
+
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Item added");
+    await loadChecklist();
+  };
+
+  const saveChecklistItem = async (item: ChecklistItem) => {
+    const itemText = item.item_text.trim();
+    if (!itemText) {
+      toast.error("Item text is required");
+      return;
+    }
+
+    setBusyTarget(item.id);
+    const { error } = await supabase.from("wedding_checklist_items").update({ item_text: itemText }).eq("id", item.id);
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Item saved");
+    await loadChecklist();
+  };
+
+  const toggleChecklistItem = async (item: ChecklistItem) => {
+    const checked = !item.checked;
+    updateChecklistItem(item.id, { checked, checked_at: checked ? new Date().toISOString() : null });
+    setBusyTarget(`check-${item.id}`);
+
+    const { error } = await supabase
+      .from("wedding_checklist_items")
+      .update({
+        checked,
+        checked_at: checked ? new Date().toISOString() : null,
+      })
+      .eq("id", item.id);
+
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      await loadChecklist();
+      return;
+    }
+
+    await loadChecklist();
+  };
+
+  const deleteChecklistItem = async (item: ChecklistItem) => {
+    setBusyTarget(item.id);
+    const { error } = await supabase.from("wedding_checklist_items").delete().eq("id", item.id);
+    setBusyTarget(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Item deleted");
+    await loadChecklist();
+  };
+
   const moneyCards = [
     { label: "Quoted B&B Expenses", value: totals.quotedExpenses },
     { label: "Paid B&B Expenses", value: totals.paidExpenses },
@@ -245,8 +417,8 @@ export default function Wedding() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-black shadow-sm">
-                <Heart className="size-3.5" />
-                Wedding Budget
+                {activeTab === "budget" ? <Heart className="size-3.5" /> : <ListChecks className="size-3.5" />}
+                {activeTab === "budget" ? "Wedding Budget" : "Wedding Checklist"}
               </div>
               <h1 className="font-wedding mt-4 text-5xl font-semibold leading-none text-black sm:text-6xl">Barend & Bianca</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-black/68 sm:text-base">
@@ -254,18 +426,45 @@ export default function Wedding() {
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {moneyCards.slice(0, 2).map((card) => (
-                <div key={card.label} className="rounded-[1.25rem] border border-black/12 bg-white px-4 py-3 shadow-sm">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-black/45">{card.label}</div>
-                  <div className="mt-2 text-2xl font-semibold text-black">{currency.format(card.value)}</div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 rounded-full border border-black/10 bg-white p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("budget")}
+                  className={cn(
+                    "h-11 rounded-full px-5 text-sm font-semibold transition-colors",
+                    activeTab === "budget" ? "bg-black text-white" : "text-black hover:bg-black/6",
+                  )}
+                >
+                  Budget
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("checklist")}
+                  className={cn(
+                    "h-11 rounded-full px-5 text-sm font-semibold transition-colors",
+                    activeTab === "checklist" ? "bg-black text-white" : "text-black hover:bg-black/6",
+                  )}
+                >
+                  Checklist
+                </button>
+              </div>
+
+              {activeTab === "budget" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {moneyCards.slice(0, 2).map((card) => (
+                    <div key={card.label} className="rounded-[1.25rem] border border-black/12 bg-white px-4 py-3 shadow-sm">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-black/45">{card.label}</div>
+                      <div className="mt-2 text-2xl font-semibold text-black">{currency.format(card.value)}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </section>
 
-        {loading ? (
+        {activeTab === "budget" ? loading ? (
           <div className={cn(weddingSurface, "px-6 py-10 text-center text-sm text-black/58")}>Loading wedding budget...</div>
         ) : (
           <>
@@ -302,7 +501,189 @@ export default function Wedding() {
               />
             </div>
           </>
+        ) : (
+          <ChecklistPage
+            divisions={divisions}
+            items={checklistItems}
+            loading={checklistLoading}
+            busyTarget={busyTarget}
+            onAddDivision={addDivision}
+            onAddItem={addChecklistItem}
+            onDeleteDivision={deleteDivision}
+            onDeleteItem={deleteChecklistItem}
+            onSaveDivision={saveDivision}
+            onSaveItem={saveChecklistItem}
+            onToggleItem={toggleChecklistItem}
+            onUpdateDivision={updateDivision}
+            onUpdateItem={updateChecklistItem}
+          />
         )}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistPage({
+  divisions,
+  items,
+  loading,
+  busyTarget,
+  onAddDivision,
+  onAddItem,
+  onDeleteDivision,
+  onDeleteItem,
+  onSaveDivision,
+  onSaveItem,
+  onToggleItem,
+  onUpdateDivision,
+  onUpdateItem,
+}: {
+  divisions: ChecklistDivision[];
+  items: ChecklistItem[];
+  loading: boolean;
+  busyTarget: BusyTarget;
+  onAddDivision: () => void;
+  onAddItem: (divisionId: string) => void;
+  onDeleteDivision: (division: ChecklistDivision) => void;
+  onDeleteItem: (item: ChecklistItem) => void;
+  onSaveDivision: (division: ChecklistDivision) => void;
+  onSaveItem: (item: ChecklistItem) => void;
+  onToggleItem: (item: ChecklistItem) => void;
+  onUpdateDivision: (id: string, patch: Partial<ChecklistDivision>) => void;
+  onUpdateItem: (id: string, patch: Partial<ChecklistItem>) => void;
+}) {
+  if (loading) {
+    return <div className={cn(weddingSurface, "px-6 py-10 text-center text-sm text-black/58")}>Loading wedding checklist...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className={cn(weddingSurface, "p-5 sm:p-6")}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-wedding text-[2rem] font-semibold leading-none text-black sm:text-[2.2rem]">Checklist</h2>
+            <p className="mt-1 text-sm text-black/58">Create divisions, add item lines, and tick items off when they are done.</p>
+          </div>
+          <button type="button" onClick={onAddDivision} disabled={busyTarget === "add-division"} className={weddingButton}>
+            <Plus size={16} />
+            {busyTarget === "add-division" ? "Adding..." : "Add division"}
+          </button>
+        </div>
+      </section>
+
+      {divisions.length === 0 ? (
+        <section className={cn(weddingSurface, "px-6 py-12 text-center")}>
+          <ListChecks className="mx-auto size-10 text-black/35" />
+          <div className="mt-3 text-sm font-semibold text-black">No checklist divisions yet</div>
+          <p className="mt-1 text-sm text-black/52">Add your first division to start building the wedding checklist.</p>
+        </section>
+      ) : (
+        divisions.map((division) => {
+          const divisionItems = items
+            .filter((item) => item.division_id === division.id)
+            .sort((a, b) => Number(a.checked) - Number(b.checked) || a.sort_order - b.sort_order);
+
+          return (
+            <section key={division.id} className={cn(weddingSurface, "overflow-hidden")}>
+              <div className="flex flex-col gap-3 border-b border-black/10 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex-1">
+                  <input
+                    value={division.name}
+                    onChange={(event) => onUpdateDivision(division.id, { name: event.target.value })}
+                    className="w-full border-none bg-transparent font-wedding text-[2rem] font-semibold leading-none text-black outline-none sm:text-[2.2rem]"
+                    maxLength={120}
+                  />
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-black/42">
+                    {divisionItems.filter((item) => item.checked).length} of {divisionItems.length} checked
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => onAddItem(division.id)} disabled={busyTarget === `add-item-${division.id}`} className={cn(weddingButton, "h-10 px-4 text-xs")}>
+                    <Plus size={14} />
+                    Add item
+                  </button>
+                  <button type="button" onClick={() => onSaveDivision(division)} disabled={busyTarget === division.id} className={cn(weddingButton, "h-10 px-4 text-xs")}>
+                    <Save size={14} />
+                    Save
+                  </button>
+                  <button type="button" onClick={() => onDeleteDivision(division)} disabled={busyTarget === division.id} className={cn(weddingGhostButton, "h-10 w-10")} aria-label="Delete division">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {divisionItems.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-black/48">No items in this division yet.</div>
+              ) : (
+                <div className="divide-y divide-black/8">
+                  {divisionItems.map((item) => (
+                    <ChecklistItemRow
+                      key={item.id}
+                      item={item}
+                      busy={busyTarget === item.id || busyTarget === `check-${item.id}`}
+                      onDelete={() => onDeleteItem(item)}
+                      onSave={() => onSaveItem(item)}
+                      onToggle={() => onToggleItem(item)}
+                      onUpdate={(patch) => onUpdateItem(item.id, patch)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function ChecklistItemRow({
+  item,
+  busy,
+  onDelete,
+  onSave,
+  onToggle,
+  onUpdate,
+}: {
+  item: ChecklistItem;
+  busy: boolean;
+  onDelete: () => void;
+  onSave: () => void;
+  onToggle: () => void;
+  onUpdate: (patch: Partial<ChecklistItem>) => void;
+}) {
+  return (
+    <div className={cn("grid gap-3 px-5 py-4 lg:grid-cols-[auto_1fr_auto] lg:items-center", item.checked && "bg-black/[0.045]")}>
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={busy}
+        className={cn(
+          "inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors lg:justify-self-start",
+          item.checked
+            ? "border-black bg-black text-white"
+            : "border-black/18 bg-white text-black hover:bg-black hover:text-white",
+        )}
+      >
+        {item.checked ? <CheckSquare size={16} /> : <Square size={16} />}
+        Checked
+      </button>
+
+      <input
+        value={item.item_text}
+        onChange={(event) => onUpdate({ item_text: event.target.value })}
+        className={cn(weddingField, item.checked && "text-black/48 line-through")}
+        maxLength={180}
+      />
+
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onSave} disabled={busy} className={cn(weddingButton, "h-10 px-4 text-xs")}>
+          <Save size={14} />
+          Save
+        </button>
+        <button type="button" onClick={onDelete} disabled={busy} className={cn(weddingGhostButton, "h-10 w-10")} aria-label="Delete item">
+          <Trash2 size={15} />
+        </button>
       </div>
     </div>
   );

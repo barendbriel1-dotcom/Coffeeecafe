@@ -669,6 +669,71 @@ export type Database = {
         }
         Relationships: []
       }
+      wedding_checklist_divisions: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wedding_checklist_items: {
+        Row: {
+          checked: boolean
+          checked_at: string | null
+          created_at: string
+          division_id: string
+          id: string
+          item_text: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          checked?: boolean
+          checked_at?: string | null
+          created_at?: string
+          division_id: string
+          id?: string
+          item_text: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          checked?: boolean
+          checked_at?: string | null
+          created_at?: string
+          division_id?: string
+          id?: string
+          item_text?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wedding_checklist_items_division_id_fkey"
+            columns: ["division_id"]
+            isOneToOne: false
+            referencedRelation: "wedding_checklist_divisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signout_items: {
         Row: {
           asset_id: string
