@@ -103,9 +103,18 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Manrope', system-ui, sans-serif;
+  }
+
+  /* Fixed background via pseudo-element — avoids the scroll-bounce bug
+     caused by background-attachment: fixed on iOS and modern Chrome. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
     background-image: var(--page-gradient), var(--matrix-grid);
     background-size: auto, 34px 34px;
-    background-attachment: fixed;
+    pointer-events: none;
   }
 
   h1,
