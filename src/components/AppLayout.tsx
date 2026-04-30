@@ -44,6 +44,92 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+interface NavItem {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  exact: boolean;
+}
+
+interface SidebarInnerProps {
+  nav: NavItem[];
+  collapsed: boolean;
+  setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  isWeddingPage: boolean;
+  onNavigate?: () => void;
+}
+
+/**
+ * Defined outside AppLayout so it has a stable component identity across
+ * re-renders. If it were defined inside AppLayout, React would treat it as a
+ * new component type on every render (e.g. every clock tick) and remount it,
+ * which resets scroll position to 0.
+ */
+function SidebarInner({ nav, collapsed, setCollapsed, isWeddingPage, onNavigate }: SidebarInnerProps) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div
+        className={cn(
+          "p-5",
+          isWeddingPage ? "border-b border-black/10" : "border-b border-primary/12",
+          collapsed ? "px-3 text-center" : "px-5",
+        )}
+      >
+        {collapsed ? (
+          <div className={cn("font-display text-2xl font-semibold tracking-tight", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>A</div>
+        ) : (
+          <div className="min-w-0">
+            <div className={cn("font-display text-lg font-semibold tracking-tight", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>ASSETS</div>
+            <div className={cn("font-mono text-[11px] uppercase tracking-[0.2em]", isWeddingPage ? "text-black/48" : "text-primary/52")}>
+              Inventory operations
+            </div>
+          </div>
+        )}
+      </div>
+
+      <nav className="flex-1 space-y-1.5 overflow-y-auto p-3">
+        {nav.map((entry) => (
+          <NavLink
+            key={entry.to}
+            to={entry.to}
+            end={entry.exact}
+            onClick={onNavigate}
+            title={collapsed ? entry.label : undefined}
+            className={({ isActive }) =>
+              cn(
+                "group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all",
+                collapsed && "justify-center px-3",
+                isWeddingPage
+                  ? isActive
+                    ? "border border-black/14 bg-black text-white shadow-none"
+                    : "text-black/62 hover:bg-black/6 hover:text-black"
+                  : isActive
+                    ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
+                    : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
+              )
+            }
+          >
+            <entry.icon size={16} className="shrink-0" />
+            {!collapsed && <span className="truncate">{entry.label}</span>}
+          </NavLink>
+        ))}
+      </nav>
+
+      <button
+        onClick={() => setCollapsed((value) => !value)}
+        className={cn(
+          "hidden items-center justify-center gap-2 py-4 font-mono text-xs font-semibold uppercase tracking-[0.2em] transition md:flex",
+          isWeddingPage
+            ? "border-t border-black/10 text-black/46 hover:bg-black/6 hover:text-black"
+            : "border-t border-primary/12 text-primary/46 hover:bg-primary/6 hover:text-primary",
+        )}
+      >
+        {collapsed ? <ChevronRight size={14} /> : (<><ChevronLeft size={14} /> Collapse</>)}
+      </button>
+    </div>
+  );
+}
+
 export default function AppLayout() {
   const { user, isAdmin, isStaff, isAssetManager, signOut } = useAuth();
   const navigate = useNavigate();
@@ -212,68 +298,7 @@ export default function AppLayout() {
   const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const dateStr = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-  const SidebarInner = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <div className="flex h-full min-h-0 flex-col">
-      <div
-        className={cn(
-          "p-5",
-          isWeddingPage ? "border-b border-black/10" : "border-b border-primary/12",
-          collapsed ? "px-3 text-center" : "px-5",
-        )}
-      >
-        {collapsed ? (
-          <div className={cn("font-display text-2xl font-semibold tracking-tight", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>A</div>
-        ) : (
-          <div className="min-w-0">
-            <div className={cn("font-display text-lg font-semibold tracking-tight", isWeddingPage ? "text-black" : "text-foreground glow-soft")}>ASSETS</div>
-            <div className={cn("font-mono text-[11px] uppercase tracking-[0.2em]", isWeddingPage ? "text-black/48" : "text-primary/52")}>
-              Inventory operations
-            </div>
-          </div>
-        )}
-      </div>
-
-      <nav className="flex-1 space-y-1.5 overflow-y-auto p-3">
-        {nav.map((entry) => (
-          <NavLink
-            key={entry.to}
-            to={entry.to}
-            end={entry.exact}
-            onClick={onNavigate}
-            title={collapsed ? entry.label : undefined}
-            className={({ isActive }) =>
-              cn(
-                "group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all",
-                collapsed && "justify-center px-3",
-                isWeddingPage
-                  ? isActive
-                    ? "border border-black/14 bg-black text-white shadow-none"
-                    : "text-black/62 hover:bg-black/6 hover:text-black"
-                  : isActive
-                    ? "border border-primary/20 bg-primary/12 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.1)]"
-                    : "text-muted-foreground hover:bg-primary/6 hover:text-foreground",
-              )
-            }
-          >
-            <entry.icon size={16} className="shrink-0" />
-            {!collapsed && <span className="truncate">{entry.label}</span>}
-          </NavLink>
-        ))}
-      </nav>
-
-      <button
-        onClick={() => setCollapsed((value) => !value)}
-        className={cn(
-          "hidden items-center justify-center gap-2 py-4 font-mono text-xs font-semibold uppercase tracking-[0.2em] transition md:flex",
-          isWeddingPage
-            ? "border-t border-black/10 text-black/46 hover:bg-black/6 hover:text-black"
-            : "border-t border-primary/12 text-primary/46 hover:bg-primary/6 hover:text-primary",
-        )}
-      >
-        {collapsed ? <ChevronRight size={14} /> : (<><ChevronLeft size={14} /> Collapse</>)}
-      </button>
-    </div>
-  );
+  // SidebarInner is now a stable top-level component — see definition above AppLayout.
 
   return (
     <div className={cn("relative isolate flex min-h-screen bg-transparent text-foreground", isWeddingPage && "text-black")}>
@@ -296,7 +321,7 @@ export default function AppLayout() {
           collapsed ? "w-16" : "w-60",
         )}
       >
-        <SidebarInner />
+        <SidebarInner nav={nav} collapsed={collapsed} setCollapsed={setCollapsed} isWeddingPage={isWeddingPage} />
       </aside>
 
       {mobileOpen && (
@@ -310,7 +335,7 @@ export default function AppLayout() {
                 : "border-r border-primary/12 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-strong)]",
             )}
           >
-            <SidebarInner onNavigate={() => setMobileOpen(false)} />
+            <SidebarInner nav={nav} collapsed={collapsed} setCollapsed={setCollapsed} isWeddingPage={isWeddingPage} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
       )}
