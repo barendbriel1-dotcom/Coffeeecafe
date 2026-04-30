@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Assets from "./pages/Assets";
 import AssetDetail from "./pages/AssetDetail";
+import Consumables from "./pages/Consumables";
 import SignOut from "./pages/SignOut";
 import BulkSignOut from "./pages/BulkSignOut";
 import GroupSignouts from "./pages/GroupSignouts";
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/assets" element={<Assets />} />
               <Route path="/assets/:id" element={<AssetDetail />} />
+              <Route path="/consumables" element={<ProtectedRoute requireRole="asset_manager"><Consumables /></ProtectedRoute>} />
               <Route path="/signout" element={<ProtectedRoute requireRole="staff"><SignOut /></ProtectedRoute>} />
               <Route path="/groupings" element={<ProtectedRoute requireRole="asset_manager"><BulkSignOut /></ProtectedRoute>} />
               <Route path="/group-signouts" element={<ProtectedRoute requireRole="asset_manager"><GroupSignouts /></ProtectedRoute>} />

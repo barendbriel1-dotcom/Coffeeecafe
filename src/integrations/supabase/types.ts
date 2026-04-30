@@ -84,6 +84,60 @@ export type Database = {
           },
         ]
       }
+      asset_consumables: {
+        Row: {
+          asset_id: string
+          attached_at: string
+          attached_by: string
+          consumable_type_id: string
+          detached_at: string | null
+          detached_by: string | null
+          follows_parent: boolean
+          id: string
+          notes: string | null
+          quantity: number
+        }
+        Insert: {
+          asset_id: string
+          attached_at?: string
+          attached_by: string
+          consumable_type_id: string
+          detached_at?: string | null
+          detached_by?: string | null
+          follows_parent?: boolean
+          id?: string
+          notes?: string | null
+          quantity: number
+        }
+        Update: {
+          asset_id?: string
+          attached_at?: string
+          attached_by?: string
+          consumable_type_id?: string
+          detached_at?: string | null
+          detached_by?: string | null
+          follows_parent?: boolean
+          id?: string
+          notes?: string | null
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_consumables_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_consumables_consumable_type_id_fkey"
+            columns: ["consumable_type_id"]
+            isOneToOne: false
+            referencedRelation: "consumable_type_totals"
+            referencedColumns: ["consumable_type_id"]
+          },
+        ]
+      }
       asset_requests: {
         Row: {
           admin_notes: string | null
@@ -187,6 +241,105 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      consumable_history: {
+        Row: {
+          action: string
+          asset_id: string | null
+          consumable_type_id: string
+          created_at: string
+          id: string
+          location_id: string | null
+          notes: string | null
+          performed_by: string | null
+          quantity: number
+        }
+        Insert: {
+          action: string
+          asset_id?: string | null
+          consumable_type_id: string
+          created_at?: string
+          id?: string
+          location_id?: string | null
+          notes?: string | null
+          performed_by?: string | null
+          quantity: number
+        }
+        Update: {
+          action?: string
+          asset_id?: string | null
+          consumable_type_id?: string
+          created_at?: string
+          id?: string
+          location_id?: string | null
+          notes?: string | null
+          performed_by?: string | null
+          quantity?: number
+        }
+        Relationships: []
+      }
+      consumable_stock: {
+        Row: {
+          consumable_type_id: string
+          created_at: string
+          id: string
+          location_id: string
+          notes: string | null
+          quantity_available: number
+          quantity_damaged: number
+          updated_at: string
+        }
+        Insert: {
+          consumable_type_id: string
+          created_at?: string
+          id?: string
+          location_id: string
+          notes?: string | null
+          quantity_available?: number
+          quantity_damaged?: number
+          updated_at?: string
+        }
+        Update: {
+          consumable_type_id?: string
+          created_at?: string
+          id?: string
+          location_id?: string
+          notes?: string | null
+          quantity_available?: number
+          quantity_damaged?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      consumable_types: {
+        Row: {
+          created_at: string
+          default_location_id: string | null
+          description: string | null
+          division_id: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_location_id?: string | null
+          description?: string | null
+          division_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_location_id?: string | null
+          description?: string | null
+          division_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       bulk_packets: {
         Row: {
@@ -631,7 +784,37 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      asset_consumables_active: {
+        Row: {
+          asset_code: string
+          asset_id: string
+          asset_name: string
+          asset_status: string
+          attached_at: string
+          attached_by: string
+          consumable_name: string
+          consumable_type_id: string
+          follows_parent: boolean
+          id: string
+          notes: string | null
+          quantity: number
+        }
+        Relationships: []
+      }
+      consumable_type_totals: {
+        Row: {
+          assigned: number
+          consumable_type_id: string
+          damaged: number
+          default_location_id: string | null
+          description: string | null
+          division_id: string | null
+          in_stock: number
+          name: string
+          permanently_checked_out: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
       admin_delete_user: {
@@ -650,6 +833,64 @@ export type Database = {
         Args: { admin_notes?: string | null; target_request_id: string }
         Returns: Json
       }
+      add_consumable_stock: {
+        Args: {
+          quantity_to_add: number
+          stock_notes?: string | null
+          target_consumable_type_id: string
+          target_location_id: string
+        }
+        Returns: Json
+      }
+      adjust_consumable_stock_damage: {
+        Args: {
+          adjustment_notes?: string | null
+          move_to_damaged?: boolean
+          quantity_to_move: number
+          target_consumable_type_id: string
+          target_location_id: string
+        }
+        Returns: Json
+      }
+      admin_override_parent_without_consumables: {
+        Args: { override_notes?: string | null; target_asset_ids: string[] }
+        Returns: Json
+      }
+      attach_consumable_to_asset: {
+        Args: {
+          attach_notes?: string | null
+          follows_parent_by_default?: boolean
+          quantity_to_attach: number
+          source_location_id: string
+          target_asset_id: string
+          target_consumable_type_id: string
+        }
+        Returns: Json
+      }
+      can_manage_consumables: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      create_consumable_type: {
+        Args: {
+          target_default_location_id?: string | null
+          target_description?: string | null
+          target_division_id?: string | null
+          target_name: string
+        }
+        Returns: Json
+      }
+      detach_consumable_from_asset: {
+        Args: {
+          destination_location_id: string
+          detach_notes?: string | null
+          move_to_damaged?: boolean
+          quantity_to_detach: number
+          target_asset_id: string
+          target_consumable_type_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -659,6 +900,17 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_staff_or_admin: { Args: { _user_id: string }; Returns: boolean }
+      reassign_consumable_to_asset: {
+        Args: {
+          from_asset_id: string
+          quantity_to_move: number
+          reassign_notes?: string | null
+          target_consumable_type_id: string
+          target_follows_parent?: boolean
+          to_asset_id: string
+        }
+        Returns: Json
+      }
       sign_in_assets: {
         Args: {
           note_prefix?: string | null
@@ -695,6 +947,7 @@ export type Database = {
         | "signed_out"
         | "in_handover"
         | "out_for_repairs"
+        | "permanent"
         | "not_assigned"
         | "lost"
         | "damaged"
@@ -834,6 +1087,8 @@ export const Constants = {
         "signed_out",
         "in_handover",
         "out_for_repairs",
+        "permanent",
+        "not_assigned",
         "lost",
         "damaged",
       ],

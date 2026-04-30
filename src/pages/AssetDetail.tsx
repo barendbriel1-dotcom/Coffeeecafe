@@ -19,6 +19,7 @@ import {
   History as HistoryIcon, 
   Edit3, 
   Calendar,
+  Cable,
   Hash,
   AlertTriangle,
   CheckCircle2,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { exportDamageReportPdf } from "@/lib/pdf";
 import { cn } from "@/lib/utils";
+import { AssetConsumableLink, ConsumableAggregate, ConsumableStock, getConsumableModeClass, getConsumableModeLabel } from "@/lib/consumables";
 
 interface Asset {
   id: string; code: string; name: string; status: string;
@@ -70,15 +72,24 @@ interface DivisionOption {
   name: string;
 }
 
+interface LocationOption {
+  id: string;
+  name: string;
+}
+
 export default function AssetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isAssetManager, assetManagerLocationId } = useAuth();
   
   const [asset, setAsset] = useState<Asset | null>(null);
   const [history, setHistory] = useState<AssetHistory[]>([]);
   const [damageReports, setDamageReports] = useState<DamageReport[]>([]);
   const [divisions, setDivisions] = useState<DivisionOption[]>([]);
+  const [locations, setLocations] = useState<LocationOption[]>([]);
+  const [consumables, setConsumables] = useState<AssetConsumableLink[]>([]);
+  const [consumableTypes, setConsumableTypes] = useState<ConsumableAggregate[]>([]);
+  const [stockRows, setStockRows] = useState<ConsumableStock[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Edit form state
@@ -89,6 +100,13 @@ export default function AssetDetail() {
   const [editDivisionId, setEditDivisionId] = useState("");
   const [updating, setUpdating] = useState(false);
   const [profileMapState, setProfileMapState] = useState<Record<string, string>>({});
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachTypeId, setAttachTypeId] = useState("");
+  const [attachLocationId, setAttachLocationId] = useState("");
+  const [attachQuantity, setAttachQuantity] = useState("1");
+  const [attachNotes, setAttachNotes] = useState("");
+  const [attachFollowsParent, setAttachFollowsParent] = useState(true);
+  const [consumableBusy, setConsumableBusy] = useState(false);
 
   const exportReport = async (report: DamageReport, profiles: Record<string, string>) => {
     exportDamageReportPdf(report, profiles);
@@ -101,6 +119,10 @@ export default function AssetDetail() {
       const [
         { data: a, error },
         { data: divisionRows, error: divisionError },
+        { data: locationRows, error: locationError },
+        { data: consumableRows, error: consumableError },
+        { data: consumableTypeRows, error: consumableTypeError },
+        { data: consumableStockRows, error: consumableStockError },
       ] = await Promise.all([
         supabase
           .from("assets")
@@ -113,12 +135,24 @@ export default function AssetDetail() {
           .eq("id", id)
           .single(),
         supabase.from("divisions").select("id, name").order("name"),
+        supabase.from("locations").select("id, name").order("name"),
+        supabase.from("asset_consumables_active").select("*").eq("asset_id", id).order("attached_at", { ascending: false }),
+        supabase.from("consumable_type_totals").select("*").order("name"),
+        supabase.from("consumable_stock").select("*"),
       ]);
 
       if (error) throw error;
       if (divisionError) throw divisionError;
+      if (locationError) throw locationError;
+      if (consumableError) throw consumableError;
+      if (consumableTypeError) throw consumableTypeError;
+      if (consumableStockError) throw consumableStockError;
       setAsset(a as any);
       setDivisions((divisionRows ?? []) as DivisionOption[]);
+      setLocations((locationRows ?? []) as LocationOption[]);
+      setConsumables((consumableRows ?? []) as AssetConsumableLink[]);
+      setConsumableTypes((consumableTypeRows ?? []) as ConsumableAggregate[]);
+      setStockRows((consumableStockRows ?? []) as ConsumableStock[]);
       setEditName(a.name);
       setEditDesc(a.description || "");
       setEditSerial(a.serial_number || "");
@@ -189,6 +223,9 @@ export default function AssetDetail() {
       }
 
       setProfileMapState(profileMap);
+      if (isAssetManager && assetManagerLocationId) {
+        setAttachLocationId(assetManagerLocationId);
+      }
 
     } catch (err: any) {
       toast.error(err.message);
@@ -225,6 +262,64 @@ export default function AssetDetail() {
     }
   };
 
+  const handleAttachConsumable = async () => {
+    if (!asset) return;
+    setConsumableBusy(true);
+    try {
+      const { error } = await supabase.rpc("attach_consumable_to_asset", {
+        target_asset_id: asset.id,
+        target_consumable_type_id: attachTypeId,
+        source_location_id: attachLocationId,
+        quantity_to_attach: Number(attachQuantity),
+        follows_parent_by_default: attachFollowsParent,
+        attach_notes: attachNotes || null,
+      });
+
+      if (error) throw error;
+      toast.success("Consumable attached");
+      setAttachOpen(false);
+      setAttachTypeId("");
+      setAttachLocationId(isAssetManager && assetManagerLocationId ? assetManagerLocationId : "");
+      setAttachQuantity("1");
+      setAttachNotes("");
+      setAttachFollowsParent(true);
+      await loadAsset();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to attach consumable.");
+    } finally {
+      setConsumableBusy(false);
+    }
+  };
+
+  const handleDetachConsumable = async (link: AssetConsumableLink) => {
+    const destinationLocationId = isAssetManager && assetManagerLocationId
+      ? assetManagerLocationId
+      : asset.current_location_id ?? asset.department_id;
+    if (!destinationLocationId) {
+      toast.error("No return location found for this asset.");
+      return;
+    }
+
+    setConsumableBusy(true);
+    try {
+      const { error } = await supabase.rpc("detach_consumable_from_asset", {
+        target_asset_id: asset.id,
+        target_consumable_type_id: link.consumable_type_id,
+        quantity_to_detach: link.quantity,
+        destination_location_id: destinationLocationId,
+        move_to_damaged: false,
+        detach_notes: "Detached from asset detail.",
+      });
+      if (error) throw error;
+      toast.success("Consumable detached");
+      await loadAsset();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to detach consumable.");
+    } finally {
+      setConsumableBusy(false);
+    }
+  };
+
   if (loading) return <div className="flex h-64 items-center justify-center font-mono text-primary animate-pulse tracking-widest uppercase">Decyphering Asset Data...</div>;
   if (!asset) return null;
 
@@ -238,6 +333,7 @@ export default function AssetDetail() {
   };
 
   const currentStatus = statusMap[asset.status] || { label: asset.status, color: "text-muted-foreground border-border bg-muted/10", icon: Package };
+  const stockChoices = stockRows.filter((row) => !attachTypeId || row.consumable_type_id === attachTypeId);
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
@@ -407,6 +503,55 @@ export default function AssetDetail() {
           </Card>
 
           <Card className="bg-card/40 border-primary/30 p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-display text-primary uppercase tracking-[0.2em] flex items-center gap-2 text-sm">
+                <Cable size={16} className="text-primary/60" /> Attached Consumables
+              </h2>
+              {(isAdmin || isAssetManager) && (
+                <Button variant="outline" className="border-primary/35 text-primary hover:bg-primary/10" onClick={() => setAttachOpen(true)}>
+                  <Package size={14} className="mr-2" /> Attach consumable
+                </Button>
+              )}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {consumables.length === 0 ? (
+                <div className="rounded-[1.2rem] border border-dashed border-primary/18 px-4 py-6 text-center font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                  // NO LINKED CONSUMABLES
+                </div>
+              ) : (
+                consumables.map((link) => (
+                  <div key={link.id} className="rounded-[1.2rem] border border-primary/16 bg-primary/5 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="font-display text-base text-foreground glow-soft">{link.quantity} x {link.consumable_name}</div>
+                          <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em]", getConsumableModeClass(link))}>
+                            {getConsumableModeLabel(link)}
+                          </Badge>
+                        </div>
+                        {link.notes && <div className="mt-2 text-xs text-muted-foreground">{link.notes}</div>}
+                      </div>
+
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={consumableBusy}
+                          onClick={() => handleDetachConsumable(link)}
+                          className="border-primary/24 text-primary hover:bg-primary/10"
+                        >
+                          Detach
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="bg-card/40 border-primary/30 p-6">
             <h2 className="font-display text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 text-sm">
               <HistoryIcon size={16} className="text-primary/60" /> Operation Logs
             </h2>
@@ -497,6 +642,69 @@ export default function AssetDetail() {
           )}
         </div>
       </div>
+
+      <Dialog open={attachOpen} onOpenChange={setAttachOpen}>
+        <DialogContent className="bg-card border-primary/40" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="font-display text-primary">Attach Consumable</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Consumable type</Label>
+              <Select value={attachTypeId} onValueChange={setAttachTypeId}>
+                <SelectTrigger className="bg-primary/5 border-primary/20">
+                  <SelectValue placeholder="Choose a consumable" />
+                </SelectTrigger>
+                <SelectContent>
+                  {consumableTypes.map((row) => (
+                    <SelectItem key={row.consumable_type_id} value={row.consumable_type_id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Stock location</Label>
+                {isAssetManager && assetManagerLocationId ? (
+                  <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm text-primary/90">
+                    {locations.find((location) => location.id === assetManagerLocationId)?.name ?? "Locked location"}
+                  </div>
+                ) : (
+                  <Select value={attachLocationId} onValueChange={setAttachLocationId}>
+                    <SelectTrigger className="bg-primary/5 border-primary/20">
+                      <SelectValue placeholder="Choose stock location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stockChoices.map((row) => (
+                        <SelectItem key={row.id} value={row.location_id}>
+                          {(locations.find((location) => location.id === row.location_id)?.name ?? "Unknown")} ({row.quantity_available} available)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Quantity</Label>
+                <Input type="number" min="1" step="1" value={attachQuantity} onChange={(event) => setAttachQuantity(event.target.value)} className="bg-primary/5 border-primary/20" />
+              </div>
+            </div>
+            <label className="flex items-center gap-3 rounded-xl border border-primary/16 bg-primary/5 px-3 py-3 text-sm">
+              <input type="checkbox" checked={attachFollowsParent} onChange={(event) => setAttachFollowsParent(event.target.checked)} />
+              Follows parent workflow
+            </label>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea value={attachNotes} onChange={(event) => setAttachNotes(event.target.value)} className="bg-primary/5 border-primary/20" />
+            </div>
+            <Button onClick={handleAttachConsumable} disabled={consumableBusy || !attachTypeId || !attachLocationId} className="w-full bg-primary text-black">
+              {consumableBusy ? "Attaching..." : "Attach Consumable"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

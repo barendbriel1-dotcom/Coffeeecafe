@@ -22,6 +22,7 @@ import {
   LOCATION_NAMES,
   normalizeAssetStatus,
 } from "@/lib/assets";
+import { AssetConsumableLink, getConsumableModeClass, getConsumableModeLabel, groupConsumablesByAsset } from "@/lib/consumables";
 import { cn } from "@/lib/utils";
 
 interface Asset {
@@ -58,6 +59,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [locations, setLocations] = useState<Loc[]>([]);
   const [divisions, setDivisions] = useState<Div[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [consumableLinks, setConsumableLinks] = useState<AssetConsumableLink[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
   const [signoutMode, setSignoutMode] = useState<"standard" | "permanent_request">("standard");
@@ -76,7 +78,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 
   const load = async () => {
-    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: profileRows }] = await Promise.all([
+    const [{ data: assetRows }, { data: locationRows }, { data: divisionRows }, { data: profileRows }, { data: linkRows }] = await Promise.all([
       supabase
         .from("assets")
         .select("id, code, name, status, department_id, current_location_id, division_id, serial_number, locked_by, locked_at")
@@ -84,6 +86,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
       supabase.from("locations").select("id, name"),
       supabase.from("divisions").select("id, name"),
       supabase.from("profiles").select("id, display_name").order("display_name"),
+      supabase.from("asset_consumables_active").select("*"),
     ]);
 
     const orderedLocations = (locationRows ?? []).sort((a: Loc, b: Loc) => {
@@ -96,6 +99,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     setLocations(orderedLocations);
     setDivisions(divisionRows ?? []);
     setProfiles(profileRows ?? []);
+    setConsumableLinks((linkRows ?? []) as AssetConsumableLink[]);
   };
 
   useEffect(() => {
@@ -121,6 +125,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
     () => profiles.find((profile) => profile.id === recipientUserId)?.display_name ?? "Your account",
     [profiles, recipientUserId],
   );
+  const consumablesByAsset = useMemo(() => groupConsumablesByAsset(consumableLinks), [consumableLinks]);
 
   const groupedAssets = useMemo(
     () =>
@@ -406,6 +411,7 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                         <span>{group.totalUnits} total</span>
                         <span>{group.availableUnits} available</span>
                         <span>{group.locationSummary}</span>
+                        {group.items.some((asset) => (consumablesByAsset[asset.id] ?? []).length > 0) && <span>Linked consumables</span>}
                       </div>
                     </div>
                     <Badge variant="outline" className={cn("uppercase tracking-[0.16em]", selectedCount > 0 ? getStatusBadgeClass("available") : "border-primary/12 bg-card text-muted-foreground")}>
@@ -509,6 +515,15 @@ export default function SignOut({ bulk = false }: { bulk?: boolean }) {
                           <span>{divisionName}</span>
                           <span>{locationName}</span>
                         </div>
+                        {(consumablesByAsset[asset.id] ?? []).length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(consumablesByAsset[asset.id] ?? []).map((link) => (
+                              <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em]", getConsumableModeClass(link))}>
+                                {link.quantity} x {link.consumable_name} | {getConsumableModeLabel(link)}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </label>
                   );

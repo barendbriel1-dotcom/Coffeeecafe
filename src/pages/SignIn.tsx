@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { getAssetStatusLabel, getStatusBadgeClass, LOCATION_NAMES } from "@/lib/assets";
+import { AssetConsumableLink, getConsumableModeClass, getConsumableModeLabel, groupConsumablesByAsset } from "@/lib/consumables";
 import { cn } from "@/lib/utils";
 
 interface AssetReturn {
@@ -127,6 +128,7 @@ export default function SignIn() {
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [divisionMap, setDivisionMap] = useState<Record<string, string>>({});
   const [locationNameMap, setLocationNameMap] = useState<Record<string, string>>({});
+  const [consumableLinks, setConsumableLinks] = useState<AssetConsumableLink[]>([]);
 
   const [searchQ, setSearchQ] = useState("");
   const [permanentSearchQ, setPermanentSearchQ] = useState("");
@@ -207,6 +209,7 @@ export default function SignIn() {
         { data: profiles },
         { data: locationRows },
         { data: divisionRows },
+        { data: linkRows, error: linkError },
       ] = await Promise.all([
         supabase
           .from("assets")
@@ -228,10 +231,12 @@ export default function SignIn() {
         supabase.from("profiles").select("id, display_name"),
         supabase.from("locations").select("id, name"),
         supabase.from("divisions").select("id, name"),
+        supabase.from("asset_consumables_active").select("*"),
       ]);
 
       if (assetError) throw assetError;
       if (permanentAssetError) throw permanentAssetError;
+      if (linkError) throw linkError;
 
       const orderedLocations = (locationRows ?? []).sort((a: LocationRow, b: LocationRow) => {
         const aIndex = LOCATION_NAMES.indexOf(a.name as (typeof LOCATION_NAMES)[number]);
@@ -273,6 +278,7 @@ export default function SignIn() {
       setProfileMap(nextProfileMap);
       setDivisionMap(nextDivisionMap);
       setLocationNameMap(nextLocationMap);
+      setConsumableLinks((linkRows ?? []) as AssetConsumableLink[]);
     } catch (error: any) {
       toast.error(error?.message ?? "Failed to load signed-out assets.");
     } finally {
@@ -300,6 +306,7 @@ export default function SignIn() {
     [assetManagerLocationId, isAssetManager, permanentRows],
   );
 
+  const consumablesByAsset = useMemo(() => groupConsumablesByAsset(consumableLinks), [consumableLinks]);
   const scopedHolderOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.holder_name))].sort(), [scopedRows]);
   const scopedDivisionOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.division_name).filter((name) => name !== "—"))].sort(), [scopedRows]);
   const scopedLocationFilterOptions = useMemo(() => [...new Set(scopedRows.map((row) => row.location_name).filter((name) => name !== "—"))].sort(), [scopedRows]);
@@ -955,6 +962,15 @@ export default function SignIn() {
                         {item.location_name !== "â€”" && <span>{item.location_name}</span>}
                         {item.serial_number && <span>{item.serial_number}</span>}
                       </div>
+                      {(consumablesByAsset[item.id] ?? []).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {(consumablesByAsset[item.id] ?? []).map((link) => (
+                            <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", getConsumableModeClass(link))}>
+                              {link.quantity} x {link.consumable_name} | {getConsumableModeLabel(link)}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
@@ -1138,6 +1154,15 @@ export default function SignIn() {
                     {item.serial_number && <span>{item.serial_number}</span>}
                     {item.package_name && <span className="text-primary/60">Group {item.package_name}</span>}
                   </div>
+                  {(consumablesByAsset[item.id] ?? []).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(consumablesByAsset[item.id] ?? []).map((link) => (
+                        <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", getConsumableModeClass(link))}>
+                          {link.quantity} x {link.consumable_name} | {getConsumableModeLabel(link)}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div
@@ -1361,6 +1386,15 @@ export default function SignIn() {
                               {item.location_name !== "—" && <span>{item.location_name}</span>}
                               <span>{item.holder_name}</span>
                             </div>
+                            {(consumablesByAsset[item.id] ?? []).length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {(consumablesByAsset[item.id] ?? []).map((link) => (
+                                  <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", getConsumableModeClass(link))}>
+                                    {link.quantity} x {link.consumable_name} | {getConsumableModeLabel(link)}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <Button
                             type="button"

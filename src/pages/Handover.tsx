@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Check, X } from "lucide-react";
+import { AssetConsumableLink, getConsumableModeClass, getConsumableModeLabel, groupConsumablesByAsset } from "@/lib/consumables";
 import { cn } from "@/lib/utils";
 
 interface Asset { id: string; code: string; name: string; }
@@ -34,15 +35,17 @@ export default function Handover() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [incoming, setIncoming] = useState<Handover[]>([]);
   const [outgoing, setOutgoing] = useState<Handover[]>([]);
+  const [consumableLinks, setConsumableLinks] = useState<AssetConsumableLink[]>([]);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     if (!user) return;
-    const [{ data: a }, { data: p }, { data: inc }, { data: out }] = await Promise.all([
+    const [{ data: a }, { data: p }, { data: inc }, { data: out }, { data: linkRows }] = await Promise.all([
       supabase.from("assets").select("id, code, name").eq("current_holder", user.id).eq("status", "signed_out"),
       supabase.from("profiles").select("id, display_name").neq("id", user.id).order("display_name"),
       supabase.from("handovers").select("*, handover_items(asset_id, assets(code, name))").eq("to_user", user.id).eq("status", "pending"),
       supabase.from("handovers").select("*, handover_items(asset_id, assets(code, name))").eq("from_user", user.id).order("created_at", { ascending: false }).limit(20),
+      supabase.from("asset_consumables_active").select("*"),
     ]);
     setMyAssets(a ?? []);
     setProfiles(p ?? []);
@@ -50,8 +53,10 @@ export default function Handover() {
     setProfileMap(Object.fromEntries((all.data ?? []).map((x) => [x.id, x.display_name])));
     setIncoming((inc ?? []) as any);
     setOutgoing((out ?? []) as any);
+    setConsumableLinks((linkRows ?? []) as AssetConsumableLink[]);
   };
   useEffect(() => { load(); }, [user]);
+  const consumablesByAsset = groupConsumablesByAsset(consumableLinks);
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -103,9 +108,20 @@ export default function Handover() {
               <div className="text-sm">From <span className="text-primary">{profileMap[h.from_user]}</span></div>
               <div className="flex flex-wrap gap-1">
                 {h.handover_items.map((it) => (
-                  <Badge key={it.asset_id} variant="outline" className="border-primary/40 text-primary font-mono">
-                    {it.assets?.code} {it.assets?.name}
-                  </Badge>
+                  <div key={it.asset_id} className="space-y-1">
+                    <Badge variant="outline" className="border-primary/40 text-primary font-mono">
+                      {it.assets?.code} {it.assets?.name}
+                    </Badge>
+                    {(consumablesByAsset[it.asset_id] ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {(consumablesByAsset[it.asset_id] ?? []).map((link) => (
+                          <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", getConsumableModeClass(link))}>
+                            {link.quantity} x {link.consumable_name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
               {h.notes && <div className="text-xs text-muted-foreground">{h.notes}</div>}
@@ -156,8 +172,21 @@ export default function Handover() {
                     selected.has(a.id) ? "border-primary/60 bg-primary/10 box-glow-soft" : "border-primary/15 hover:border-primary/40 hover:bg-primary/5"
                   )}>
                     <Checkbox checked={selected.has(a.id)} onCheckedChange={() => toggle(a.id)} />
-                    <span className="font-display text-primary glow-soft">{a.code}</span>
-                    <span className="text-sm">{a.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-primary glow-soft">{a.code}</span>
+                        <span className="text-sm">{a.name}</span>
+                      </div>
+                      {(consumablesByAsset[a.id] ?? []).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {(consumablesByAsset[a.id] ?? []).map((link) => (
+                            <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", getConsumableModeClass(link))}>
+                              {link.quantity} x {link.consumable_name} | {getConsumableModeLabel(link)}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </label>
                 ))}
               </div>
@@ -178,7 +207,18 @@ export default function Handover() {
             <span className="text-muted-foreground">→ {profileMap[h.to_user]}</span>
             <span className="flex flex-wrap gap-1">
               {h.handover_items.map((it) => (
-                <Badge key={it.asset_id} variant="outline" className="border-primary/30 text-primary font-mono text-[10px]">{it.assets?.code}</Badge>
+                <div key={it.asset_id} className="space-y-1">
+                  <Badge variant="outline" className="border-primary/30 text-primary font-mono text-[10px]">{it.assets?.code}</Badge>
+                  {(consumablesByAsset[it.asset_id] ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(consumablesByAsset[it.asset_id] ?? []).map((link) => (
+                        <Badge key={link.id} variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", getConsumableModeClass(link))}>
+                          {link.quantity} x {link.consumable_name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </span>
             <Badge variant="outline" className="ml-auto text-xs">{h.status}</Badge>

@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   Package,
+  PlugZap,
   PencilLine,
   Shield,
   Users,
@@ -195,6 +196,7 @@ export default function AppLayout() {
   const nav = [
     { to: "/", label: "Dashboard", icon: LayoutGrid, show: true, exact: true },
     { to: "/assets", label: "Assets", icon: Package, show: true, exact: false },
+    { to: "/consumables", label: "Consumables", icon: PlugZap, show: isAdmin || isAssetManager, exact: true },
     { to: "/signout", label: "Sign out", icon: LogOut, show: isStaff, exact: true },
     { to: "/group-signouts", label: "Group signouts", icon: Download, show: isAdmin || isAssetManager, exact: true },
     { to: "/signin", label: "Sign in", icon: LogIn, show: isAdmin || isAssetManager, exact: true },
