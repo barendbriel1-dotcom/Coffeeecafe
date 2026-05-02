@@ -28,6 +28,7 @@
 - Pastors are now limited to 3 orders per day, including operator-submitted orders linked to that pastor.
 - Added a new `Cafe` role that receives all submitted orders on a separate Cafe page.
 - Operators can see submitted orders, but only admins can edit or delete order details.
+- Admin can now manage the selectable order form options for normal orders and special pastor orders.
 
 ## Pages
 
@@ -56,11 +57,12 @@
 - `supabase/migrations/20260502050000_add_admin_delete_user.sql`
 - `supabase/migrations/20260502060000_add_milk_heat_and_preference_onboarding.sql`
 - `supabase/migrations/20260502070000_add_cafe_role_and_daily_order_limit.sql`
+- `supabase/migrations/20260502080000_add_order_form_builder.sql`
 
 ## Important Note
 
 - The latest workflow migration still needs to be run in Supabase:
-  `20260502070000_add_cafe_role_and_daily_order_limit.sql`
+  `20260502080000_add_order_form_builder.sql`
 
 ## Local Git State
 

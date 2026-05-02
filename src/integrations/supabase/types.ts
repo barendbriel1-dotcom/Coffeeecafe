@@ -2,28 +2,14 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type AppRole = "admin" | "pastor" | "operator" | "cafe";
 
-export type CoffeeType = "Cappachino" | "Flat White" | "Cortado" | "Latte";
-export type MilkType = "Fresh Milk" | "Lactose Free" | "Oat Milk" | "Almond Milk";
-export type SugarType = "1 Sugar" | "2 Suger" | "3 Suger" | "Sweetner";
-export type HeatLevel =
-  | "55 degrees"
-  | "56 degrees"
-  | "57 degrees"
-  | "58 degrees"
-  | "59 degrees"
-  | "60 degrees"
-  | "61 degrees"
-  | "62 degrees"
-  | "63 degrees"
-  | "64 degrees"
-  | "65 degrees"
-  | "66 degrees"
-  | "67 degrees"
-  | "68 degrees"
-  | "69 degrees"
-  | "70 degrees";
+export type CoffeeType = string;
+export type MilkType = string;
+export type SugarType = string;
+export type HeatLevel = string;
 export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled";
 export type OrderType = "normal" | "preacher";
+export type OrderFormType = "normal" | "preacher";
+export type OrderFieldKey = "coffee_type" | "milk_type" | "sugar_type" | "milk_heat" | "extra_item";
 
 export type Database = {
   public: {
@@ -179,6 +165,39 @@ export type Database = {
           milk_heat?: HeatLevel;
           notes?: string | null;
           status?: OrderStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      order_form_options: {
+        Row: {
+          id: string;
+          form_type: OrderFormType;
+          field_key: OrderFieldKey;
+          label: string;
+          sort_order: number;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          form_type: OrderFormType;
+          field_key: OrderFieldKey;
+          label: string;
+          sort_order?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          form_type?: OrderFormType;
+          field_key?: OrderFieldKey;
+          label?: string;
+          sort_order?: number;
+          active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
