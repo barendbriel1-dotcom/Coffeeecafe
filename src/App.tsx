@@ -50,7 +50,8 @@ const builderFieldLabels: Record<OrderFieldKey, string> = {
   extra_item: "Extra item",
 };
 
-type View = "dashboard" | "admin" | "orders" | "cafe" | "profile";
+type View = "dashboard" | "account" | "orders" | "cafe" | "profile";
+type AdminAccountSection = "profile" | "users" | "builder";
 type OperatorOrderMode = "normal" | "preacher";
 type PreacherTargetMode = "pastor" | "guest";
 
@@ -828,7 +829,179 @@ function Dashboard({ setView }: { setView: (view: View) => void }) {
   );
 }
 
-function AdminPage() {
+function UsersAdminPanel({
+  users,
+  roleSelections,
+  message,
+  onRoleChange,
+  onDeleteUser,
+  onApproveUser,
+  onSaveRole,
+}: {
+  users: ManagedUser[];
+  roleSelections: Record<string, AppRole>;
+  message: string | null;
+  onRoleChange: (userId: string, role: AppRole) => void;
+  onDeleteUser: (managedUser: ManagedUser) => Promise<void>;
+  onApproveUser: (managedUser: ManagedUser) => Promise<void>;
+  onSaveRole: (managedUser: ManagedUser) => Promise<void>;
+}) {
+  return (
+    <section className="page-panel">
+      <p className="eyebrow">Users</p>
+      <h1>User roles</h1>
+      <p className="app-subtitle">Approve accounts and assign active roles.</p>
+      {message ? <p className="form-message">{message}</p> : null}
+      <div className="list-stack">
+        {users.map((managedUser) => {
+          const selectedRole = roleSelections[managedUser.id] ?? "pastor";
+          return (
+            <article className="list-item" key={managedUser.id}>
+              <div>
+                <strong>{managedUser.full_name || managedUser.email}</strong>
+                <p>{managedUser.email}</p>
+                <p>Requested: {getRequestedRoleLabel(managedUser.requested_role)}</p>
+              </div>
+              <div className="admin-controls">
+                <select value={selectedRole} onChange={(event) => onRoleChange(managedUser.id, event.target.value as AppRole)}>
+                  {adminRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {titleCase(role)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={managedUser.approved ? "text-button" : "primary-button"}
+                  type="button"
+                  onClick={() => void (managedUser.approved ? onDeleteUser(managedUser) : onApproveUser(managedUser))}
+                >
+                  {managedUser.approved ? "Delete" : "Approve"}
+                </button>
+                <button className="text-button" type="button" onClick={() => void onSaveRole(managedUser)}>
+                  Save role
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function FormBuilderAdminPanel({
+  formOptions,
+  builderFormType,
+  builderFieldKey,
+  newOptionLabel,
+  message,
+  onBuilderFormTypeChange,
+  onBuilderFieldKeyChange,
+  onNewOptionLabelChange,
+  onAddFormOption,
+  onToggleFormOption,
+  onDeleteFormOption,
+}: {
+  formOptions: OrderFormOption[];
+  builderFormType: OrderFormType;
+  builderFieldKey: OrderFieldKey;
+  newOptionLabel: string;
+  message: string | null;
+  onBuilderFormTypeChange: (value: OrderFormType) => void;
+  onBuilderFieldKeyChange: (value: OrderFieldKey) => void;
+  onNewOptionLabelChange: (value: string) => void;
+  onAddFormOption: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  onToggleFormOption: (option: OrderFormOption) => Promise<void>;
+  onDeleteFormOption: (optionId: string) => Promise<void>;
+}) {
+  const builderOptions = formOptions.filter(
+    (option) => option.form_type === builderFormType && option.field_key === builderFieldKey,
+  );
+
+  return (
+    <section className="page-panel">
+      <p className="eyebrow">Form Builder</p>
+      <h1>Build submitted forms</h1>
+      <p className="app-subtitle">Choose a form type and field, then add the items users can select.</p>
+      {message ? <p className="form-message">{message}</p> : null}
+      <form className="auth-form form-panel" onSubmit={(event) => void onAddFormOption(event)}>
+        <label>
+          Form type
+          <select value={builderFormType} onChange={(event) => onBuilderFormTypeChange(event.target.value as OrderFormType)}>
+            <option value="normal">Normal order</option>
+            <option value="preacher">Special order</option>
+          </select>
+        </label>
+        <label>
+          Field type
+          <select value={builderFieldKey} onChange={(event) => onBuilderFieldKeyChange(event.target.value as OrderFieldKey)}>
+            <option value="coffee_type">Coffee type</option>
+            <option value="milk_type">Milk type</option>
+            <option value="sugar_type">Sugar type</option>
+            <option value="milk_heat">Heated</option>
+            <option value="extra_item">Extra items</option>
+          </select>
+        </label>
+        <label>
+          Add item
+          <input value={newOptionLabel} onChange={(event) => onNewOptionLabelChange(event.target.value)} placeholder="Add selectable option" />
+        </label>
+        <button className="primary-button" type="submit">
+          Add item
+        </button>
+      </form>
+      <div className="list-stack">
+        {builderOptions.map((option) => (
+          <article className="list-item" key={option.id}>
+            <div>
+              <strong>{option.label}</strong>
+              <p>{builderFieldLabels[option.field_key]}</p>
+            </div>
+            <div className="admin-controls">
+              <button className="text-button" type="button" onClick={() => void onToggleFormOption(option)}>
+                {option.active ? "Disable" : "Enable"}
+              </button>
+              <button className="text-button" type="button" onClick={() => void onDeleteFormOption(option.id)}>
+                Delete
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AdminAccountPage({
+  section,
+  setSection,
+  children,
+}: {
+  section: AdminAccountSection;
+  setSection: (value: AdminAccountSection) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <p className="eyebrow">Account</p>
+      <h1>Admin account</h1>
+      <div className="button-row">
+        <button className={section === "profile" ? "primary-button" : "text-button"} type="button" onClick={() => setSection("profile")}>
+          Profile
+        </button>
+        <button className={section === "users" ? "primary-button" : "text-button"} type="button" onClick={() => setSection("users")}>
+          Users
+        </button>
+        <button className={section === "builder" ? "primary-button" : "text-button"} type="button" onClick={() => setSection("builder")}>
+          Form Builder
+        </button>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function AdminPage({ section }: { section: Exclude<AdminAccountSection, "profile"> }) {
   const { user } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [roleSelections, setRoleSelections] = useState<Record<string, AppRole>>({});
@@ -1025,108 +1198,37 @@ function AdminPage() {
     await loadFormOptions();
   };
 
-  const builderOptions = formOptions.filter(
-    (option) => option.form_type === builderFormType && option.field_key === builderFieldKey,
-  );
-
   return (
-    <section className="page-panel">
-      <p className="eyebrow">Admin</p>
-      <h1>Users</h1>
-      <p className="app-subtitle">Approve accounts and assign active roles.</p>
-      {message ? <p className="form-message">{message}</p> : null}
-      <div className="list-stack">
-        {users.map((managedUser) => {
-          const selectedRole = roleSelections[managedUser.id] ?? "pastor";
-          return (
-            <article className="list-item" key={managedUser.id}>
-              <div>
-                <strong>{managedUser.full_name || managedUser.email}</strong>
-                <p>{managedUser.email}</p>
-                <p>Requested: {getRequestedRoleLabel(managedUser.requested_role)}</p>
-              </div>
-              <div className="admin-controls">
-                <select
-                  value={selectedRole}
-                  onChange={(event) =>
-                    setRoleSelections((current) => ({
-                      ...current,
-                      [managedUser.id]: event.target.value as AppRole,
-                    }))
-                  }
-                >
-                  {adminRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {titleCase(role)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className={managedUser.approved ? "text-button" : "primary-button"}
-                  type="button"
-                  onClick={() => (managedUser.approved ? deleteUser(managedUser) : updateUser(managedUser, true))}
-                >
-                  {managedUser.approved ? "Delete" : "Approve"}
-                </button>
-                <button className="text-button" type="button" onClick={() => saveRoleOnly(managedUser)}>
-                  Save role
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <section className="page-panel">
-        <p className="eyebrow">Order builder</p>
-        <h2 className="section-title">Build submitted forms</h2>
-        <p className="app-subtitle">Choose a form type and field, then add the items users can select.</p>
-        <form className="auth-form form-panel" onSubmit={addFormOption}>
-          <label>
-            Form type
-            <select value={builderFormType} onChange={(event) => setBuilderFormType(event.target.value as OrderFormType)}>
-              <option value="normal">Normal order</option>
-              <option value="preacher">Special order</option>
-            </select>
-          </label>
-          <label>
-            Field type
-            <select value={builderFieldKey} onChange={(event) => setBuilderFieldKey(event.target.value as OrderFieldKey)}>
-              <option value="coffee_type">Coffee type</option>
-              <option value="milk_type">Milk type</option>
-              <option value="sugar_type">Sugar type</option>
-              <option value="milk_heat">Heated</option>
-              <option value="extra_item">Extra items</option>
-            </select>
-          </label>
-          <label>
-            Add item
-            <input value={newOptionLabel} onChange={(event) => setNewOptionLabel(event.target.value)} placeholder="Add selectable option" />
-          </label>
-          <button className="primary-button" type="submit">
-            Add item
-          </button>
-        </form>
-        <div className="list-stack">
-          {builderOptions.map((option) => (
-            <article className="list-item" key={option.id}>
-              <div>
-                <strong>{option.label}</strong>
-                <p>{builderFieldLabels[option.field_key]}</p>
-              </div>
-              <div className="admin-controls">
-                <button className="text-button" type="button" onClick={() => toggleFormOption(option)}>
-                  {option.active ? "Disable" : "Enable"}
-                </button>
-                <button className="text-button" type="button" onClick={() => deleteFormOption(option.id)}>
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </section>
+    section === "users" ? (
+      <UsersAdminPanel
+        users={users}
+        roleSelections={roleSelections}
+        message={message}
+        onRoleChange={(userId, role) =>
+          setRoleSelections((current) => ({
+            ...current,
+            [userId]: role,
+          }))
+        }
+        onDeleteUser={deleteUser}
+        onApproveUser={(managedUser) => updateUser(managedUser, true)}
+        onSaveRole={saveRoleOnly}
+      />
+    ) : (
+      <FormBuilderAdminPanel
+        formOptions={formOptions}
+        builderFormType={builderFormType}
+        builderFieldKey={builderFieldKey}
+        newOptionLabel={newOptionLabel}
+        message={message}
+        onBuilderFormTypeChange={setBuilderFormType}
+        onBuilderFieldKeyChange={setBuilderFieldKey}
+        onNewOptionLabelChange={setNewOptionLabel}
+        onAddFormOption={addFormOption}
+        onToggleFormOption={toggleFormOption}
+        onDeleteFormOption={deleteFormOption}
+      />
+    )
   );
 }
 
@@ -1978,11 +2080,11 @@ function CafePage({ formConfig }: { formConfig: OrderFormConfig }) {
 function AppShell() {
   const auth = useAuth();
   const [view, setView] = useState<View>("dashboard");
+  const [adminAccountSection, setAdminAccountSection] = useState<AdminAccountSection>("profile");
   const [preference, setPreference] = useState<Preference | null>(null);
   const [formOptions, setFormOptions] = useState<OrderFormOption[]>([]);
   const [preferenceLoading, setPreferenceLoading] = useState(false);
   const [showPreferenceSetup, setShowPreferenceSetup] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const canUsePreferences = auth.isPastor || auth.isOperator;
 
@@ -2085,47 +2187,49 @@ function AppShell() {
           <button className="brand-button" type="button" onClick={() => setView("dashboard")}>
             eCafe
           </button>
-          <div className="user-menu">
-            <div className="button-row">
-              <button className="icon-text-button" type="button" onClick={() => setMenuOpen((open) => !open)}>
-                <UserRound size={18} aria-hidden="true" />
-                {getDisplayName(auth.profile)}
-              </button>
-              <button className="text-button" type="button" onClick={auth.signOut}>
-                Log out
-              </button>
-            </div>
-            {menuOpen ? (
-              <div className="menu-popover">
-                {auth.isAdmin ? (
-                  <button type="button" onClick={() => setView("orders")}>
-                    Orders
-                  </button>
-                ) : null}
-                {auth.isAdmin || auth.isCafe ? (
-                  <button type="button" onClick={() => setView("cafe")}>
-                    Cafe
-                  </button>
-                ) : null}
-                <button type="button" onClick={() => setView("profile")}>
-                  Profile
-                </button>
-                {auth.isAdmin ? (
-                  <button type="button" onClick={() => setView("admin")}>
-                    Admin
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+          <div className="button-row">
+            <button
+              className="icon-text-button"
+              type="button"
+              onClick={() => {
+                if (auth.isAdmin) {
+                  setAdminAccountSection("profile");
+                  setView("account");
+                  return;
+                }
+                setView("profile");
+              }}
+            >
+              <UserRound size={18} aria-hidden="true" />
+              {getDisplayName(auth.profile)}
+            </button>
+            <button className="text-button" type="button" onClick={auth.signOut}>
+              Log out
+            </button>
           </div>
         </header>
 
         {view === "dashboard" ? <Dashboard setView={setView} /> : null}
-        {view === "admin" && auth.isAdmin ? <AdminPage /> : null}
         {view === "orders" ? (
           <OrdersPage preference={preference} reloadPreference={loadPreference} formConfig={formConfig} />
         ) : null}
         {view === "cafe" && (auth.isAdmin || auth.isCafe) ? <CafePage formConfig={formConfig} /> : null}
+        {view === "account" && auth.isAdmin ? (
+          <AdminAccountPage section={adminAccountSection} setSection={setAdminAccountSection}>
+            {adminAccountSection === "profile" ? (
+              <ProfilePage
+                preference={preference}
+                onPreferenceSaved={loadPreference}
+                coffeeOptions={formConfig.coffeeOptions}
+                milkOptions={formConfig.milkOptions}
+                sugarOptions={formConfig.sugarOptions}
+                heatOptions={formConfig.heatOptions}
+              />
+            ) : (
+              <AdminPage section={adminAccountSection} />
+            )}
+          </AdminAccountPage>
+        ) : null}
         {view === "profile" ? (
           <ProfilePage
             preference={preference}
