@@ -21,8 +21,8 @@
 - Admin can edit order content but cannot change order status.
 - Admin can now delete approved users from the admin page.
 - Pastors and operators can manage coffee preference on the profile page.
-- Operators can now create priority `Preacher` orders with extra service items and guest details.
-- Preacher orders are pinned above normal orders in the main queue.
+- Operators can now create priority `Special` orders with extra service items and guest details.
+- Special orders are pinned above normal orders in the main queue.
 - First login now asks coffee users to save a preference before continuing.
 - Preferences and submitted orders now include milk heat from 55 to 70 degrees.
 - Pastors are now limited to 3 orders per day, including operator-submitted orders linked to that pastor.

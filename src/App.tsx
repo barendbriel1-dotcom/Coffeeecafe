@@ -193,11 +193,11 @@ function getFieldOptions(options: OrderFormOption[], formType: OrderFormType, fi
 }
 
 function getOrderBadgeLabel(order: CoffeeOrder) {
-  return order.order_type === "preacher" ? "Preacher" : "Normal";
+  return order.order_type === "preacher" ? "Special" : "Normal";
 }
 
 function formatOrderSummary(order: CoffeeOrder) {
-  const label = order.order_type === "preacher" ? "Preacher Order" : "Order";
+  const label = order.order_type === "preacher" ? "Special Order" : "Order";
   const guest = order.guest_name ? ` + ${order.guest_name}` : "";
   return `${label}: ${order.recipient_name}${guest} ${order.coffee_type}`;
 }
@@ -1086,7 +1086,7 @@ function AdminPage() {
             Form type
             <select value={builderFormType} onChange={(event) => setBuilderFormType(event.target.value as OrderFormType)}>
               <option value="normal">Normal order</option>
-              <option value="preacher">Special pastor order</option>
+              <option value="preacher">Special order</option>
             </select>
           </label>
           <label>
@@ -1190,7 +1190,7 @@ function OrderDetailPanel({
     <section className="page-panel">
       <div className="section-header">
         <div>
-          <p className="eyebrow">{order.order_type === "preacher" ? "Preacher order" : "Order detail"}</p>
+          <p className="eyebrow">{order.order_type === "preacher" ? "Special order" : "Order detail"}</p>
           <h2 className="section-title">{order.recipient_name}</h2>
         </div>
         <button className="text-button" type="button" onClick={onClose}>
@@ -1527,7 +1527,7 @@ function OrdersPage({
 
     const isGuestMode = preacherTargetMode === "guest";
     if (!isGuestMode && !targetPastor) {
-      setMessage("Choose a pastor for the preacher order.");
+        setMessage("Choose a pastor for the special order.");
       return;
     }
     if (isGuestMode && !guestName.trim()) {
@@ -1557,7 +1557,7 @@ function OrdersPage({
       return;
     }
 
-    setMessage("Preacher order submitted.");
+    setMessage("Special order submitted.");
     resetOperatorDraft();
     await loadOrders();
   };
@@ -1709,7 +1709,7 @@ function OrdersPage({
               type="button"
               onClick={() => setOperatorMode("preacher")}
             >
-              Preacher order
+              Special order
             </button>
           </div>
 
@@ -1811,7 +1811,7 @@ function OrdersPage({
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
           </label>
           <button className="primary-button" type="submit">
-            {operatorMode === "preacher" ? "Submit preacher order" : "Submit for pastor"}
+            {operatorMode === "preacher" ? "Submit special order" : "Submit for pastor"}
           </button>
         </form>
       ) : null}
