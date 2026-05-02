@@ -8,6 +8,8 @@ export interface Profile {
   id: string;
   email: string | null;
   full_name: string | null;
+  phone: string | null;
+  profile_notes: string | null;
   approved: boolean;
   requested_role: AppRole;
 }
@@ -38,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadAccess = async (userId: string) => {
     const [{ data: profileData, error: profileError }, { data: roleData, error: roleError }] = await Promise.all([
-      supabase.from("profiles").select("id,email,full_name,approved,requested_role").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("id,email,full_name,phone,profile_notes,approved,requested_role").eq("id", userId).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId),
     ]);
 

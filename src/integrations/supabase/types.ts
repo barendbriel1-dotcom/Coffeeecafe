@@ -5,7 +5,7 @@ export type AppRole = "admin" | "pastor" | "operator" | "volunteer";
 export type CoffeeType = "Cappachino" | "Flat White" | "Cortado" | "Latte";
 export type MilkType = "Fresh Milk" | "Lactose Free" | "Oat Milk" | "Almond Milk";
 export type SugarType = "1 Sugar" | "2 Suger" | "3 Suger" | "Sweetner";
-export type OrderStatus = "pending" | "preparing" | "completed" | "cancelled";
+export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled";
 
 export type Database = {
   public: {
@@ -15,6 +15,8 @@ export type Database = {
           id: string;
           email: string | null;
           full_name: string | null;
+          phone: string | null;
+          profile_notes: string | null;
           approved: boolean;
           approved_at: string | null;
           approved_by: string | null;
@@ -26,6 +28,8 @@ export type Database = {
           id: string;
           email?: string | null;
           full_name?: string | null;
+          phone?: string | null;
+          profile_notes?: string | null;
           approved?: boolean;
           approved_at?: string | null;
           approved_by?: string | null;
@@ -37,6 +41,8 @@ export type Database = {
           id?: string;
           email?: string | null;
           full_name?: string | null;
+          phone?: string | null;
+          profile_notes?: string | null;
           approved?: boolean;
           approved_at?: string | null;
           approved_by?: string | null;

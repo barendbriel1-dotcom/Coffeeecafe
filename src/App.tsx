@@ -14,7 +14,7 @@ const milkTypes: MilkType[] = ["Fresh Milk", "Lactose Free", "Oat Milk", "Almond
 const sugarTypes: SugarType[] = ["1 Sugar", "2 Suger", "3 Suger", "Sweetner"];
 const orderStatuses: OrderStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
 
-type View = "dashboard" | "admin" | "orders";
+type View = "dashboard" | "admin" | "orders" | "profile";
 
 interface Preference {
   id: string;
@@ -43,6 +43,10 @@ function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function getDisplayName(profile: Profile | null) {
+  return profile?.full_name?.trim() || "User";
+}
+
 function SidebarNav({
   isCollapsed,
   setIsCollapsed,
@@ -56,7 +60,7 @@ function SidebarNav({
 }) {
   const { isAdmin, isOperator, isPastor, isVolunteer, profile } = useAuth();
   const canSeeQueue = isAdmin || isOperator;
-  const canOrder = isPastor || isVolunteer;
+  const canOrder = isAdmin || isPastor || isVolunteer;
 
   const items: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [{ view: "dashboard", label: "Dashboard", icon: LayoutDashboard }];
 
@@ -70,12 +74,14 @@ function SidebarNav({
     items.push({ view: "admin", label: "Admin", icon: Settings });
   }
 
+  items.push({ view: "profile", label: "Profile", icon: UserRound });
+
   return (
     <aside className={isCollapsed ? "side-nav collapsed" : "side-nav"}>
       <div className="side-nav-header">
         <div className="side-nav-brand">
           <span className="eyebrow">eCafe</span>
-          {!isCollapsed ? <strong>{profile?.full_name || "Workspace"}</strong> : null}
+          {!isCollapsed ? <strong>{getDisplayName(profile)}</strong> : null}
         </div>
         <button className="icon-button" type="button" onClick={() => setIsCollapsed(!isCollapsed)} aria-label="Toggle sidebar">
           {isCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
@@ -289,6 +295,109 @@ function PendingApproval() {
   );
 }
 
+function NameSetup({ onSaved }: { onSaved: () => Promise<void> }) {
+  const { profile, user, refreshAccess } = useAuth();
+  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [message, setMessage] = useState<string | null>(null);
+
+  const saveName = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) return;
+
+    const { error } = await supabase.from("profiles").update({ full_name: fullName.trim() }).eq("id", user.id);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    await refreshAccess();
+    await onSaved();
+  };
+
+  return (
+    <main className="center-shell">
+      <section className="login-bubble">
+        <p className="eyebrow">Your profile</p>
+        <h1>Your name</h1>
+        <p className="app-subtitle">Add the name you want shown in the dashboard.</p>
+        <form className="auth-form" onSubmit={saveName}>
+          <label>
+            Name
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} type="text" required />
+          </label>
+          {message ? <p className="form-message">{message}</p> : null}
+          <button className="primary-button" type="submit">
+            Save name
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function ProfilePage() {
+  const { profile, user, refreshAccess } = useAuth();
+  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [phone, setPhone] = useState(profile?.phone ?? "");
+  const [profileNotes, setProfileNotes] = useState(profile?.profile_notes ?? "");
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFullName(profile?.full_name ?? "");
+    setPhone(profile?.phone ?? "");
+    setProfileNotes(profile?.profile_notes ?? "");
+  }, [profile]);
+
+  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName.trim(),
+        phone: phone.trim() || null,
+        profile_notes: profileNotes.trim() || null,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    await refreshAccess();
+    setMessage("Profile updated.");
+  };
+
+  return (
+    <section className="page-panel">
+      <p className="eyebrow">Profile</p>
+      <h1>Your details</h1>
+      <p className="app-subtitle">Update the information shown in your account.</p>
+      <form className="auth-form form-panel" onSubmit={saveProfile}>
+        <label>
+          Name
+          <input value={fullName} onChange={(event) => setFullName(event.target.value)} type="text" required />
+        </label>
+        <label>
+          Phone
+          <input value={phone} onChange={(event) => setPhone(event.target.value)} type="tel" />
+        </label>
+        <label>
+          Notes
+          <textarea value={profileNotes} onChange={(event) => setProfileNotes(event.target.value)} rows={4} />
+        </label>
+        {message ? <p className="form-message">{message}</p> : null}
+        <button className="primary-button" type="submit">
+          Save profile
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function PreferenceSetup({ onSaved }: { onSaved: () => void }) {
   const { user } = useAuth();
   const [coffeeType, setCoffeeType] = useState<CoffeeType>("Cappachino");
@@ -344,7 +453,7 @@ function PreferenceSetup({ onSaved }: { onSaved: () => void }) {
 function Dashboard({ setView }: { setView: (view: View) => void }) {
   const { isAdmin, isOperator, isPastor, isVolunteer, roles: currentRoles } = useAuth();
   const canSeeQueue = isAdmin || isOperator;
-  const canOrder = isPastor || isVolunteer;
+  const canOrder = isAdmin || isPastor || isVolunteer;
 
   return (
     <section className="page-panel">
@@ -668,6 +777,7 @@ function AppShell() {
 
   if (!auth.user) return <AuthScreen />;
   if (!auth.isApproved) return <PendingApproval />;
+  if (!auth.profile?.full_name?.trim()) return <NameSetup onSaved={loadPreference} />;
   if (preferenceLoading) {
     return (
       <main className="center-shell">
@@ -692,16 +802,19 @@ function AppShell() {
           <div className="user-menu">
             <button className="icon-text-button" type="button" onClick={() => setMenuOpen((open) => !open)}>
               <UserRound size={18} aria-hidden="true" />
-              {auth.profile?.full_name || auth.user.email}
+              {getDisplayName(auth.profile)}
             </button>
             {menuOpen ? (
               <div className="menu-popover">
-                <button type="button" onClick={() => setView("dashboard")}>
-                  Dashboard
-                </button>
-                {auth.isAdmin ? (
-                  <button type="button" onClick={() => setView("admin")}>
-                    Admin
+              <button type="button" onClick={() => setView("dashboard")}>
+                Dashboard
+              </button>
+              <button type="button" onClick={() => setView("profile")}>
+                Profile
+              </button>
+              {auth.isAdmin ? (
+                <button type="button" onClick={() => setView("admin")}>
+                  Admin
                   </button>
                 ) : null}
                 <button type="button" onClick={() => setView("orders")}>
@@ -719,6 +832,7 @@ function AppShell() {
         {view === "dashboard" ? <Dashboard setView={setView} /> : null}
         {view === "admin" && auth.isAdmin ? <AdminPage /> : null}
         {view === "orders" ? <OrdersPage preference={preference} reloadPreference={loadPreference} /> : null}
+        {view === "profile" ? <ProfilePage /> : null}
       </section>
     </main>
   );
