@@ -8,7 +8,7 @@ import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import type { CoffeeType, HeatLevel, Json, MilkType, OrderStatus, OrderType, SugarType } from "@/integrations/supabase/types";
 
 const signupRoles: AppRole[] = ["pastor", "operator"];
-const adminRoles: AppRole[] = ["admin", "pastor", "operator"];
+const adminRoles: AppRole[] = ["admin", "pastor", "operator", "cafe"];
 const coffeeTypes: CoffeeType[] = ["Cappachino", "Flat White", "Cortado", "Latte"];
 const milkTypes: MilkType[] = ["Fresh Milk", "Lactose Free", "Oat Milk", "Almond Milk"];
 const sugarTypes: SugarType[] = ["1 Sugar", "2 Suger", "3 Suger", "Sweetner"];
@@ -33,7 +33,7 @@ const heatLevels: HeatLevel[] = [
 const orderStatuses: OrderStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
 const preacherExtraKeys = ["water", "juice", "tea", "extra coffee", "snacks", "napkins"] as const;
 
-type View = "dashboard" | "admin" | "orders" | "profile";
+type View = "dashboard" | "admin" | "orders" | "cafe" | "profile";
 type OperatorOrderMode = "normal" | "preacher";
 type PreacherTargetMode = "pastor" | "guest";
 type PreacherExtraKey = (typeof preacherExtraKeys)[number];
@@ -77,11 +77,12 @@ interface CoffeeOrder {
 interface OrderDetailPanelProps {
   order: CoffeeOrder;
   isAdmin: boolean;
-  isOperator: boolean;
+  canChangeStatus: boolean;
   pastors: PastorOption[];
   onClose: () => void;
   onStatusChange: (orderId: string, status: OrderStatus) => Promise<void>;
   onOrderChange: (order: CoffeeOrder, values: Partial<CoffeeOrder>) => Promise<void>;
+  onDeleteOrder: (orderId: string) => Promise<void>;
 }
 
 interface ManagedUser extends Profile {
@@ -186,7 +187,7 @@ function SidebarNav({
   view: View;
   setView: (view: View) => void;
 }) {
-  const { isAdmin, isOperator, isPastor, profile } = useAuth();
+  const { isAdmin, isOperator, isPastor, isCafe, profile } = useAuth();
 
   const items: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [
     { view: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -198,6 +199,10 @@ function SidebarNav({
 
   if (isAdmin || isOperator) {
     items.push({ view: "orders", label: "Orders", icon: Coffee });
+  }
+
+  if (isAdmin || isCafe) {
+    items.push({ view: "cafe", label: "Cafe", icon: Coffee });
   }
 
   return (
@@ -696,7 +701,7 @@ function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference
 }
 
 function Dashboard({ setView }: { setView: (view: View) => void }) {
-  const { isAdmin, isOperator, isPastor, roles: currentRoles } = useAuth();
+  const { isAdmin, isOperator, isPastor, isCafe, roles: currentRoles } = useAuth();
 
   return (
     <section className="page-panel">
@@ -721,6 +726,12 @@ function Dashboard({ setView }: { setView: (view: View) => void }) {
           <button className="action-card" type="button" onClick={() => setView("orders")}>
             <Coffee aria-hidden="true" />
             <span>Orders</span>
+          </button>
+        ) : null}
+        {isAdmin || isCafe ? (
+          <button className="action-card" type="button" onClick={() => setView("cafe")}>
+            <Coffee aria-hidden="true" />
+            <span>Cafe</span>
           </button>
         ) : null}
       </div>
@@ -752,7 +763,7 @@ function AdminPage() {
 
     const rolesByUserId = new Map(
       (rolesData ?? [])
-        .filter((row) => ["admin", "pastor", "operator"].includes(row.role))
+        .filter((row) => ["admin", "pastor", "operator", "cafe"].includes(row.role))
         .map((row) => [row.user_id, row.role as AppRole]),
     );
 
@@ -872,7 +883,16 @@ function AdminPage() {
   );
 }
 
-function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStatusChange, onOrderChange }: OrderDetailPanelProps) {
+function OrderDetailPanel({
+  order,
+  isAdmin,
+  canChangeStatus,
+  pastors,
+  onClose,
+  onStatusChange,
+  onOrderChange,
+  onDeleteOrder,
+}: OrderDetailPanelProps) {
   const [draftName, setDraftName] = useState(order.recipient_name);
   const [draftPastorId, setDraftPastorId] = useState(order.pastor_id ?? "");
   const [draftGuestName, setDraftGuestName] = useState(order.guest_name ?? "");
@@ -941,7 +961,7 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
             <strong>Status</strong>
             <p>{titleCase(order.status)}</p>
           </div>
-          {isOperator ? (
+          {canChangeStatus ? (
             <select value={order.status} onChange={(event) => void onStatusChange(order.id, event.target.value as OrderStatus)}>
               {orderStatuses.map((status) => (
                 <option key={status} value={status}>
@@ -1014,6 +1034,9 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
           </label>
           <button className="primary-button" type="submit">
             Save order
+          </button>
+          <button className="text-button" type="button" onClick={() => void onDeleteOrder(order.id)}>
+            Delete order
           </button>
         </form>
       ) : (
@@ -1298,6 +1321,18 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     await loadOrders();
   };
 
+  const deleteOrder = async (orderId: string) => {
+    const { error } = await supabase.from("coffee_orders").delete().eq("id", orderId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Order deleted.");
+    setSelectedOrderId(null);
+    await loadOrders();
+  };
+
   const preferenceLabel = useMemo(() => {
     if (!preference) return "No preference saved";
     return `${preference.coffee_type}, ${preference.milk_type}, ${preference.sugar_type}, ${preference.milk_heat}`;
@@ -1313,11 +1348,12 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       <OrderDetailPanel
         order={selectedOrder}
         isAdmin={isAdmin}
-        isOperator={isOperator}
+        canChangeStatus={false}
         pastors={pastors}
         onClose={() => setSelectedOrderId(null)}
         onStatusChange={updateStatus}
         onOrderChange={updateOrderDetails}
+        onDeleteOrder={deleteOrder}
       />
     );
   }
@@ -1516,6 +1552,142 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   );
 }
 
+function CafePage() {
+  const { isAdmin, isCafe } = useAuth();
+  const [orders, setOrders] = useState<CoffeeOrder[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [pastors, setPastors] = useState<PastorOption[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const loadOrders = useCallback(async () => {
+    const { data, error } = await supabase.from("coffee_orders").select("*");
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    setOrders(sortOrders((data ?? []) as CoffeeOrder[]));
+  }, []);
+
+  const loadPastors = useCallback(async () => {
+    const [{ data: profilesData, error: profilesError }, { data: rolesData, error: rolesError }] = await Promise.all([
+      supabase.from("profiles").select("id,full_name,email,approved").eq("approved", true),
+      supabase.from("user_roles").select("user_id,role").eq("role", "pastor"),
+    ]);
+
+    if (profilesError) {
+      setMessage(profilesError.message);
+      return;
+    }
+
+    if (rolesError) {
+      setMessage(rolesError.message);
+      return;
+    }
+
+    const pastorIds = new Set((rolesData ?? []).map((row) => row.user_id));
+    setPastors(((profilesData ?? []) as Array<PastorOption & { approved?: boolean }>).filter((entry) => pastorIds.has(entry.id)));
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin || isCafe) {
+      void loadOrders();
+      void loadPastors();
+    }
+  }, [isAdmin, isCafe, loadOrders, loadPastors]);
+
+  const updateStatus = async (orderId: string, status: OrderStatus) => {
+    const { error } = await supabase.from("coffee_orders").update({ status }).eq("id", orderId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    await loadOrders();
+  };
+
+  const updateOrderDetails = async (order: CoffeeOrder, values: Partial<CoffeeOrder>) => {
+    const payload = {
+      pastor_id: values.pastor_id ?? order.pastor_id,
+      order_type: values.order_type ?? order.order_type,
+      recipient_name: values.recipient_name ?? order.recipient_name,
+      guest_name: values.guest_name ?? order.guest_name,
+      guest_details: values.guest_details ?? order.guest_details,
+      custom_extra_items: values.custom_extra_items ?? order.custom_extra_items,
+      preacher_extras: values.preacher_extras ?? order.preacher_extras,
+      coffee_type: values.coffee_type ?? order.coffee_type,
+      milk_type: values.milk_type ?? order.milk_type,
+      sugar_type: values.sugar_type ?? order.sugar_type,
+      milk_heat: values.milk_heat ?? order.milk_heat,
+      notes: values.notes ?? order.notes,
+    };
+
+    const { error } = await supabase.from("coffee_orders").update(payload).eq("id", order.id);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Order updated.");
+    await loadOrders();
+  };
+
+  const deleteOrder = async (orderId: string) => {
+    const { error } = await supabase.from("coffee_orders").delete().eq("id", orderId);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Order deleted.");
+    setSelectedOrderId(null);
+    await loadOrders();
+  };
+
+  const selectedOrder = useMemo(
+    () => orders.find((order) => order.id === selectedOrderId) ?? null,
+    [orders, selectedOrderId],
+  );
+
+  if (selectedOrder) {
+    return (
+      <OrderDetailPanel
+        order={selectedOrder}
+        isAdmin={isAdmin}
+        canChangeStatus={isCafe}
+        pastors={pastors}
+        onClose={() => setSelectedOrderId(null)}
+        onStatusChange={updateStatus}
+        onOrderChange={updateOrderDetails}
+        onDeleteOrder={deleteOrder}
+      />
+    );
+  }
+
+  return (
+    <section className="page-panel">
+      <p className="eyebrow">Cafe</p>
+      <h1>Order queue</h1>
+      <p className="app-subtitle">All submitted orders arrive here for the cafe team.</p>
+      {message ? <p className="form-message">{message}</p> : null}
+      <div className="list-stack">
+        {orders.map((order) => (
+          <article className="list-item" key={order.id}>
+            <div className="order-item-details">
+              <strong>{formatOrderSummary(order)}</strong>
+            </div>
+            <div className="admin-controls">
+              <span className="role-pill">{getOrderBadgeLabel(order)}</span>
+              <span className="role-pill">{titleCase(order.status)}</span>
+              <button className="text-button" type="button" onClick={() => setSelectedOrderId(order.id)}>
+                Open
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AppShell() {
   const auth = useAuth();
   const [view, setView] = useState<View>("dashboard");
@@ -1616,6 +1788,11 @@ function AppShell() {
                     Orders
                   </button>
                 ) : null}
+                {auth.isAdmin || auth.isCafe ? (
+                  <button type="button" onClick={() => setView("cafe")}>
+                    Cafe
+                  </button>
+                ) : null}
                 <button type="button" onClick={() => setView("profile")}>
                   Profile
                 </button>
@@ -1632,6 +1809,7 @@ function AppShell() {
         {view === "dashboard" ? <Dashboard setView={setView} /> : null}
         {view === "admin" && auth.isAdmin ? <AdminPage /> : null}
         {view === "orders" ? <OrdersPage preference={preference} reloadPreference={loadPreference} /> : null}
+        {view === "cafe" && (auth.isAdmin || auth.isCafe) ? <CafePage /> : null}
         {view === "profile" ? <ProfilePage preference={preference} onPreferenceSaved={loadPreference} /> : null}
       </section>
       {showPreferenceSetup ? <PreferenceSetupModal onSave={saveFirstPreference} /> : null}

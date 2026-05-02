@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type AppRole = "admin" | "pastor" | "operator";
+export type AppRole = "admin" | "pastor" | "operator" | "cafe";
 
 export type CoffeeType = "Cappachino" | "Flat White" | "Cortado" | "Latte";
 export type MilkType = "Fresh Milk" | "Lactose Free" | "Oat Milk" | "Almond Milk";

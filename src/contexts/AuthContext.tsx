@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from "react
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "pastor" | "operator";
+export type AppRole = "admin" | "pastor" | "operator" | "cafe";
 
 export interface Profile {
   id: string;
@@ -24,6 +24,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isPastor: boolean;
   isOperator: boolean;
+  isCafe: boolean;
   signOut: () => Promise<void>;
   refreshAccess: () => Promise<void>;
 }
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const nextRoles = (roleData ?? [])
       .map((row) => row.role as AppRole)
-      .filter((role): role is AppRole => ["admin", "pastor", "operator"].includes(role));
+      .filter((role): role is AppRole => ["admin", "pastor", "operator", "cafe"].includes(role));
 
     setProfile((profileData as Profile | null) ?? null);
     setRoles(nextRoles);
@@ -111,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: roles.includes("admin"),
         isPastor: roles.includes("pastor"),
         isOperator: roles.includes("operator"),
+        isCafe: roles.includes("cafe"),
         signOut,
         refreshAccess,
       }}

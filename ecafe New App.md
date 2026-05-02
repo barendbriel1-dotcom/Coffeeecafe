@@ -25,6 +25,9 @@
 - Preacher orders are pinned above normal orders in the main queue.
 - First login now asks coffee users to save a preference before continuing.
 - Preferences and submitted orders now include milk heat from 55 to 70 degrees.
+- Pastors are now limited to 3 orders per day, including operator-submitted orders linked to that pastor.
+- Added a new `Cafe` role that receives all submitted orders on a separate Cafe page.
+- Operators can see submitted orders, but only admins can edit or delete order details.
 
 ## Pages
 
@@ -52,11 +55,12 @@
 - `supabase/migrations/20260502040000_add_preacher_priority_orders.sql`
 - `supabase/migrations/20260502050000_add_admin_delete_user.sql`
 - `supabase/migrations/20260502060000_add_milk_heat_and_preference_onboarding.sql`
+- `supabase/migrations/20260502070000_add_cafe_role_and_daily_order_limit.sql`
 
 ## Important Note
 
 - The latest workflow migration still needs to be run in Supabase:
-  `20260502060000_add_milk_heat_and_preference_onboarding.sql`
+  `20260502070000_add_cafe_role_and_daily_order_limit.sql`
 
 ## Local Git State
 
