@@ -1100,6 +1100,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const [message, setMessage] = useState<string | null>(null);
 
   const canSeeQueue = isAdmin || isOperator || isPastor;
+  const canPreviewOperatorForm = isAdmin || isOperator;
 
   const loadOrders = useCallback(async () => {
     const { data, error } = await supabase.from("coffee_orders").select("*");
@@ -1407,11 +1408,12 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
         </>
       ) : null}
 
-      {isOperator ? (
+      {canPreviewOperatorForm ? (
         <form className="auth-form form-panel" onSubmit={createOperatorOrder}>
           <div>
             <p className="eyebrow">Operator order</p>
             <h2 className="section-title">Create an order</h2>
+            {isAdmin && !isOperator ? <p className="app-subtitle">Preview of the operator order form.</p> : null}
           </div>
 
           <div className="button-row">
