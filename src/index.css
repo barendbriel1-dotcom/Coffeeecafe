@@ -64,11 +64,7 @@
 
   body {
     margin: 0;
-    background:
-      linear-gradient(90deg, hsl(0 0% 91% / 0.7) 1px, transparent 1px),
-      linear-gradient(180deg, hsl(0 0% 91% / 0.7) 1px, transparent 1px),
-      hsl(var(--background));
-    background-size: 48px 48px;
+    background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: "Inter", system-ui, sans-serif;
   }
@@ -88,78 +84,45 @@
   .app-shell {
     display: flex;
     min-height: 100vh;
-    width: min(1120px, calc(100% - 32px));
-    flex-direction: column;
-    gap: 32px;
+    width: min(100% - 32px, 460px);
+    align-items: center;
+    justify-content: center;
     margin: 0 auto;
     padding: 32px 0;
   }
 
-  .app-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-    border-bottom: 1px solid hsl(var(--border));
-    padding-bottom: 24px;
-  }
-
-  .app-header h1,
-  .intro-panel h2,
-  .workspace-panel h2 {
+  .login-bubble h1,
+  .login-bubble h2 {
     margin: 0;
     letter-spacing: 0;
   }
 
-  .app-header h1 {
-    font-size: clamp(2.5rem, 8vw, 6rem);
-    line-height: 0.92;
+  .login-bubble h1 {
+    font-size: clamp(2.75rem, 12vw, 5rem);
+    line-height: 0.95;
     font-weight: 800;
   }
 
-  .workspace-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-    gap: 24px;
-    align-items: stretch;
-  }
-
-  .intro-panel,
-  .workspace-panel,
-  .status-panel {
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
-    background: hsl(var(--card) / 0.94);
-    box-shadow: 0 16px 40px hsl(0 0% 0% / 0.06);
-  }
-
-  .intro-panel {
-    min-height: 360px;
-    padding: 32px;
-  }
-
-  .intro-panel h2,
-  .workspace-panel h2 {
-    font-size: 1.5rem;
+  .login-bubble h2 {
+    font-size: 1.35rem;
     line-height: 1.15;
   }
 
-  .intro-panel p:not(.eyebrow) {
-    max-width: 560px;
+  .login-bubble {
+    display: grid;
+    width: 100%;
+    gap: 28px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 24px;
+    background: hsl(var(--card));
+    padding: 32px;
+    box-shadow: 0 16px 40px hsl(0 0% 0% / 0.06);
+  }
+
+  .app-subtitle {
+    margin: 12px 0 0;
     color: hsl(var(--muted-foreground));
-    line-height: 1.7;
-  }
-
-  .workspace-panel {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 24px;
-  }
-
-  .status-panel {
-    padding: 24px;
+    line-height: 1.6;
   }
 
   .eyebrow,
@@ -170,13 +133,6 @@
     font-weight: 700;
     letter-spacing: 0;
     text-transform: uppercase;
-  }
-
-  .mono-tag {
-    margin: 0;
-    border: 1px solid hsl(var(--foreground));
-    border-radius: 999px;
-    padding: 6px 10px;
   }
 
   .auth-form,
@@ -277,26 +233,22 @@
     font-size: 0.9rem;
     line-height: 1.5;
   }
+
+  .account-panel {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
 }
 
 @media (max-width: 780px) {
   .app-shell {
-    width: min(100% - 24px, 1120px);
-    gap: 20px;
+    width: min(100% - 24px, 460px);
     padding: 20px 0;
   }
 
-  .app-header,
-  .workspace-grid {
-    gap: 16px;
-  }
-
-  .workspace-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .intro-panel {
-    min-height: 260px;
+  .login-bubble {
     padding: 24px;
   }
 }

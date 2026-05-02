@@ -36,24 +36,22 @@ function AuthPanel() {
   };
 
   if (loading) {
-    return <div className="status-panel">Loading account...</div>;
+    return <p className="form-message">Loading account...</p>;
   }
 
   if (!isSupabaseConfigured) {
     return (
-      <section className="workspace-panel" aria-labelledby="setup-heading">
-        <div>
-          <p className="eyebrow">Backend</p>
-          <h2 id="setup-heading">Supabase needed</h2>
-          <p className="form-message">Add the new project URL and publishable key to `.env` to enable users and roles.</p>
-        </div>
-      </section>
+      <div aria-labelledby="setup-heading">
+        <p className="eyebrow">Backend</p>
+        <h2 id="setup-heading">Supabase needed</h2>
+        <p className="form-message">Add the new project URL and publishable key to `.env` to enable users and roles.</p>
+      </div>
     );
   }
 
   if (user) {
     return (
-      <section className="workspace-panel" aria-labelledby="account-heading">
+      <div className="account-panel" aria-labelledby="account-heading">
         <div>
           <p className="eyebrow">Account</p>
           <h2 id="account-heading">{user.email}</h2>
@@ -69,12 +67,12 @@ function AuthPanel() {
         <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out">
           <LogOut size={18} aria-hidden="true" />
         </button>
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="workspace-panel" aria-labelledby="auth-heading">
+    <div aria-labelledby="auth-heading">
       <div>
         <p className="eyebrow">Access</p>
         <h2 id="auth-heading">{mode === "signin" ? "Sign in" : "Create user"}</h2>
@@ -107,26 +105,18 @@ function AuthPanel() {
           </button>
         </div>
       </form>
-    </section>
+    </div>
   );
 }
 
 function Workspace() {
   return (
     <main className="app-shell">
-      <header className="app-header">
+      <section className="login-bubble">
         <div>
-          <p className="eyebrow">New Build</p>
+          <p className="eyebrow">Welcome</p>
           <h1>eCafe</h1>
-        </div>
-        <span className="mono-tag">v0.1</span>
-      </header>
-
-      <section className="workspace-grid">
-        <div className="intro-panel">
-          <p className="eyebrow">Foundation</p>
-          <h2>Clean workspace</h2>
-          <p>The old pages, routes, and inventory flows have been removed. This screen is the new root for the app.</p>
+          <p className="app-subtitle">Sign in to continue to your workspace.</p>
         </div>
         <AuthPanel />
       </section>
