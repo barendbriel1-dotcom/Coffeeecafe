@@ -516,12 +516,6 @@ function Dashboard({ setView }: { setView: (view: View) => void }) {
             <span>Orders</span>
           </button>
         ) : null}
-        {isAdmin ? (
-          <button className="action-card" type="button" onClick={() => setView("admin")}>
-            <Settings aria-hidden="true" />
-            <span>Admin</span>
-          </button>
-        ) : null}
       </div>
     </section>
   );
@@ -1117,15 +1111,17 @@ function AppShell() {
             eCafe
           </button>
           <div className="user-menu">
-            <button className="icon-text-button" type="button" onClick={() => setMenuOpen((open) => !open)}>
-              <UserRound size={18} aria-hidden="true" />
-              {getDisplayName(auth.profile)}
-            </button>
+            <div className="button-row">
+              <button className="icon-text-button" type="button" onClick={() => setMenuOpen((open) => !open)}>
+                <UserRound size={18} aria-hidden="true" />
+                {getDisplayName(auth.profile)}
+              </button>
+              <button className="text-button" type="button" onClick={auth.signOut}>
+                Log out
+              </button>
+            </div>
             {menuOpen ? (
               <div className="menu-popover">
-                <button type="button" onClick={() => setView("dashboard")}>
-                  Dashboard
-                </button>
                 <button type="button" onClick={() => setView("profile")}>
                   Profile
                 </button>
@@ -1134,15 +1130,6 @@ function AppShell() {
                     Admin
                   </button>
                 ) : null}
-                {(auth.isAdmin || auth.isOperator || auth.isPastor) ? (
-                  <button type="button" onClick={() => setView("orders")}>
-                    Orders
-                  </button>
-                ) : null}
-                <button type="button" onClick={auth.signOut}>
-                  <LogOut size={14} aria-hidden="true" />
-                  Sign out
-                </button>
               </div>
             ) : null}
           </div>
