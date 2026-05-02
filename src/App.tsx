@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Coffee, LogOut, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Coffee, LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -41,6 +41,65 @@ interface ManagedUser extends Profile {
 
 function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function SidebarNav({
+  isCollapsed,
+  setIsCollapsed,
+  view,
+  setView,
+}: {
+  isCollapsed: boolean;
+  setIsCollapsed: (value: boolean) => void;
+  view: View;
+  setView: (view: View) => void;
+}) {
+  const { isAdmin, isOperator, isPastor, isVolunteer, profile } = useAuth();
+  const canSeeQueue = isAdmin || isOperator;
+  const canOrder = isPastor || isVolunteer;
+
+  const items: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [{ view: "dashboard", label: "Dashboard", icon: LayoutDashboard }];
+
+  if (canOrder) {
+    items.push({ view: "orders", label: "Order", icon: Coffee });
+  } else if (canSeeQueue) {
+    items.push({ view: "orders", label: "Orders placed", icon: Coffee });
+  }
+
+  if (isAdmin) {
+    items.push({ view: "admin", label: "Admin", icon: Settings });
+  }
+
+  return (
+    <aside className={isCollapsed ? "side-nav collapsed" : "side-nav"}>
+      <div className="side-nav-header">
+        <div className="side-nav-brand">
+          <span className="eyebrow">eCafe</span>
+          {!isCollapsed ? <strong>{profile?.full_name || "Workspace"}</strong> : null}
+        </div>
+        <button className="icon-button" type="button" onClick={() => setIsCollapsed(!isCollapsed)} aria-label="Toggle sidebar">
+          {isCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+        </button>
+      </div>
+
+      <nav className="side-nav-links" aria-label="Sidebar">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.view}
+              className={view === item.view ? "side-nav-link active" : "side-nav-link"}
+              type="button"
+              onClick={() => setView(item.view)}
+            >
+              <Icon size={18} aria-hidden="true" />
+              {!isCollapsed ? <span>{item.label}</span> : null}
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
 }
 
 function CoffeeSelects({
@@ -583,6 +642,7 @@ function AppShell() {
   const [preference, setPreference] = useState<Preference | null>(null);
   const [preferenceLoading, setPreferenceLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const loadPreference = useCallback(async () => {
     if (!auth.user) return;
@@ -620,41 +680,46 @@ function AppShell() {
   if (!preference) return <PreferenceSetup onSaved={loadPreference} />;
 
   return (
-    <main className="app-page">
-      <header className="top-bar">
-        <button className="brand-button" type="button" onClick={() => setView("dashboard")}>
-          eCafe
-        </button>
-        <div className="user-menu">
-          <button className="icon-text-button" type="button" onClick={() => setMenuOpen((open) => !open)}>
-            <UserRound size={18} aria-hidden="true" />
-            {auth.profile?.full_name || auth.user.email}
-          </button>
-          {menuOpen ? (
-            <div className="menu-popover">
-              <button type="button" onClick={() => setView("dashboard")}>
-                Dashboard
-              </button>
-              {auth.isAdmin ? (
-                <button type="button" onClick={() => setView("admin")}>
-                  Admin
-                </button>
-              ) : null}
-              <button type="button" onClick={() => setView("orders")}>
-                Orders
-              </button>
-              <button type="button" onClick={auth.signOut}>
-                <LogOut size={14} aria-hidden="true" />
-                Sign out
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </header>
+    <main className="workspace-shell">
+      <div className="container" aria-hidden="true" />
+      <SidebarNav isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} view={view} setView={setView} />
 
-      {view === "dashboard" ? <Dashboard setView={setView} /> : null}
-      {view === "admin" && auth.isAdmin ? <AdminPage /> : null}
-      {view === "orders" ? <OrdersPage preference={preference} reloadPreference={loadPreference} /> : null}
+      <section className="workspace-main">
+        <header className="top-bar">
+          <button className="brand-button" type="button" onClick={() => setView("dashboard")}>
+            eCafe
+          </button>
+          <div className="user-menu">
+            <button className="icon-text-button" type="button" onClick={() => setMenuOpen((open) => !open)}>
+              <UserRound size={18} aria-hidden="true" />
+              {auth.profile?.full_name || auth.user.email}
+            </button>
+            {menuOpen ? (
+              <div className="menu-popover">
+                <button type="button" onClick={() => setView("dashboard")}>
+                  Dashboard
+                </button>
+                {auth.isAdmin ? (
+                  <button type="button" onClick={() => setView("admin")}>
+                    Admin
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => setView("orders")}>
+                  Orders
+                </button>
+                <button type="button" onClick={auth.signOut}>
+                  <LogOut size={14} aria-hidden="true" />
+                  Sign out
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </header>
+
+        {view === "dashboard" ? <Dashboard setView={setView} /> : null}
+        {view === "admin" && auth.isAdmin ? <AdminPage /> : null}
+        {view === "orders" ? <OrdersPage preference={preference} reloadPreference={loadPreference} /> : null}
+      </section>
     </main>
   );
 }
