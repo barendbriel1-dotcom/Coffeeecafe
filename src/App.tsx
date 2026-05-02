@@ -1763,7 +1763,6 @@ function AppShell() {
 
   return (
     <main className="workspace-shell">
-      <div className="container" aria-hidden="true" />
       <SidebarNav isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} view={view} setView={setView} />
 
       <section className="workspace-main">
