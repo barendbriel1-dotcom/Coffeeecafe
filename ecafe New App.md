@@ -19,6 +19,7 @@
 - Operators are now the only role allowed to change order status.
 - Operators can create coffee orders for approved pastors from a pastor list.
 - Admin can edit order content but cannot change order status.
+- Admin can now delete approved users from the admin page.
 - Only pastors can manage coffee preference on the profile page.
 - Operators can now create priority `Preacher` orders with extra service items and guest details.
 - Preacher orders are pinned above normal orders in the main queue.
@@ -47,11 +48,12 @@
 - `supabase/migrations/20260502020000_add_profile_fields.sql`
 - `supabase/migrations/20260502030000_refine_ecafe_role_workflow.sql`
 - `supabase/migrations/20260502040000_add_preacher_priority_orders.sql`
+- `supabase/migrations/20260502050000_add_admin_delete_user.sql`
 
 ## Important Note
 
 - The latest workflow migration still needs to be run in Supabase:
-  `20260502040000_add_preacher_priority_orders.sql`
+  `20260502050000_add_admin_delete_user.sql`
 
 ## Local Git State
 

@@ -677,6 +677,18 @@ function AdminPage() {
     void loadUsers();
   }, []);
 
+  const deleteUser = async (managedUser: ManagedUser) => {
+    const { error } = await supabase.rpc("admin_delete_user", { target_user_id: managedUser.id });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("User deleted.");
+    await loadUsers();
+  };
+
   const updateUser = async (managedUser: ManagedUser, approved: boolean) => {
     const selectedRole = roleSelections[managedUser.id] ?? "pastor";
 
@@ -748,9 +760,9 @@ function AdminPage() {
                 <button
                   className={managedUser.approved ? "text-button" : "primary-button"}
                   type="button"
-                  onClick={() => updateUser(managedUser, !managedUser.approved)}
+                  onClick={() => (managedUser.approved ? deleteUser(managedUser) : updateUser(managedUser, true))}
                 >
-                  {managedUser.approved ? "Unapprove" : "Approve"}
+                  {managedUser.approved ? "Delete" : "Approve"}
                 </button>
               </div>
             </article>
