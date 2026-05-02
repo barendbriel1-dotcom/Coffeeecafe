@@ -1,20 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Coffee,
-  LayoutDashboard,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-  ShieldCheck,
-  UserRound,
-} from "lucide-react";
+import { Coffee, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppRole, AuthProvider, Profile, useAuth } from "@/contexts/AuthContext";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
-import type { CoffeeType, MilkType, OrderStatus, SugarType } from "@/integrations/supabase/types";
+import type { CoffeeType, Json, MilkType, OrderStatus, OrderType, SugarType } from "@/integrations/supabase/types";
 
 const signupRoles: AppRole[] = ["pastor", "operator"];
 const adminRoles: AppRole[] = ["admin", "pastor", "operator"];
@@ -22,8 +13,12 @@ const coffeeTypes: CoffeeType[] = ["Cappachino", "Flat White", "Cortado", "Latte
 const milkTypes: MilkType[] = ["Fresh Milk", "Lactose Free", "Oat Milk", "Almond Milk"];
 const sugarTypes: SugarType[] = ["1 Sugar", "2 Suger", "3 Suger", "Sweetner"];
 const orderStatuses: OrderStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
+const preacherExtraKeys = ["water", "juice", "tea", "extra coffee", "snacks", "napkins"] as const;
 
 type View = "dashboard" | "admin" | "orders" | "profile";
+type OperatorOrderMode = "normal" | "preacher";
+type PreacherTargetMode = "pastor" | "guest";
+type PreacherExtraKey = (typeof preacherExtraKeys)[number];
 
 interface Preference {
   id: string;
@@ -33,23 +28,37 @@ interface Preference {
   sugar_type: SugarType;
 }
 
+interface PreacherExtraValue {
+  quantity: number;
+  note: string;
+}
+
+type PreacherExtras = Record<PreacherExtraKey, PreacherExtraValue>;
+
 interface CoffeeOrder {
   id: string;
   created_by: string;
   pastor_id: string | null;
+  order_type: OrderType;
   recipient_name: string;
+  guest_name: string | null;
+  guest_details: string | null;
+  custom_extra_items: string | null;
+  preacher_extras: Json | null;
   coffee_type: CoffeeType;
   milk_type: MilkType;
   sugar_type: SugarType;
   notes: string | null;
   status: OrderStatus;
   created_at: string;
+  updated_at?: string;
 }
 
 interface OrderDetailPanelProps {
   order: CoffeeOrder;
   isAdmin: boolean;
   isOperator: boolean;
+  pastors: PastorOption[];
   onClose: () => void;
   onStatusChange: (orderId: string, status: OrderStatus) => Promise<void>;
   onOrderChange: (order: CoffeeOrder, values: Partial<CoffeeOrder>) => Promise<void>;
@@ -82,8 +91,68 @@ function getPastorName(pastor: PastorOption) {
   return pastor.full_name?.trim() || pastor.email || "Pastor";
 }
 
+function createEmptyPreacherExtras(): PreacherExtras {
+  return {
+    water: { quantity: 0, note: "" },
+    juice: { quantity: 0, note: "" },
+    tea: { quantity: 0, note: "" },
+    "extra coffee": { quantity: 0, note: "" },
+    snacks: { quantity: 0, note: "" },
+    napkins: { quantity: 0, note: "" },
+  };
+}
+
+function normalizePreacherExtras(value: Json | null | undefined): PreacherExtras {
+  const base = createEmptyPreacherExtras();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return base;
+
+  for (const key of preacherExtraKeys) {
+    const raw = value[key];
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const quantity = typeof raw.quantity === "number" ? raw.quantity : Number(raw.quantity ?? 0);
+      const note = typeof raw.note === "string" ? raw.note : "";
+      base[key] = { quantity: Number.isFinite(quantity) ? quantity : 0, note };
+    }
+  }
+
+  return base;
+}
+
+function extrasToJson(extras: PreacherExtras): Json {
+  const payload: Record<string, Json> = {};
+  for (const key of preacherExtraKeys) {
+    payload[key] = {
+      quantity: extras[key].quantity,
+      note: extras[key].note,
+    };
+  }
+  return payload;
+}
+
+function summarizePreacherExtras(extras: PreacherExtras) {
+  const selected = preacherExtraKeys
+    .filter((key) => extras[key].quantity > 0)
+    .map((key) => `${titleCase(key)} x${extras[key].quantity}`);
+  return selected.length ? selected.join(", ") : "No extras selected";
+}
+
+function getOrderBadgeLabel(order: CoffeeOrder) {
+  return order.order_type === "preacher" ? "Preacher" : "Normal";
+}
+
 function formatOrderSummary(order: CoffeeOrder) {
-  return `${order.recipient_name} | ${order.coffee_type} | ${order.milk_type} | ${order.sugar_type}`;
+  const badge = order.order_type === "preacher" ? "[Preacher]" : "[Order]";
+  const guest = order.guest_name ? ` + ${order.guest_name}` : "";
+  return `${badge} ${order.recipient_name}${guest} | ${order.coffee_type} | ${order.milk_type} | ${order.sugar_type}`;
+}
+
+function sortOrders(items: CoffeeOrder[]) {
+  return [...items].sort((left, right) => {
+    if (left.order_type !== right.order_type) {
+      return left.order_type === "preacher" ? -1 : 1;
+    }
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
 }
 
 function SidebarNav({
@@ -110,12 +179,6 @@ function SidebarNav({
   if (isAdmin || isOperator) {
     items.push({ view: "orders", label: "Orders", icon: Coffee });
   }
-
-  if (isAdmin) {
-    items.push({ view: "admin", label: "Admin", icon: Settings });
-  }
-
-  items.push({ view: "profile", label: "Profile", icon: UserRound });
 
   return (
     <aside className={isCollapsed ? "side-nav collapsed" : "side-nav"}>
@@ -191,6 +254,51 @@ function CoffeeSelects({
         </select>
       </label>
     </>
+  );
+}
+
+function PreacherExtrasEditor({
+  extras,
+  onChange,
+}: {
+  extras: PreacherExtras;
+  onChange: (extras: PreacherExtras) => void;
+}) {
+  const updateExtra = (key: PreacherExtraKey, field: keyof PreacherExtraValue, value: string | number) => {
+    onChange({
+      ...extras,
+      [key]: {
+        ...extras[key],
+        [field]: field === "quantity" ? Number(value) : value,
+      },
+    });
+  };
+
+  return (
+    <div className="list-stack">
+      {preacherExtraKeys.map((key) => (
+        <article className="list-item" key={key}>
+          <div>
+            <strong>{titleCase(key)}</strong>
+          </div>
+          <div className="admin-controls">
+            <label>
+              Qty
+              <input
+                type="number"
+                min={0}
+                value={extras[key].quantity}
+                onChange={(event) => updateExtra(key, "quantity", event.target.value)}
+              />
+            </label>
+            <label>
+              Note
+              <input value={extras[key].note} onChange={(event) => updateExtra(key, "note", event.target.value)} />
+            </label>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -653,24 +761,40 @@ function AdminPage() {
   );
 }
 
-function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange, onOrderChange }: OrderDetailPanelProps) {
+function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStatusChange, onOrderChange }: OrderDetailPanelProps) {
   const [draftName, setDraftName] = useState(order.recipient_name);
+  const [draftPastorId, setDraftPastorId] = useState(order.pastor_id ?? "");
+  const [draftGuestName, setDraftGuestName] = useState(order.guest_name ?? "");
+  const [draftGuestDetails, setDraftGuestDetails] = useState(order.guest_details ?? "");
+  const [draftCustomExtraItems, setDraftCustomExtraItems] = useState(order.custom_extra_items ?? "");
   const [draftCoffeeType, setDraftCoffeeType] = useState<CoffeeType>(order.coffee_type);
   const [draftMilkType, setDraftMilkType] = useState<MilkType>(order.milk_type);
   const [draftSugarType, setDraftSugarType] = useState<SugarType>(order.sugar_type);
   const [draftNotes, setDraftNotes] = useState(order.notes ?? "");
+  const [draftExtras, setDraftExtras] = useState<PreacherExtras>(normalizePreacherExtras(order.preacher_extras));
 
   useEffect(() => {
     setDraftName(order.recipient_name);
+    setDraftPastorId(order.pastor_id ?? "");
+    setDraftGuestName(order.guest_name ?? "");
+    setDraftGuestDetails(order.guest_details ?? "");
+    setDraftCustomExtraItems(order.custom_extra_items ?? "");
     setDraftCoffeeType(order.coffee_type);
     setDraftMilkType(order.milk_type);
     setDraftSugarType(order.sugar_type);
     setDraftNotes(order.notes ?? "");
+    setDraftExtras(normalizePreacherExtras(order.preacher_extras));
   }, [order]);
 
   const saveAdminChanges = async () => {
+    const selectedPastor = pastors.find((pastor) => pastor.id === draftPastorId);
     await onOrderChange(order, {
-      recipient_name: draftName,
+      pastor_id: draftPastorId || null,
+      recipient_name: selectedPastor ? getPastorName(selectedPastor) : draftName,
+      guest_name: order.order_type === "preacher" ? draftGuestName || null : null,
+      guest_details: order.order_type === "preacher" ? draftGuestDetails || null : null,
+      custom_extra_items: order.order_type === "preacher" ? draftCustomExtraItems || null : null,
+      preacher_extras: order.order_type === "preacher" ? extrasToJson(draftExtras) : null,
       coffee_type: draftCoffeeType,
       milk_type: draftMilkType,
       sugar_type: draftSugarType,
@@ -682,7 +806,7 @@ function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange,
     <section className="page-panel">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Order detail</p>
+          <p className="eyebrow">{order.order_type === "preacher" ? "Preacher order" : "Order detail"}</p>
           <h2 className="section-title">{order.recipient_name}</h2>
         </div>
         <button className="text-button" type="button" onClick={onClose}>
@@ -691,6 +815,13 @@ function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange,
       </div>
 
       <div className="list-stack">
+        <article className="list-item">
+          <div>
+            <strong>Order type</strong>
+            <p>{getOrderBadgeLabel(order)}</p>
+          </div>
+          <span className="role-pill">{getOrderBadgeLabel(order)}</span>
+        </article>
         <article className="list-item">
           <div>
             <strong>Status</strong>
@@ -719,6 +850,17 @@ function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange,
           }}
         >
           <label>
+            Linked pastor
+            <select value={draftPastorId} onChange={(event) => setDraftPastorId(event.target.value)}>
+              <option value="">No linked pastor</option>
+              {pastors.map((pastor) => (
+                <option key={pastor.id} value={pastor.id}>
+                  {getPastorName(pastor)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Name on order
             <input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
           </label>
@@ -730,6 +872,26 @@ function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange,
             onMilkType={setDraftMilkType}
             onSugarType={setDraftSugarType}
           />
+          {order.order_type === "preacher" ? (
+            <>
+              <label>
+                Guest / preacher name
+                <input value={draftGuestName} onChange={(event) => setDraftGuestName(event.target.value)} />
+              </label>
+              <label>
+                Guest / preacher details
+                <textarea value={draftGuestDetails} onChange={(event) => setDraftGuestDetails(event.target.value)} rows={3} />
+              </label>
+              <div>
+                <p className="eyebrow">Extras</p>
+                <PreacherExtrasEditor extras={draftExtras} onChange={setDraftExtras} />
+              </div>
+              <label>
+                Custom extra items
+                <textarea value={draftCustomExtraItems} onChange={(event) => setDraftCustomExtraItems(event.target.value)} rows={3} />
+              </label>
+            </>
+          ) : null}
           <label>
             Notes
             <textarea value={draftNotes} onChange={(event) => setDraftNotes(event.target.value)} rows={3} />
@@ -748,6 +910,24 @@ function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange,
               </p>
             </div>
           </article>
+          {order.order_type === "preacher" ? (
+            <>
+              <article className="list-item">
+                <div>
+                  <strong>Guest / preacher</strong>
+                  <p>{order.guest_name || "No guest person added."}</p>
+                  <p>{order.guest_details || "No extra people details."}</p>
+                </div>
+              </article>
+              <article className="list-item">
+                <div>
+                  <strong>Extras</strong>
+                  <p>{summarizePreacherExtras(normalizePreacherExtras(order.preacher_extras))}</p>
+                  <p>{order.custom_extra_items || "No custom extra items."}</p>
+                </div>
+              </article>
+            </>
+          ) : null}
           <article className="list-item">
             <div>
               <strong>Notes</strong>
@@ -765,7 +945,13 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const [orders, setOrders] = useState<CoffeeOrder[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [pastors, setPastors] = useState<PastorOption[]>([]);
+  const [operatorMode, setOperatorMode] = useState<OperatorOrderMode>("normal");
   const [selectedPastorId, setSelectedPastorId] = useState("");
+  const [preacherTargetMode, setPreacherTargetMode] = useState<PreacherTargetMode>("pastor");
+  const [guestName, setGuestName] = useState("");
+  const [guestDetails, setGuestDetails] = useState("");
+  const [customExtraItems, setCustomExtraItems] = useState("");
+  const [preacherExtras, setPreacherExtras] = useState<PreacherExtras>(createEmptyPreacherExtras());
   const [recipientName, setRecipientName] = useState(profile?.full_name || profile?.email || "");
   const [coffeeType, setCoffeeType] = useState<CoffeeType>(preference?.coffee_type ?? "Cappachino");
   const [milkType, setMilkType] = useState<MilkType>(preference?.milk_type ?? "Fresh Milk");
@@ -776,16 +962,16 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const canSeeQueue = isAdmin || isOperator || isPastor;
 
   const loadOrders = useCallback(async () => {
-    const { data, error } = await supabase.from("coffee_orders").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("coffee_orders").select("*");
     if (error) {
       setMessage(error.message);
       return;
     }
-    setOrders((data ?? []) as CoffeeOrder[]);
+    setOrders(sortOrders((data ?? []) as CoffeeOrder[]));
   }, []);
 
   const loadPastors = useCallback(async () => {
-    if (!isOperator) {
+    if (!isOperator && !isAdmin) {
       setPastors([]);
       return;
     }
@@ -811,7 +997,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     if (!selectedPastorId && nextPastors[0]) {
       setSelectedPastorId(nextPastors[0].id);
     }
-  }, [isOperator, selectedPastorId]);
+  }, [isAdmin, isOperator, selectedPastorId]);
 
   useEffect(() => {
     if (canSeeQueue) void loadOrders();
@@ -841,6 +1027,14 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     }
   }, [isPastor, profile?.email, profile?.full_name]);
 
+  const resetOperatorDraft = () => {
+    setGuestName("");
+    setGuestDetails("");
+    setCustomExtraItems("");
+    setPreacherExtras(createEmptyPreacherExtras());
+    setNotes("");
+  };
+
   const createPastorOrder = async (event?: React.FormEvent<HTMLFormElement>, usePreference = false) => {
     event?.preventDefault();
     if (!user || !isPastor) return;
@@ -849,7 +1043,12 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     const { error } = await supabase.from("coffee_orders").insert({
       created_by: user.id,
       pastor_id: user.id,
+      order_type: "normal",
       recipient_name: profile?.full_name || profile?.email || "Pastor",
+      guest_name: null,
+      guest_details: null,
+      custom_extra_items: null,
+      preacher_extras: null,
       coffee_type: source.coffee_type,
       milk_type: source.milk_type,
       sugar_type: source.sugar_type,
@@ -871,15 +1070,59 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     if (!user || !isOperator) return;
 
     const targetPastor = pastors.find((pastor) => pastor.id === selectedPastorId);
-    if (!targetPastor) {
-      setMessage("Choose a pastor first.");
+
+    if (operatorMode === "normal") {
+      if (!targetPastor) {
+        setMessage("Choose a pastor first.");
+        return;
+      }
+
+      const { error } = await supabase.from("coffee_orders").insert({
+        created_by: user.id,
+        pastor_id: targetPastor.id,
+        order_type: "normal",
+        recipient_name: getPastorName(targetPastor),
+        guest_name: null,
+        guest_details: null,
+        custom_extra_items: null,
+        preacher_extras: null,
+        coffee_type: coffeeType,
+        milk_type: milkType,
+        sugar_type: sugarType,
+        notes: notes || null,
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      setMessage("Order submitted for pastor.");
+      setNotes("");
+      await loadOrders();
       return;
     }
 
+    const isGuestMode = preacherTargetMode === "guest";
+    if (!isGuestMode && !targetPastor) {
+      setMessage("Choose a pastor for the preacher order.");
+      return;
+    }
+    if (isGuestMode && !guestName.trim()) {
+      setMessage("Add the guest / preacher name.");
+      return;
+    }
+
+    const recipient = isGuestMode ? guestName.trim() : getPastorName(targetPastor as PastorOption);
     const { error } = await supabase.from("coffee_orders").insert({
       created_by: user.id,
-      pastor_id: targetPastor.id,
-      recipient_name: getPastorName(targetPastor),
+      pastor_id: isGuestMode ? null : targetPastor?.id ?? null,
+      order_type: "preacher",
+      recipient_name: recipient,
+      guest_name: guestName.trim() || null,
+      guest_details: guestDetails.trim() || null,
+      custom_extra_items: customExtraItems.trim() || null,
+      preacher_extras: extrasToJson(preacherExtras),
       coffee_type: coffeeType,
       milk_type: milkType,
       sugar_type: sugarType,
@@ -891,8 +1134,8 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       return;
     }
 
-    setMessage("Order submitted for pastor.");
-    setNotes("");
+    setMessage("Preacher order submitted.");
+    resetOperatorDraft();
     await loadOrders();
   };
 
@@ -908,7 +1151,12 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const updateOrderDetails = async (order: CoffeeOrder, values: Partial<CoffeeOrder>) => {
     const payload = {
       pastor_id: values.pastor_id ?? order.pastor_id,
+      order_type: values.order_type ?? order.order_type,
       recipient_name: values.recipient_name ?? order.recipient_name,
+      guest_name: values.guest_name ?? order.guest_name,
+      guest_details: values.guest_details ?? order.guest_details,
+      custom_extra_items: values.custom_extra_items ?? order.custom_extra_items,
+      preacher_extras: values.preacher_extras ?? order.preacher_extras,
       coffee_type: values.coffee_type ?? order.coffee_type,
       milk_type: values.milk_type ?? order.milk_type,
       sugar_type: values.sugar_type ?? order.sugar_type,
@@ -941,6 +1189,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
         order={selectedOrder}
         isAdmin={isAdmin}
         isOperator={isOperator}
+        pastors={pastors}
         onClose={() => setSelectedOrderId(null)}
         onStatusChange={updateStatus}
         onOrderChange={updateOrderDetails}
@@ -998,22 +1247,92 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       {isOperator ? (
         <form className="auth-form form-panel" onSubmit={createOperatorOrder}>
           <div>
-            <p className="eyebrow">Pastoral order</p>
-            <h2 className="section-title">Create for a pastor</h2>
+            <p className="eyebrow">Operator order</p>
+            <h2 className="section-title">Create an order</h2>
           </div>
-          <label>
-            Pastor
-            <select value={selectedPastorId} onChange={(event) => setSelectedPastorId(event.target.value)} required>
-              <option value="" disabled>
-                Select pastor
-              </option>
-              {pastors.map((pastor) => (
-                <option key={pastor.id} value={pastor.id}>
-                  {getPastorName(pastor)}
+
+          <div className="button-row">
+            <button
+              className={operatorMode === "normal" ? "primary-button" : "text-button"}
+              type="button"
+              onClick={() => setOperatorMode("normal")}
+            >
+              Normal order
+            </button>
+            <button
+              className={operatorMode === "preacher" ? "primary-button" : "text-button"}
+              type="button"
+              onClick={() => setOperatorMode("preacher")}
+            >
+              Preacher order
+            </button>
+          </div>
+
+          {operatorMode === "normal" ? (
+            <label>
+              Pastor
+              <select value={selectedPastorId} onChange={(event) => setSelectedPastorId(event.target.value)} required>
+                <option value="" disabled>
+                  Select pastor
                 </option>
-              ))}
-            </select>
-          </label>
+                {pastors.map((pastor) => (
+                  <option key={pastor.id} value={pastor.id}>
+                    {getPastorName(pastor)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <>
+              <div className="button-row">
+                <button
+                  className={preacherTargetMode === "pastor" ? "primary-button" : "text-button"}
+                  type="button"
+                  onClick={() => setPreacherTargetMode("pastor")}
+                >
+                  Linked pastor
+                </button>
+                <button
+                  className={preacherTargetMode === "guest" ? "primary-button" : "text-button"}
+                  type="button"
+                  onClick={() => setPreacherTargetMode("guest")}
+                >
+                  Guest preacher
+                </button>
+              </div>
+
+              {preacherTargetMode === "pastor" ? (
+                <label>
+                  Pastor
+                  <select value={selectedPastorId} onChange={(event) => setSelectedPastorId(event.target.value)} required>
+                    <option value="" disabled>
+                      Select pastor
+                    </option>
+                    {pastors.map((pastor) => (
+                      <option key={pastor.id} value={pastor.id}>
+                        {getPastorName(pastor)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label>
+                Guest / preacher name
+                <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Add a guest name if needed" />
+              </label>
+              <label>
+                Guest / preacher details
+                <textarea
+                  value={guestDetails}
+                  onChange={(event) => setGuestDetails(event.target.value)}
+                  rows={3}
+                  placeholder="Phone, seating, contact, or ministry details"
+                />
+              </label>
+            </>
+          )}
+
           <CoffeeSelects
             coffeeType={coffeeType}
             milkType={milkType}
@@ -1022,12 +1341,26 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
             onMilkType={setMilkType}
             onSugarType={setSugarType}
           />
+
+          {operatorMode === "preacher" ? (
+            <>
+              <div>
+                <p className="eyebrow">Cafe service extras</p>
+                <PreacherExtrasEditor extras={preacherExtras} onChange={setPreacherExtras} />
+              </div>
+              <label>
+                Custom extra items
+                <textarea value={customExtraItems} onChange={(event) => setCustomExtraItems(event.target.value)} rows={3} />
+              </label>
+            </>
+          ) : null}
+
           <label>
             Notes
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
           </label>
           <button className="primary-button" type="submit">
-            Submit for pastor
+            {operatorMode === "preacher" ? "Submit preacher order" : "Submit for pastor"}
           </button>
         </form>
       ) : null}
@@ -1040,6 +1373,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
                 <strong>{formatOrderSummary(order)}</strong>
               </div>
               <div className="admin-controls">
+                <span className="role-pill">{getOrderBadgeLabel(order)}</span>
                 <span className="role-pill">{titleCase(order.status)}</span>
                 <button className="text-button" type="button" onClick={() => setSelectedOrderId(order.id)}>
                   Open

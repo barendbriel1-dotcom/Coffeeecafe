@@ -6,6 +6,7 @@ export type CoffeeType = "Cappachino" | "Flat White" | "Cortado" | "Latte";
 export type MilkType = "Fresh Milk" | "Lactose Free" | "Oat Milk" | "Almond Milk";
 export type SugarType = "1 Sugar" | "2 Suger" | "3 Suger" | "Sweetner";
 export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled";
+export type OrderType = "normal" | "preacher";
 
 export type Database = {
   public: {
@@ -108,7 +109,12 @@ export type Database = {
           id: string;
           created_by: string;
           pastor_id: string | null;
+          order_type: OrderType;
           recipient_name: string;
+          guest_name: string | null;
+          guest_details: string | null;
+          custom_extra_items: string | null;
+          preacher_extras: Json | null;
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
@@ -121,7 +127,12 @@ export type Database = {
           id?: string;
           created_by: string;
           pastor_id?: string | null;
+          order_type?: OrderType;
           recipient_name: string;
+          guest_name?: string | null;
+          guest_details?: string | null;
+          custom_extra_items?: string | null;
+          preacher_extras?: Json | null;
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
@@ -134,7 +145,12 @@ export type Database = {
           id?: string;
           created_by?: string;
           pastor_id?: string | null;
+          order_type?: OrderType;
           recipient_name?: string;
+          guest_name?: string | null;
+          guest_details?: string | null;
+          custom_extra_items?: string | null;
+          preacher_extras?: Json | null;
           coffee_type?: CoffeeType;
           milk_type?: MilkType;
           sugar_type?: SugarType;
