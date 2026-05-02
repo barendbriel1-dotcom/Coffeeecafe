@@ -1456,6 +1456,11 @@ function AppShell() {
             </div>
             {menuOpen ? (
               <div className="menu-popover">
+                {auth.isAdmin ? (
+                  <button type="button" onClick={() => setView("orders")}>
+                    Orders
+                  </button>
+                ) : null}
                 <button type="button" onClick={() => setView("profile")}>
                   Profile
                 </button>
