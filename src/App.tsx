@@ -162,9 +162,9 @@ function getOrderBadgeLabel(order: CoffeeOrder) {
 }
 
 function formatOrderSummary(order: CoffeeOrder) {
-  const badge = order.order_type === "preacher" ? "[Preacher]" : "[Order]";
+  const label = order.order_type === "preacher" ? "Preacher Order" : "Order";
   const guest = order.guest_name ? ` + ${order.guest_name}` : "";
-  return `${badge} ${order.recipient_name}${guest} | ${order.coffee_type} | ${order.milk_type} | ${order.sugar_type} | ${order.milk_heat}`;
+  return `${label}: ${order.recipient_name}${guest} ${order.coffee_type}`;
 }
 
 function sortOrders(items: CoffeeOrder[]) {
