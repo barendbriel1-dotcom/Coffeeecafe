@@ -5,13 +5,31 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppRole, AuthProvider, Profile, useAuth } from "@/contexts/AuthContext";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
-import type { CoffeeType, Json, MilkType, OrderStatus, OrderType, SugarType } from "@/integrations/supabase/types";
+import type { CoffeeType, HeatLevel, Json, MilkType, OrderStatus, OrderType, SugarType } from "@/integrations/supabase/types";
 
 const signupRoles: AppRole[] = ["pastor", "operator"];
 const adminRoles: AppRole[] = ["admin", "pastor", "operator"];
 const coffeeTypes: CoffeeType[] = ["Cappachino", "Flat White", "Cortado", "Latte"];
 const milkTypes: MilkType[] = ["Fresh Milk", "Lactose Free", "Oat Milk", "Almond Milk"];
 const sugarTypes: SugarType[] = ["1 Sugar", "2 Suger", "3 Suger", "Sweetner"];
+const heatLevels: HeatLevel[] = [
+  "55 degrees",
+  "56 degrees",
+  "57 degrees",
+  "58 degrees",
+  "59 degrees",
+  "60 degrees",
+  "61 degrees",
+  "62 degrees",
+  "63 degrees",
+  "64 degrees",
+  "65 degrees",
+  "66 degrees",
+  "67 degrees",
+  "68 degrees",
+  "69 degrees",
+  "70 degrees",
+];
 const orderStatuses: OrderStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
 const preacherExtraKeys = ["water", "juice", "tea", "extra coffee", "snacks", "napkins"] as const;
 
@@ -26,6 +44,7 @@ interface Preference {
   coffee_type: CoffeeType;
   milk_type: MilkType;
   sugar_type: SugarType;
+  milk_heat: HeatLevel;
 }
 
 interface PreacherExtraValue {
@@ -48,6 +67,7 @@ interface CoffeeOrder {
   coffee_type: CoffeeType;
   milk_type: MilkType;
   sugar_type: SugarType;
+  milk_heat: HeatLevel;
   notes: string | null;
   status: OrderStatus;
   created_at: string;
@@ -143,7 +163,7 @@ function getOrderBadgeLabel(order: CoffeeOrder) {
 function formatOrderSummary(order: CoffeeOrder) {
   const badge = order.order_type === "preacher" ? "[Preacher]" : "[Order]";
   const guest = order.guest_name ? ` + ${order.guest_name}` : "";
-  return `${badge} ${order.recipient_name}${guest} | ${order.coffee_type} | ${order.milk_type} | ${order.sugar_type}`;
+  return `${badge} ${order.recipient_name}${guest} | ${order.coffee_type} | ${order.milk_type} | ${order.sugar_type} | ${order.milk_heat}`;
 }
 
 function sortOrders(items: CoffeeOrder[]) {
@@ -216,16 +236,20 @@ function CoffeeSelects({
   coffeeType,
   milkType,
   sugarType,
+  milkHeat,
   onCoffeeType,
   onMilkType,
   onSugarType,
+  onMilkHeat,
 }: {
   coffeeType: CoffeeType;
   milkType: MilkType;
   sugarType: SugarType;
+  milkHeat: HeatLevel;
   onCoffeeType: (value: CoffeeType) => void;
   onMilkType: (value: MilkType) => void;
   onSugarType: (value: SugarType) => void;
+  onMilkHeat: (value: HeatLevel) => void;
 }) {
   return (
     <>
@@ -252,6 +276,15 @@ function CoffeeSelects({
             <option key={option}>{option}</option>
           ))}
         </select>
+      </label>
+      <label>
+        Heated
+        <select value={milkHeat} onChange={(event) => onMilkHeat(event.target.value as HeatLevel)}>
+          {heatLevels.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+        <small className="field-hint">55 to 60 is immediate temperature. 60 to 65 is correct cappachino temperature. 70 degrees is very hot.</small>
       </label>
     </>
   );
@@ -485,14 +518,76 @@ function NameSetup({ onSaved }: { onSaved: () => Promise<void> }) {
   );
 }
 
+function PreferenceSetupModal({
+  onSave,
+}: {
+  onSave: (values: { coffee_type: CoffeeType; milk_type: MilkType; sugar_type: SugarType; milk_heat: HeatLevel }) => Promise<void>;
+}) {
+  const [coffeeType, setCoffeeType] = useState<CoffeeType>("Cappachino");
+  const [milkType, setMilkType] = useState<MilkType>("Fresh Milk");
+  const [sugarType, setSugarType] = useState<SugarType>("1 Sugar");
+  const [milkHeat, setMilkHeat] = useState<HeatLevel>("55 degrees");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      await onSave({
+        coffee_type: coffeeType,
+        milk_type: milkType,
+        sugar_type: sugarType,
+        milk_heat: milkHeat,
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save your preference.");
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="login-bubble modal-bubble" role="dialog" aria-modal="true" aria-labelledby="preference-setup-title">
+        <p className="eyebrow">Coffee preference</p>
+        <h1 id="preference-setup-title">Set your first coffee preference</h1>
+        <p className="app-subtitle">Tell eCafe how you want your coffee before you continue.</p>
+        <form className="auth-form" onSubmit={handleSave}>
+          <CoffeeSelects
+            coffeeType={coffeeType}
+            milkType={milkType}
+            sugarType={sugarType}
+            milkHeat={milkHeat}
+            onCoffeeType={setCoffeeType}
+            onMilkType={setMilkType}
+            onSugarType={setSugarType}
+            onMilkHeat={setMilkHeat}
+          />
+          {message ? <p className="form-message">{message}</p> : null}
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? "Saving..." : "Save preference"}
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference | null; onPreferenceSaved: () => Promise<void> }) {
-  const { isPastor, profile, user, refreshAccess } = useAuth();
+  const { isOperator, isPastor, profile, user, refreshAccess } = useAuth();
+  const canManagePreference = isPastor || isOperator;
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [profileNotes, setProfileNotes] = useState(profile?.profile_notes ?? "");
   const [coffeeType, setCoffeeType] = useState<CoffeeType>(preference?.coffee_type ?? "Cappachino");
   const [milkType, setMilkType] = useState<MilkType>(preference?.milk_type ?? "Fresh Milk");
   const [sugarType, setSugarType] = useState<SugarType>(preference?.sugar_type ?? "1 Sugar");
+  const [milkHeat, setMilkHeat] = useState<HeatLevel>(preference?.milk_heat ?? "55 degrees");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -505,6 +600,7 @@ function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference
     setCoffeeType(preference?.coffee_type ?? "Cappachino");
     setMilkType(preference?.milk_type ?? "Fresh Milk");
     setSugarType(preference?.sugar_type ?? "1 Sugar");
+    setMilkHeat(preference?.milk_heat ?? "55 degrees");
   }, [preference]);
 
   const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -531,13 +627,14 @@ function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference
 
   const savePreference = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!user || !isPastor) return;
+    if (!user || !canManagePreference) return;
 
     const { error } = await supabase.from("coffee_preferences").upsert({
       user_id: user.id,
       coffee_type: coffeeType,
       milk_type: milkType,
       sugar_type: sugarType,
+      milk_heat: milkHeat,
     });
 
     if (error) {
@@ -573,7 +670,7 @@ function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference
         </button>
       </form>
 
-      {isPastor ? (
+      {canManagePreference ? (
         <form className="auth-form form-panel" onSubmit={savePreference}>
           <div>
             <p className="eyebrow">Preference</p>
@@ -583,9 +680,11 @@ function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference
             coffeeType={coffeeType}
             milkType={milkType}
             sugarType={sugarType}
+            milkHeat={milkHeat}
             onCoffeeType={setCoffeeType}
             onMilkType={setMilkType}
             onSugarType={setSugarType}
+            onMilkHeat={setMilkHeat}
           />
           <button className="primary-button" type="submit">
             Save preference
@@ -782,6 +881,7 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
   const [draftCoffeeType, setDraftCoffeeType] = useState<CoffeeType>(order.coffee_type);
   const [draftMilkType, setDraftMilkType] = useState<MilkType>(order.milk_type);
   const [draftSugarType, setDraftSugarType] = useState<SugarType>(order.sugar_type);
+  const [draftMilkHeat, setDraftMilkHeat] = useState<HeatLevel>(order.milk_heat);
   const [draftNotes, setDraftNotes] = useState(order.notes ?? "");
   const [draftExtras, setDraftExtras] = useState<PreacherExtras>(normalizePreacherExtras(order.preacher_extras));
 
@@ -794,6 +894,7 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
     setDraftCoffeeType(order.coffee_type);
     setDraftMilkType(order.milk_type);
     setDraftSugarType(order.sugar_type);
+    setDraftMilkHeat(order.milk_heat);
     setDraftNotes(order.notes ?? "");
     setDraftExtras(normalizePreacherExtras(order.preacher_extras));
   }, [order]);
@@ -810,6 +911,7 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
       coffee_type: draftCoffeeType,
       milk_type: draftMilkType,
       sugar_type: draftSugarType,
+      milk_heat: draftMilkHeat,
       notes: draftNotes || null,
     });
   };
@@ -880,9 +982,11 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
             coffeeType={draftCoffeeType}
             milkType={draftMilkType}
             sugarType={draftSugarType}
+            milkHeat={draftMilkHeat}
             onCoffeeType={setDraftCoffeeType}
             onMilkType={setDraftMilkType}
             onSugarType={setDraftSugarType}
+            onMilkHeat={setDraftMilkHeat}
           />
           {order.order_type === "preacher" ? (
             <>
@@ -918,7 +1022,7 @@ function OrderDetailPanel({ order, isAdmin, isOperator, pastors, onClose, onStat
             <div>
               <strong>Coffee</strong>
               <p>
-                {order.coffee_type}, {order.milk_type}, {order.sugar_type}
+                {order.coffee_type}, {order.milk_type}, {order.sugar_type}, {order.milk_heat}
               </p>
             </div>
           </article>
@@ -968,6 +1072,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const [coffeeType, setCoffeeType] = useState<CoffeeType>(preference?.coffee_type ?? "Cappachino");
   const [milkType, setMilkType] = useState<MilkType>(preference?.milk_type ?? "Fresh Milk");
   const [sugarType, setSugarType] = useState<SugarType>(preference?.sugar_type ?? "1 Sugar");
+  const [milkHeat, setMilkHeat] = useState<HeatLevel>(preference?.milk_heat ?? "55 degrees");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -1030,6 +1135,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       setCoffeeType(preference.coffee_type);
       setMilkType(preference.milk_type);
       setSugarType(preference.sugar_type);
+      setMilkHeat(preference.milk_heat);
     }
   }, [preference]);
 
@@ -1051,7 +1157,10 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     event?.preventDefault();
     if (!user || !isPastor) return;
 
-    const source = usePreference && preference ? preference : { coffee_type: coffeeType, milk_type: milkType, sugar_type: sugarType };
+    const source =
+      usePreference && preference
+        ? preference
+        : { coffee_type: coffeeType, milk_type: milkType, sugar_type: sugarType, milk_heat: milkHeat };
     const { error } = await supabase.from("coffee_orders").insert({
       created_by: user.id,
       pastor_id: user.id,
@@ -1064,6 +1173,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       coffee_type: source.coffee_type,
       milk_type: source.milk_type,
       sugar_type: source.sugar_type,
+      milk_heat: source.milk_heat,
       notes: notes || null,
     });
 
@@ -1101,6 +1211,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
         coffee_type: coffeeType,
         milk_type: milkType,
         sugar_type: sugarType,
+        milk_heat: milkHeat,
         notes: notes || null,
       });
 
@@ -1138,6 +1249,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       coffee_type: coffeeType,
       milk_type: milkType,
       sugar_type: sugarType,
+      milk_heat: milkHeat,
       notes: notes || null,
     });
 
@@ -1172,6 +1284,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
       coffee_type: values.coffee_type ?? order.coffee_type,
       milk_type: values.milk_type ?? order.milk_type,
       sugar_type: values.sugar_type ?? order.sugar_type,
+      milk_heat: values.milk_heat ?? order.milk_heat,
       notes: values.notes ?? order.notes,
     };
 
@@ -1187,7 +1300,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
 
   const preferenceLabel = useMemo(() => {
     if (!preference) return "No preference saved";
-    return `${preference.coffee_type}, ${preference.milk_type}, ${preference.sugar_type}`;
+    return `${preference.coffee_type}, ${preference.milk_type}, ${preference.sugar_type}, ${preference.milk_heat}`;
   }, [preference]);
 
   const selectedOrder = useMemo(
@@ -1241,9 +1354,11 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
               coffeeType={coffeeType}
               milkType={milkType}
               sugarType={sugarType}
+              milkHeat={milkHeat}
               onCoffeeType={setCoffeeType}
               onMilkType={setMilkType}
               onSugarType={setSugarType}
+              onMilkHeat={setMilkHeat}
             />
             <label>
               Notes
@@ -1349,9 +1464,11 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
             coffeeType={coffeeType}
             milkType={milkType}
             sugarType={sugarType}
+            milkHeat={milkHeat}
             onCoffeeType={setCoffeeType}
             onMilkType={setMilkType}
             onSugarType={setSugarType}
+            onMilkHeat={setMilkHeat}
           />
 
           {operatorMode === "preacher" ? (
@@ -1404,20 +1521,46 @@ function AppShell() {
   const [view, setView] = useState<View>("dashboard");
   const [preference, setPreference] = useState<Preference | null>(null);
   const [preferenceLoading, setPreferenceLoading] = useState(false);
+  const [showPreferenceSetup, setShowPreferenceSetup] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const canUsePreferences = auth.isPastor || auth.isOperator;
 
   const loadPreference = useCallback(async () => {
-    if (!auth.user || !auth.isPastor) {
+    if (!auth.user || !canUsePreferences) {
       setPreference(null);
+      setShowPreferenceSetup(false);
       return;
     }
 
     setPreferenceLoading(true);
     const { data } = await supabase.from("coffee_preferences").select("*").eq("user_id", auth.user.id).maybeSingle();
-    setPreference((data as Preference | null) ?? null);
+    const nextPreference = (data as Preference | null) ?? null;
+    setPreference(nextPreference);
+    setShowPreferenceSetup(!nextPreference);
     setPreferenceLoading(false);
-  }, [auth.isPastor, auth.user]);
+  }, [auth.user, canUsePreferences]);
+
+  const saveFirstPreference = async (values: {
+    coffee_type: CoffeeType;
+    milk_type: MilkType;
+    sugar_type: SugarType;
+    milk_heat: HeatLevel;
+  }) => {
+    if (!auth.user) throw new Error("No user found.");
+
+    const { error } = await supabase.from("coffee_preferences").upsert({
+      user_id: auth.user.id,
+      ...values,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    await loadPreference();
+    setShowPreferenceSetup(false);
+  };
 
   useEffect(() => {
     if (auth.isApproved) void loadPreference();
@@ -1491,6 +1634,7 @@ function AppShell() {
         {view === "orders" ? <OrdersPage preference={preference} reloadPreference={loadPreference} /> : null}
         {view === "profile" ? <ProfilePage preference={preference} onPreferenceSaved={loadPreference} /> : null}
       </section>
+      {showPreferenceSetup ? <PreferenceSetupModal onSave={saveFirstPreference} /> : null}
     </main>
   );
 }

@@ -5,6 +5,23 @@ export type AppRole = "admin" | "pastor" | "operator";
 export type CoffeeType = "Cappachino" | "Flat White" | "Cortado" | "Latte";
 export type MilkType = "Fresh Milk" | "Lactose Free" | "Oat Milk" | "Almond Milk";
 export type SugarType = "1 Sugar" | "2 Suger" | "3 Suger" | "Sweetner";
+export type HeatLevel =
+  | "55 degrees"
+  | "56 degrees"
+  | "57 degrees"
+  | "58 degrees"
+  | "59 degrees"
+  | "60 degrees"
+  | "61 degrees"
+  | "62 degrees"
+  | "63 degrees"
+  | "64 degrees"
+  | "65 degrees"
+  | "66 degrees"
+  | "67 degrees"
+  | "68 degrees"
+  | "69 degrees"
+  | "70 degrees";
 export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled";
 export type OrderType = "normal" | "preacher";
 
@@ -81,6 +98,7 @@ export type Database = {
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
+          milk_heat: HeatLevel;
           created_at: string;
           updated_at: string;
         };
@@ -90,6 +108,7 @@ export type Database = {
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
+          milk_heat: HeatLevel;
           created_at?: string;
           updated_at?: string;
         };
@@ -99,6 +118,7 @@ export type Database = {
           coffee_type?: CoffeeType;
           milk_type?: MilkType;
           sugar_type?: SugarType;
+          milk_heat?: HeatLevel;
           created_at?: string;
           updated_at?: string;
         };
@@ -118,6 +138,7 @@ export type Database = {
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
+          milk_heat: HeatLevel;
           notes: string | null;
           status: OrderStatus;
           created_at: string;
@@ -136,6 +157,7 @@ export type Database = {
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
+          milk_heat: HeatLevel;
           notes?: string | null;
           status?: OrderStatus;
           created_at?: string;
@@ -154,6 +176,7 @@ export type Database = {
           coffee_type?: CoffeeType;
           milk_type?: MilkType;
           sugar_type?: SugarType;
+          milk_heat?: HeatLevel;
           notes?: string | null;
           status?: OrderStatus;
           created_at?: string;

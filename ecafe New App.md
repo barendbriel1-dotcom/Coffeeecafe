@@ -20,9 +20,11 @@
 - Operators can create coffee orders for approved pastors from a pastor list.
 - Admin can edit order content but cannot change order status.
 - Admin can now delete approved users from the admin page.
-- Only pastors can manage coffee preference on the profile page.
+- Pastors and operators can manage coffee preference on the profile page.
 - Operators can now create priority `Preacher` orders with extra service items and guest details.
 - Preacher orders are pinned above normal orders in the main queue.
+- First login now asks coffee users to save a preference before continuing.
+- Preferences and submitted orders now include milk heat from 55 to 70 degrees.
 
 ## Pages
 
@@ -49,11 +51,12 @@
 - `supabase/migrations/20260502030000_refine_ecafe_role_workflow.sql`
 - `supabase/migrations/20260502040000_add_preacher_priority_orders.sql`
 - `supabase/migrations/20260502050000_add_admin_delete_user.sql`
+- `supabase/migrations/20260502060000_add_milk_heat_and_preference_onboarding.sql`
 
 ## Important Note
 
 - The latest workflow migration still needs to be run in Supabase:
-  `20260502050000_add_admin_delete_user.sql`
+  `20260502060000_add_milk_heat_and_preference_onboarding.sql`
 
 ## Local Git State
 
