@@ -40,6 +40,9 @@ const defaultHeatLevels: HeatLevel[] = [
   "69 degrees",
   "70 degrees",
 ];
+const defaultEatsItems = ["Tramazini", "Toastie"] as const;
+const defaultEatsOptions = ["Cheese Only", "Ham and cheese", "Ham and Feta Cheese"] as const;
+const defaultSweetChiliOptions = ["With Sweet Chili", "Without Sweet Chili"] as const;
 const orderStatuses: OrderStatus[] = ["pending", "preparing", "ready", "completed", "cancelled"];
 const defaultPreacherExtraLabels = ["Water", "Juice", "Tea", "Extra coffee", "Snacks", "Napkins"] as const;
 const builderFieldLabels: Record<OrderFieldKey, string> = {
@@ -48,12 +51,16 @@ const builderFieldLabels: Record<OrderFieldKey, string> = {
   sugar_type: "Sugar type",
   milk_heat: "Milk heat",
   extra_item: "Extra item",
+  eats_item: "Eats item",
+  eats_option: "Eats option",
+  sweet_chili_option: "Sweet chili",
 };
 
 type View = "dashboard" | "account" | "orders" | "cafe" | "profile";
 type AdminAccountSection = "profile" | "users" | "builder";
 type OperatorOrderMode = "normal" | "preacher";
 type PreacherTargetMode = "pastor" | "guest";
+type SpecialOrderKind = "coffee_service" | "eats";
 
 interface Preference {
   id: string;
@@ -76,11 +83,15 @@ interface CoffeeOrder {
   created_by: string;
   pastor_id: string | null;
   order_type: OrderType;
+  special_order_kind: string | null;
   recipient_name: string;
   guest_name: string | null;
   guest_details: string | null;
   custom_extra_items: string | null;
   preacher_extras: Json | null;
+  eats_item: string | null;
+  eats_option: string | null;
+  sweet_chili_option: string | null;
   coffee_type: CoffeeType;
   milk_type: MilkType;
   sugar_type: SugarType;
@@ -128,6 +139,9 @@ interface OrderFormConfig {
   sugarOptions: SugarType[];
   heatOptions: HeatLevel[];
   preacherExtraOptions: string[];
+  eatsItemOptions: string[];
+  eatsOptionOptions: string[];
+  sweetChiliOptions: string[];
 }
 
 function titleCase(value: string) {
@@ -200,7 +214,11 @@ function getOrderBadgeLabel(order: CoffeeOrder) {
 function formatOrderSummary(order: CoffeeOrder) {
   const label = order.order_type === "preacher" ? "Special Order" : "Order";
   const guest = order.guest_name ? ` + ${order.guest_name}` : "";
-  return `${label}: ${order.recipient_name}${guest} ${order.coffee_type}`;
+  const orderItem =
+    order.order_type === "preacher" && order.special_order_kind === "eats"
+      ? order.eats_item || "Eats"
+      : order.coffee_type;
+  return `${label}: ${order.recipient_name}${guest} ${orderItem}`;
 }
 
 function sortOrders(items: CoffeeOrder[]) {
@@ -346,7 +364,7 @@ function PreacherExtrasEditor({
   extras: PreacherExtras;
   onChange: (extras: PreacherExtras) => void;
 }) {
-  const updateExtra = (key: PreacherExtraKey, field: keyof PreacherExtraValue, value: string | number) => {
+  const updateExtra = (key: string, field: keyof PreacherExtraValue, value: string | number) => {
     onChange({
       ...extras,
       [key]: {
@@ -358,7 +376,7 @@ function PreacherExtrasEditor({
 
   return (
     <div className="list-stack">
-      {preacherExtraKeys.map((key) => (
+      {Object.keys(extras).map((key) => (
         <article className="list-item" key={key}>
           <div>
             <strong>{titleCase(key)}</strong>
@@ -381,6 +399,57 @@ function PreacherExtrasEditor({
         </article>
       ))}
     </div>
+  );
+}
+
+function EatsSelects({
+  eatsItemOptions,
+  eatsOptionOptions,
+  sweetChiliOptions,
+  eatsItem,
+  eatsOption,
+  sweetChiliOption,
+  onEatsItem,
+  onEatsOption,
+  onSweetChiliOption,
+}: {
+  eatsItemOptions: string[];
+  eatsOptionOptions: string[];
+  sweetChiliOptions: string[];
+  eatsItem: string;
+  eatsOption: string;
+  sweetChiliOption: string;
+  onEatsItem: (value: string) => void;
+  onEatsOption: (value: string) => void;
+  onSweetChiliOption: (value: string) => void;
+}) {
+  return (
+    <>
+      <label>
+        Eats type
+        <select value={eatsItem} onChange={(event) => onEatsItem(event.target.value)}>
+          {eatsItemOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Filling
+        <select value={eatsOption} onChange={(event) => onEatsOption(event.target.value)}>
+          {eatsOptionOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Sweet Chili
+        <select value={sweetChiliOption} onChange={(event) => onSweetChiliOption(event.target.value)}>
+          {sweetChiliOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+    </>
   );
 }
 
@@ -940,6 +1009,9 @@ function FormBuilderAdminPanel({
             <option value="sugar_type">Sugar type</option>
             <option value="milk_heat">Heated</option>
             <option value="extra_item">Extra items</option>
+            <option value="eats_item">Eats type</option>
+            <option value="eats_option">Filling</option>
+            <option value="sweet_chili_option">Sweet chili</option>
           </select>
         </label>
         <label>
@@ -1252,6 +1324,14 @@ function OrderDetailPanel({
   const [draftMilkType, setDraftMilkType] = useState<MilkType>(order.milk_type);
   const [draftSugarType, setDraftSugarType] = useState<SugarType>(order.sugar_type);
   const [draftMilkHeat, setDraftMilkHeat] = useState<HeatLevel>(order.milk_heat);
+  const [draftSpecialOrderKind, setDraftSpecialOrderKind] = useState<SpecialOrderKind>(
+    (order.special_order_kind as SpecialOrderKind | null) ?? "coffee_service",
+  );
+  const [draftEatsItem, setDraftEatsItem] = useState(order.eats_item ?? formConfig.eatsItemOptions[0] ?? defaultEatsItems[0]);
+  const [draftEatsOption, setDraftEatsOption] = useState(order.eats_option ?? formConfig.eatsOptionOptions[0] ?? defaultEatsOptions[0]);
+  const [draftSweetChiliOption, setDraftSweetChiliOption] = useState(
+    order.sweet_chili_option ?? formConfig.sweetChiliOptions[0] ?? defaultSweetChiliOptions[0],
+  );
   const [draftNotes, setDraftNotes] = useState(order.notes ?? "");
   const [draftExtras, setDraftExtras] = useState<PreacherExtras>(
     normalizePreacherExtras(order.preacher_extras, formConfig.preacherExtraOptions),
@@ -1267,9 +1347,13 @@ function OrderDetailPanel({
     setDraftMilkType(order.milk_type);
     setDraftSugarType(order.sugar_type);
     setDraftMilkHeat(order.milk_heat);
+    setDraftSpecialOrderKind((order.special_order_kind as SpecialOrderKind | null) ?? "coffee_service");
+    setDraftEatsItem(order.eats_item ?? formConfig.eatsItemOptions[0] ?? defaultEatsItems[0]);
+    setDraftEatsOption(order.eats_option ?? formConfig.eatsOptionOptions[0] ?? defaultEatsOptions[0]);
+    setDraftSweetChiliOption(order.sweet_chili_option ?? formConfig.sweetChiliOptions[0] ?? defaultSweetChiliOptions[0]);
     setDraftNotes(order.notes ?? "");
     setDraftExtras(normalizePreacherExtras(order.preacher_extras, formConfig.preacherExtraOptions));
-  }, [formConfig.preacherExtraOptions, order]);
+  }, [formConfig.eatsItemOptions, formConfig.eatsOptionOptions, formConfig.preacherExtraOptions, formConfig.sweetChiliOptions, order]);
 
   const saveAdminChanges = async () => {
     const selectedPastor = pastors.find((pastor) => pastor.id === draftPastorId);
@@ -1278,12 +1362,16 @@ function OrderDetailPanel({
       recipient_name: selectedPastor ? getPastorName(selectedPastor) : draftName,
       guest_name: order.order_type === "preacher" ? draftGuestName || null : null,
       guest_details: order.order_type === "preacher" ? draftGuestDetails || null : null,
-      custom_extra_items: order.order_type === "preacher" ? draftCustomExtraItems || null : null,
-      preacher_extras: order.order_type === "preacher" ? extrasToJson(draftExtras) : null,
-      coffee_type: draftCoffeeType,
-      milk_type: draftMilkType,
-      sugar_type: draftSugarType,
-      milk_heat: draftMilkHeat,
+      special_order_kind: order.order_type === "preacher" ? draftSpecialOrderKind : null,
+      custom_extra_items: order.order_type === "preacher" && draftSpecialOrderKind === "coffee_service" ? draftCustomExtraItems || null : null,
+      preacher_extras: order.order_type === "preacher" && draftSpecialOrderKind === "coffee_service" ? extrasToJson(draftExtras) : null,
+      eats_item: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? draftEatsItem : null,
+      eats_option: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? draftEatsOption : null,
+      sweet_chili_option: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? draftSweetChiliOption : null,
+      coffee_type: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? "Not applicable" : draftCoffeeType,
+      milk_type: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? "Not applicable" : draftMilkType,
+      sugar_type: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? "Not applicable" : draftSugarType,
+      milk_heat: order.order_type === "preacher" && draftSpecialOrderKind === "eats" ? "Not applicable" : draftMilkHeat,
       notes: draftNotes || null,
     });
   };
@@ -1350,22 +1438,24 @@ function OrderDetailPanel({
             Name on order
             <input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
           </label>
-          <CoffeeSelects
-            coffeeOptions={formConfig.coffeeOptions}
-            milkOptions={formConfig.milkOptions}
-            sugarOptions={formConfig.sugarOptions}
-            heatOptions={formConfig.heatOptions}
-            coffeeType={draftCoffeeType}
-            milkType={draftMilkType}
-            sugarType={draftSugarType}
-            milkHeat={draftMilkHeat}
-            onCoffeeType={setDraftCoffeeType}
-            onMilkType={setDraftMilkType}
-            onSugarType={setDraftSugarType}
-            onMilkHeat={setDraftMilkHeat}
-          />
           {order.order_type === "preacher" ? (
             <>
+              <div className="button-row">
+                <button
+                  className={draftSpecialOrderKind === "coffee_service" ? "primary-button" : "text-button"}
+                  type="button"
+                  onClick={() => setDraftSpecialOrderKind("coffee_service")}
+                >
+                  Coffee service
+                </button>
+                <button
+                  className={draftSpecialOrderKind === "eats" ? "primary-button" : "text-button"}
+                  type="button"
+                  onClick={() => setDraftSpecialOrderKind("eats")}
+                >
+                  Eats
+                </button>
+              </div>
               <label>
                 Guest / preacher name
                 <input value={draftGuestName} onChange={(event) => setDraftGuestName(event.target.value)} />
@@ -1374,16 +1464,61 @@ function OrderDetailPanel({
                 Guest / preacher details
                 <textarea value={draftGuestDetails} onChange={(event) => setDraftGuestDetails(event.target.value)} rows={3} />
               </label>
-              <div>
-                <p className="eyebrow">Extras</p>
-                <PreacherExtrasEditor extras={draftExtras} onChange={setDraftExtras} />
-              </div>
-              <label>
-                Custom extra items
-                <textarea value={draftCustomExtraItems} onChange={(event) => setDraftCustomExtraItems(event.target.value)} rows={3} />
-              </label>
+              {draftSpecialOrderKind === "coffee_service" ? (
+                <>
+                  <CoffeeSelects
+                    coffeeOptions={formConfig.coffeeOptions}
+                    milkOptions={formConfig.milkOptions}
+                    sugarOptions={formConfig.sugarOptions}
+                    heatOptions={formConfig.heatOptions}
+                    coffeeType={draftCoffeeType}
+                    milkType={draftMilkType}
+                    sugarType={draftSugarType}
+                    milkHeat={draftMilkHeat}
+                    onCoffeeType={setDraftCoffeeType}
+                    onMilkType={setDraftMilkType}
+                    onSugarType={setDraftSugarType}
+                    onMilkHeat={setDraftMilkHeat}
+                  />
+                  <div>
+                    <p className="eyebrow">Extras</p>
+                    <PreacherExtrasEditor extras={draftExtras} onChange={setDraftExtras} />
+                  </div>
+                  <label>
+                    Custom extra items
+                    <textarea value={draftCustomExtraItems} onChange={(event) => setDraftCustomExtraItems(event.target.value)} rows={3} />
+                  </label>
+                </>
+              ) : (
+                <EatsSelects
+                  eatsItemOptions={formConfig.eatsItemOptions}
+                  eatsOptionOptions={formConfig.eatsOptionOptions}
+                  sweetChiliOptions={formConfig.sweetChiliOptions}
+                  eatsItem={draftEatsItem}
+                  eatsOption={draftEatsOption}
+                  sweetChiliOption={draftSweetChiliOption}
+                  onEatsItem={setDraftEatsItem}
+                  onEatsOption={setDraftEatsOption}
+                  onSweetChiliOption={setDraftSweetChiliOption}
+                />
+              )}
             </>
-          ) : null}
+          ) : (
+            <CoffeeSelects
+              coffeeOptions={formConfig.coffeeOptions}
+              milkOptions={formConfig.milkOptions}
+              sugarOptions={formConfig.sugarOptions}
+              heatOptions={formConfig.heatOptions}
+              coffeeType={draftCoffeeType}
+              milkType={draftMilkType}
+              sugarType={draftSugarType}
+              milkHeat={draftMilkHeat}
+              onCoffeeType={setDraftCoffeeType}
+              onMilkType={setDraftMilkType}
+              onSugarType={setDraftSugarType}
+              onMilkHeat={setDraftMilkHeat}
+            />
+          )}
           <label>
             Notes
             <textarea value={draftNotes} onChange={(event) => setDraftNotes(event.target.value)} rows={3} />
@@ -1399,10 +1534,16 @@ function OrderDetailPanel({
         <div className="list-stack">
           <article className="list-item">
             <div>
-              <strong>Coffee</strong>
-              <p>
-                {order.coffee_type}, {order.milk_type}, {order.sugar_type}, {order.milk_heat}
-              </p>
+              <strong>{order.order_type === "preacher" && order.special_order_kind === "eats" ? "Eats" : "Coffee"}</strong>
+              {order.order_type === "preacher" && order.special_order_kind === "eats" ? (
+                <p>
+                  {order.eats_item}, {order.eats_option}, {order.sweet_chili_option}
+                </p>
+              ) : (
+                <p>
+                  {order.coffee_type}, {order.milk_type}, {order.sugar_type}, {order.milk_heat}
+                </p>
+              )}
             </div>
           </article>
           {order.order_type === "preacher" ? (
@@ -1414,13 +1555,15 @@ function OrderDetailPanel({
                   <p>{order.guest_details || "No extra people details."}</p>
                 </div>
               </article>
-              <article className="list-item">
-                <div>
-                  <strong>Extras</strong>
-                  <p>{summarizePreacherExtras(normalizePreacherExtras(order.preacher_extras, formConfig.preacherExtraOptions))}</p>
-                  <p>{order.custom_extra_items || "No custom extra items."}</p>
-                </div>
-              </article>
+              {order.special_order_kind === "eats" ? null : (
+                <article className="list-item">
+                  <div>
+                    <strong>Extras</strong>
+                    <p>{summarizePreacherExtras(normalizePreacherExtras(order.preacher_extras, formConfig.preacherExtraOptions))}</p>
+                    <p>{order.custom_extra_items || "No custom extra items."}</p>
+                  </div>
+                </article>
+              )}
             </>
           ) : null}
           <article className="list-item">
@@ -1449,12 +1592,16 @@ function OrdersPage({
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [pastors, setPastors] = useState<PastorOption[]>([]);
   const [operatorMode, setOperatorMode] = useState<OperatorOrderMode>("normal");
+  const [specialOrderKind, setSpecialOrderKind] = useState<SpecialOrderKind>("coffee_service");
   const [selectedPastorId, setSelectedPastorId] = useState("");
   const [preacherTargetMode, setPreacherTargetMode] = useState<PreacherTargetMode>("pastor");
   const [guestName, setGuestName] = useState("");
   const [guestDetails, setGuestDetails] = useState("");
   const [customExtraItems, setCustomExtraItems] = useState("");
   const [preacherExtras, setPreacherExtras] = useState<PreacherExtras>(createEmptyPreacherExtras(formConfig.preacherExtraOptions));
+  const [eatsItem, setEatsItem] = useState(formConfig.eatsItemOptions[0] ?? defaultEatsItems[0]);
+  const [eatsOption, setEatsOption] = useState(formConfig.eatsOptionOptions[0] ?? defaultEatsOptions[0]);
+  const [sweetChiliOption, setSweetChiliOption] = useState(formConfig.sweetChiliOptions[0] ?? defaultSweetChiliOptions[0]);
   const [recipientName, setRecipientName] = useState(profile?.full_name || profile?.email || "");
   const [coffeeType, setCoffeeType] = useState<CoffeeType>(preference?.coffee_type ?? formConfig.coffeeOptions[0] ?? defaultCoffeeTypes[0]);
   const [milkType, setMilkType] = useState<MilkType>(preference?.milk_type ?? formConfig.milkOptions[0] ?? defaultMilkTypes[0]);
@@ -1541,16 +1688,30 @@ function OrdersPage({
   }, [formConfig.preacherExtraOptions]);
 
   useEffect(() => {
+    setEatsItem((current) => (formConfig.eatsItemOptions.includes(current) ? current : formConfig.eatsItemOptions[0] ?? defaultEatsItems[0]));
+    setEatsOption((current) =>
+      formConfig.eatsOptionOptions.includes(current) ? current : formConfig.eatsOptionOptions[0] ?? defaultEatsOptions[0],
+    );
+    setSweetChiliOption((current) =>
+      formConfig.sweetChiliOptions.includes(current) ? current : formConfig.sweetChiliOptions[0] ?? defaultSweetChiliOptions[0],
+    );
+  }, [formConfig.eatsItemOptions, formConfig.eatsOptionOptions, formConfig.sweetChiliOptions]);
+
+  useEffect(() => {
     if (isPastor) {
       setRecipientName(profile?.full_name || profile?.email || "");
     }
   }, [isPastor, profile?.email, profile?.full_name]);
 
   const resetOperatorDraft = () => {
+    setSpecialOrderKind("coffee_service");
     setGuestName("");
     setGuestDetails("");
     setCustomExtraItems("");
     setPreacherExtras(createEmptyPreacherExtras(formConfig.preacherExtraOptions));
+    setEatsItem(formConfig.eatsItemOptions[0] ?? defaultEatsItems[0]);
+    setEatsOption(formConfig.eatsOptionOptions[0] ?? defaultEatsOptions[0]);
+    setSweetChiliOption(formConfig.sweetChiliOptions[0] ?? defaultSweetChiliOptions[0]);
     setNotes("");
   };
 
@@ -1642,15 +1803,19 @@ function OrdersPage({
       created_by: user.id,
       pastor_id: isGuestMode ? null : targetPastor?.id ?? null,
       order_type: "preacher",
+      special_order_kind: specialOrderKind,
       recipient_name: recipient,
       guest_name: guestName.trim() || null,
       guest_details: guestDetails.trim() || null,
-      custom_extra_items: customExtraItems.trim() || null,
-      preacher_extras: extrasToJson(preacherExtras),
-      coffee_type: coffeeType,
-      milk_type: milkType,
-      sugar_type: sugarType,
-      milk_heat: milkHeat,
+      custom_extra_items: specialOrderKind === "coffee_service" ? customExtraItems.trim() || null : null,
+      preacher_extras: specialOrderKind === "coffee_service" ? extrasToJson(preacherExtras) : null,
+      eats_item: specialOrderKind === "eats" ? eatsItem : null,
+      eats_option: specialOrderKind === "eats" ? eatsOption : null,
+      sweet_chili_option: specialOrderKind === "eats" ? sweetChiliOption : null,
+      coffee_type: specialOrderKind === "eats" ? "Not applicable" : coffeeType,
+      milk_type: specialOrderKind === "eats" ? "Not applicable" : milkType,
+      sugar_type: specialOrderKind === "eats" ? "Not applicable" : sugarType,
+      milk_heat: specialOrderKind === "eats" ? "Not applicable" : milkHeat,
       notes: notes || null,
     });
 
@@ -1677,11 +1842,15 @@ function OrdersPage({
     const payload = {
       pastor_id: values.pastor_id ?? order.pastor_id,
       order_type: values.order_type ?? order.order_type,
+      special_order_kind: values.special_order_kind ?? order.special_order_kind,
       recipient_name: values.recipient_name ?? order.recipient_name,
       guest_name: values.guest_name ?? order.guest_name,
       guest_details: values.guest_details ?? order.guest_details,
       custom_extra_items: values.custom_extra_items ?? order.custom_extra_items,
       preacher_extras: values.preacher_extras ?? order.preacher_extras,
+      eats_item: values.eats_item ?? order.eats_item,
+      eats_option: values.eats_option ?? order.eats_option,
+      sweet_chili_option: values.sweet_chili_option ?? order.sweet_chili_option,
       coffee_type: values.coffee_type ?? order.coffee_type,
       milk_type: values.milk_type ?? order.milk_type,
       sugar_type: values.sugar_type ?? order.sugar_type,
@@ -1880,33 +2049,79 @@ function OrdersPage({
             </>
           )}
 
-          <CoffeeSelects
-            coffeeOptions={formConfig.coffeeOptions}
-            milkOptions={formConfig.milkOptions}
-            sugarOptions={formConfig.sugarOptions}
-            heatOptions={formConfig.heatOptions}
-            coffeeType={coffeeType}
-            milkType={milkType}
-            sugarType={sugarType}
-            milkHeat={milkHeat}
-            onCoffeeType={setCoffeeType}
-            onMilkType={setMilkType}
-            onSugarType={setSugarType}
-            onMilkHeat={setMilkHeat}
-          />
-
           {operatorMode === "preacher" ? (
             <>
-              <div>
-                <p className="eyebrow">Cafe service extras</p>
-                <PreacherExtrasEditor extras={preacherExtras} onChange={setPreacherExtras} />
+              <div className="button-row">
+                <button
+                  className={specialOrderKind === "coffee_service" ? "primary-button" : "text-button"}
+                  type="button"
+                  onClick={() => setSpecialOrderKind("coffee_service")}
+                >
+                  Coffee service
+                </button>
+                <button
+                  className={specialOrderKind === "eats" ? "primary-button" : "text-button"}
+                  type="button"
+                  onClick={() => setSpecialOrderKind("eats")}
+                >
+                  Eats
+                </button>
               </div>
-              <label>
-                Custom extra items
-                <textarea value={customExtraItems} onChange={(event) => setCustomExtraItems(event.target.value)} rows={3} />
-              </label>
+              {specialOrderKind === "coffee_service" ? (
+                <>
+                  <CoffeeSelects
+                    coffeeOptions={formConfig.coffeeOptions}
+                    milkOptions={formConfig.milkOptions}
+                    sugarOptions={formConfig.sugarOptions}
+                    heatOptions={formConfig.heatOptions}
+                    coffeeType={coffeeType}
+                    milkType={milkType}
+                    sugarType={sugarType}
+                    milkHeat={milkHeat}
+                    onCoffeeType={setCoffeeType}
+                    onMilkType={setMilkType}
+                    onSugarType={setSugarType}
+                    onMilkHeat={setMilkHeat}
+                  />
+                  <div>
+                    <p className="eyebrow">Cafe service extras</p>
+                    <PreacherExtrasEditor extras={preacherExtras} onChange={setPreacherExtras} />
+                  </div>
+                  <label>
+                    Custom extra items
+                    <textarea value={customExtraItems} onChange={(event) => setCustomExtraItems(event.target.value)} rows={3} />
+                  </label>
+                </>
+              ) : (
+                <EatsSelects
+                  eatsItemOptions={formConfig.eatsItemOptions}
+                  eatsOptionOptions={formConfig.eatsOptionOptions}
+                  sweetChiliOptions={formConfig.sweetChiliOptions}
+                  eatsItem={eatsItem}
+                  eatsOption={eatsOption}
+                  sweetChiliOption={sweetChiliOption}
+                  onEatsItem={setEatsItem}
+                  onEatsOption={setEatsOption}
+                  onSweetChiliOption={setSweetChiliOption}
+                />
+              )}
             </>
-          ) : null}
+          ) : (
+            <CoffeeSelects
+              coffeeOptions={formConfig.coffeeOptions}
+              milkOptions={formConfig.milkOptions}
+              sugarOptions={formConfig.sugarOptions}
+              heatOptions={formConfig.heatOptions}
+              coffeeType={coffeeType}
+              milkType={milkType}
+              sugarType={sugarType}
+              milkHeat={milkHeat}
+              onCoffeeType={setCoffeeType}
+              onMilkType={setMilkType}
+              onSugarType={setSugarType}
+              onMilkHeat={setMilkHeat}
+            />
+          )}
 
           <label>
             Notes
@@ -1996,11 +2211,15 @@ function CafePage({ formConfig }: { formConfig: OrderFormConfig }) {
     const payload = {
       pastor_id: values.pastor_id ?? order.pastor_id,
       order_type: values.order_type ?? order.order_type,
+      special_order_kind: values.special_order_kind ?? order.special_order_kind,
       recipient_name: values.recipient_name ?? order.recipient_name,
       guest_name: values.guest_name ?? order.guest_name,
       guest_details: values.guest_details ?? order.guest_details,
       custom_extra_items: values.custom_extra_items ?? order.custom_extra_items,
       preacher_extras: values.preacher_extras ?? order.preacher_extras,
+      eats_item: values.eats_item ?? order.eats_item,
+      eats_option: values.eats_option ?? order.eats_option,
+      sweet_chili_option: values.sweet_chili_option ?? order.sweet_chili_option,
       coffee_type: values.coffee_type ?? order.coffee_type,
       milk_type: values.milk_type ?? order.milk_type,
       sugar_type: values.sugar_type ?? order.sugar_type,
@@ -2151,6 +2370,9 @@ function AppShell() {
       sugarOptions: getFieldOptions(formOptions, "normal", "sugar_type", [...defaultSugarTypes]),
       heatOptions: getFieldOptions(formOptions, "normal", "milk_heat", [...defaultHeatLevels]),
       preacherExtraOptions: getFieldOptions(formOptions, "preacher", "extra_item", [...defaultPreacherExtraLabels]),
+      eatsItemOptions: getFieldOptions(formOptions, "preacher", "eats_item", [...defaultEatsItems]),
+      eatsOptionOptions: getFieldOptions(formOptions, "preacher", "eats_option", [...defaultEatsOptions]),
+      sweetChiliOptions: getFieldOptions(formOptions, "preacher", "sweet_chili_option", [...defaultSweetChiliOptions]),
     }),
     [formOptions],
   );

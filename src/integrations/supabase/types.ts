@@ -9,7 +9,15 @@ export type HeatLevel = string;
 export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled";
 export type OrderType = "normal" | "preacher";
 export type OrderFormType = "normal" | "preacher";
-export type OrderFieldKey = "coffee_type" | "milk_type" | "sugar_type" | "milk_heat" | "extra_item";
+export type OrderFieldKey =
+  | "coffee_type"
+  | "milk_type"
+  | "sugar_type"
+  | "milk_heat"
+  | "extra_item"
+  | "eats_item"
+  | "eats_option"
+  | "sweet_chili_option";
 
 export type Database = {
   public: {
@@ -121,6 +129,10 @@ export type Database = {
           guest_details: string | null;
           custom_extra_items: string | null;
           preacher_extras: Json | null;
+          special_order_kind: string | null;
+          eats_item: string | null;
+          eats_option: string | null;
+          sweet_chili_option: string | null;
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
@@ -140,6 +152,10 @@ export type Database = {
           guest_details?: string | null;
           custom_extra_items?: string | null;
           preacher_extras?: Json | null;
+          special_order_kind?: string | null;
+          eats_item?: string | null;
+          eats_option?: string | null;
+          sweet_chili_option?: string | null;
           coffee_type: CoffeeType;
           milk_type: MilkType;
           sugar_type: SugarType;
@@ -159,6 +175,10 @@ export type Database = {
           guest_details?: string | null;
           custom_extra_items?: string | null;
           preacher_extras?: Json | null;
+          special_order_kind?: string | null;
+          eats_item?: string | null;
+          eats_option?: string | null;
+          sweet_chili_option?: string | null;
           coffee_type?: CoffeeType;
           milk_type?: MilkType;
           sugar_type?: SugarType;
