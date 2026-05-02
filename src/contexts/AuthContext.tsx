@@ -2,17 +2,29 @@ import { createContext, ReactNode, useContext, useEffect, useState } from "react
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "owner" | "admin" | "member";
+export type AppRole = "admin" | "pastor" | "operator" | "volunteer";
+
+export interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  approved: boolean;
+  requested_role: AppRole;
+}
 
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
+  profile: Profile | null;
   roles: AppRole[];
   loading: boolean;
-  isOwner: boolean;
+  isApproved: boolean;
   isAdmin: boolean;
+  isPastor: boolean;
+  isOperator: boolean;
+  isVolunteer: boolean;
   signOut: () => Promise<void>;
-  refreshRoles: () => Promise<void>;
+  refreshAccess: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -20,21 +32,30 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadRoles = async (userId: string) => {
-    const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  const loadAccess = async (userId: string) => {
+    const [{ data: profileData, error: profileError }, { data: roleData, error: roleError }] = await Promise.all([
+      supabase.from("profiles").select("id,email,full_name,approved,requested_role").eq("id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId),
+    ]);
 
-    if (error) throw error;
+    if (profileError) throw profileError;
+    if (roleError) throw roleError;
 
-    const nextRoles = (data ?? []).map((row) => row.role as AppRole);
-    setRoles(nextRoles.length ? nextRoles : ["member"]);
+    const nextRoles = (roleData ?? [])
+      .map((row) => row.role as AppRole)
+      .filter((role): role is AppRole => ["admin", "pastor", "operator", "volunteer"].includes(role));
+
+    setProfile((profileData as Profile | null) ?? null);
+    setRoles(nextRoles.length ? nextRoles : ["volunteer"]);
   };
 
-  const refreshRoles = async () => {
+  const refreshAccess = async () => {
     if (!session?.user) return;
-    await loadRoles(session.user.id);
+    await loadAccess(session.user.id);
   };
 
   useEffect(() => {
@@ -43,15 +64,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(nextSession?.user ?? null);
 
       if (!nextSession?.user) {
+        setProfile(null);
         setRoles([]);
         setLoading(false);
         return;
       }
 
       try {
-        await loadRoles(nextSession.user.id);
+        await loadAccess(nextSession.user.id);
       } catch {
-        setRoles(["member"]);
+        setProfile(null);
+        setRoles(["volunteer"]);
       } finally {
         setLoading(false);
       }
@@ -71,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setSession(null);
     setUser(null);
+    setProfile(null);
     setRoles([]);
   };
 
@@ -79,12 +103,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         session,
         user,
+        profile,
         roles,
         loading,
-        isOwner: roles.includes("owner"),
-        isAdmin: roles.includes("admin") || roles.includes("owner"),
+        isApproved: Boolean(profile?.approved),
+        isAdmin: roles.includes("admin"),
+        isPastor: roles.includes("pastor"),
+        isOperator: roles.includes("operator"),
+        isVolunteer: roles.includes("volunteer"),
         signOut,
-        refreshRoles,
+        refreshAccess,
       }}
     >
       {children}
