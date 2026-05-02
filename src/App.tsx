@@ -46,6 +46,15 @@ interface CoffeeOrder {
   created_at: string;
 }
 
+interface OrderDetailPanelProps {
+  order: CoffeeOrder;
+  isAdmin: boolean;
+  isOperator: boolean;
+  onClose: () => void;
+  onStatusChange: (orderId: string, status: OrderStatus) => Promise<void>;
+  onOrderChange: (order: CoffeeOrder, values: Partial<CoffeeOrder>) => Promise<void>;
+}
+
 interface ManagedUser extends Profile {
   assignedRole: AppRole | null;
 }
@@ -71,6 +80,10 @@ function getRequestedRoleLabel(role: string | null | undefined) {
 
 function getPastorName(pastor: PastorOption) {
   return pastor.full_name?.trim() || pastor.email || "Pastor";
+}
+
+function formatOrderSummary(order: CoffeeOrder) {
+  return `${order.recipient_name} | ${order.coffee_type} | ${order.milk_type} | ${order.sugar_type}`;
 }
 
 function SidebarNav({
@@ -646,9 +659,117 @@ function AdminPage() {
   );
 }
 
+function OrderDetailPanel({ order, isAdmin, isOperator, onClose, onStatusChange, onOrderChange }: OrderDetailPanelProps) {
+  const [draftName, setDraftName] = useState(order.recipient_name);
+  const [draftCoffeeType, setDraftCoffeeType] = useState<CoffeeType>(order.coffee_type);
+  const [draftMilkType, setDraftMilkType] = useState<MilkType>(order.milk_type);
+  const [draftSugarType, setDraftSugarType] = useState<SugarType>(order.sugar_type);
+  const [draftNotes, setDraftNotes] = useState(order.notes ?? "");
+
+  useEffect(() => {
+    setDraftName(order.recipient_name);
+    setDraftCoffeeType(order.coffee_type);
+    setDraftMilkType(order.milk_type);
+    setDraftSugarType(order.sugar_type);
+    setDraftNotes(order.notes ?? "");
+  }, [order]);
+
+  const saveAdminChanges = async () => {
+    await onOrderChange(order, {
+      recipient_name: draftName,
+      coffee_type: draftCoffeeType,
+      milk_type: draftMilkType,
+      sugar_type: draftSugarType,
+      notes: draftNotes || null,
+    });
+  };
+
+  return (
+    <section className="page-panel">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Order detail</p>
+          <h2 className="section-title">{order.recipient_name}</h2>
+        </div>
+        <button className="text-button" type="button" onClick={onClose}>
+          Back to orders
+        </button>
+      </div>
+
+      <div className="list-stack">
+        <article className="list-item">
+          <div>
+            <strong>Status</strong>
+            <p>{titleCase(order.status)}</p>
+          </div>
+          {isOperator ? (
+            <select value={order.status} onChange={(event) => void onStatusChange(order.id, event.target.value as OrderStatus)}>
+              {orderStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {titleCase(status)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="role-pill">{titleCase(order.status)}</span>
+          )}
+        </article>
+      </div>
+
+      {isAdmin ? (
+        <form
+          className="auth-form form-panel"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveAdminChanges();
+          }}
+        >
+          <label>
+            Name on order
+            <input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
+          </label>
+          <CoffeeSelects
+            coffeeType={draftCoffeeType}
+            milkType={draftMilkType}
+            sugarType={draftSugarType}
+            onCoffeeType={setDraftCoffeeType}
+            onMilkType={setDraftMilkType}
+            onSugarType={setDraftSugarType}
+          />
+          <label>
+            Notes
+            <textarea value={draftNotes} onChange={(event) => setDraftNotes(event.target.value)} rows={3} />
+          </label>
+          <button className="primary-button" type="submit">
+            Save order
+          </button>
+        </form>
+      ) : (
+        <div className="list-stack">
+          <article className="list-item">
+            <div>
+              <strong>Coffee</strong>
+              <p>
+                {order.coffee_type}, {order.milk_type}, {order.sugar_type}
+              </p>
+            </div>
+          </article>
+          <article className="list-item">
+            <div>
+              <strong>Notes</strong>
+              <p>{order.notes || "No notes added."}</p>
+            </div>
+          </article>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OrdersPage({ preference, reloadPreference }: { preference: Preference | null; reloadPreference: () => Promise<void> }) {
   const { isAdmin, isOperator, isPastor, user, profile } = useAuth();
   const [orders, setOrders] = useState<CoffeeOrder[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [pastors, setPastors] = useState<PastorOption[]>([]);
   const [selectedPastorId, setSelectedPastorId] = useState("");
   const [recipientName, setRecipientName] = useState(profile?.full_name || profile?.email || "");
@@ -658,7 +779,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
-  const canSeeQueue = isAdmin || isOperator;
+  const canSeeQueue = isAdmin || isOperator || isPastor;
 
   const loadOrders = useCallback(async () => {
     const { data, error } = await supabase.from("coffee_orders").select("*").order("created_at", { ascending: false });
@@ -701,6 +822,12 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   useEffect(() => {
     if (canSeeQueue) void loadOrders();
   }, [canSeeQueue, loadOrders]);
+
+  useEffect(() => {
+    if (selectedOrderId && !orders.some((order) => order.id === selectedOrderId)) {
+      setSelectedOrderId(null);
+    }
+  }, [orders, selectedOrderId]);
 
   useEffect(() => {
     void loadPastors();
@@ -809,10 +936,28 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     return `${preference.coffee_type}, ${preference.milk_type}, ${preference.sugar_type}`;
   }, [preference]);
 
+  const selectedOrder = useMemo(
+    () => orders.find((order) => order.id === selectedOrderId) ?? null,
+    [orders, selectedOrderId],
+  );
+
+  if (selectedOrder) {
+    return (
+      <OrderDetailPanel
+        order={selectedOrder}
+        isAdmin={isAdmin}
+        isOperator={isOperator}
+        onClose={() => setSelectedOrderId(null)}
+        onStatusChange={updateStatus}
+        onOrderChange={updateOrderDetails}
+      />
+    );
+  }
+
   return (
     <section className="page-panel">
       <p className="eyebrow">Orders</p>
-      <h1>{isPastor ? "Order coffee" : "Orders placed"}</h1>
+      <h1>{isPastor && !isAdmin && !isOperator ? "Order coffee" : "Orders"}</h1>
       {message ? <p className="form-message">{message}</p> : null}
 
       {isPastor ? (
@@ -898,65 +1043,13 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
           {orders.map((order) => (
             <article className="list-item" key={order.id}>
               <div className="order-item-details">
-                <strong>{order.recipient_name}</strong>
-                {isAdmin ? (
-                  <div className="auth-form compact-form">
-                    <CoffeeSelects
-                      coffeeType={order.coffee_type}
-                      milkType={order.milk_type}
-                      sugarType={order.sugar_type}
-                      onCoffeeType={(value) => void updateOrderDetails(order, { coffee_type: value })}
-                      onMilkType={(value) => void updateOrderDetails(order, { milk_type: value })}
-                      onSugarType={(value) => void updateOrderDetails(order, { sugar_type: value })}
-                    />
-                    <label>
-                      Name on order
-                      <input
-                        value={order.recipient_name}
-                        onChange={(event) =>
-                          setOrders((current) =>
-                            current.map((entry) =>
-                              entry.id === order.id ? { ...entry, recipient_name: event.target.value } : entry,
-                            ),
-                          )
-                        }
-                        onBlur={(event) => void updateOrderDetails(order, { recipient_name: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Notes
-                      <textarea
-                        value={order.notes ?? ""}
-                        rows={2}
-                        onChange={(event) =>
-                          setOrders((current) =>
-                            current.map((entry) => (entry.id === order.id ? { ...entry, notes: event.target.value } : entry)),
-                          )
-                        }
-                        onBlur={(event) => void updateOrderDetails(order, { notes: event.target.value || null })}
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  <>
-                    <p>
-                      {order.coffee_type}, {order.milk_type}, {order.sugar_type}
-                    </p>
-                    {order.notes ? <p>{order.notes}</p> : null}
-                  </>
-                )}
+                <strong>{formatOrderSummary(order)}</strong>
               </div>
               <div className="admin-controls">
                 <span className="role-pill">{titleCase(order.status)}</span>
-                {isOperator ? (
-                  <select value={order.status} onChange={(event) => updateStatus(order.id, event.target.value as OrderStatus)}>
-                    {orderStatuses.map((status) => (
-                      <option key={status} value={status}>
-                        {titleCase(status)}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
+                <button className="text-button" type="button" onClick={() => setSelectedOrderId(order.id)}>
+                  Open
+                </button>
               </div>
             </article>
           ))}
