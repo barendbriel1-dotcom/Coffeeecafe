@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Coffee, LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Coffee,
+  LayoutDashboard,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,8 +16,8 @@ import { AppRole, AuthProvider, Profile, useAuth } from "@/contexts/AuthContext"
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import type { CoffeeType, MilkType, OrderStatus, SugarType } from "@/integrations/supabase/types";
 
-const roles: AppRole[] = ["pastor", "operator", "volunteer"];
-const adminRoles: AppRole[] = ["admin", "pastor", "operator", "volunteer"];
+const signupRoles: AppRole[] = ["pastor", "operator"];
+const adminRoles: AppRole[] = ["admin", "pastor", "operator"];
 const coffeeTypes: CoffeeType[] = ["Cappachino", "Flat White", "Cortado", "Latte"];
 const milkTypes: MilkType[] = ["Fresh Milk", "Lactose Free", "Oat Milk", "Almond Milk"];
 const sugarTypes: SugarType[] = ["1 Sugar", "2 Suger", "3 Suger", "Sweetner"];
@@ -26,6 +35,8 @@ interface Preference {
 
 interface CoffeeOrder {
   id: string;
+  created_by: string;
+  pastor_id: string | null;
   recipient_name: string;
   coffee_type: CoffeeType;
   milk_type: MilkType;
@@ -39,12 +50,27 @@ interface ManagedUser extends Profile {
   assignedRole: AppRole | null;
 }
 
+interface PastorOption {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
+
 function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function getDisplayName(profile: Profile | null) {
   return profile?.full_name?.trim() || "User";
+}
+
+function getRequestedRoleLabel(role: string | null | undefined) {
+  if (role === "volunteer") return "Legacy Volunteer";
+  return titleCase(role ?? "pastor");
+}
+
+function getPastorName(pastor: PastorOption) {
+  return pastor.full_name?.trim() || pastor.email || "Pastor";
 }
 
 function SidebarNav({
@@ -58,16 +84,18 @@ function SidebarNav({
   view: View;
   setView: (view: View) => void;
 }) {
-  const { isAdmin, isOperator, isPastor, isVolunteer, profile } = useAuth();
-  const canSeeQueue = isAdmin || isOperator;
-  const canOrder = isAdmin || isPastor || isVolunteer;
+  const { isAdmin, isOperator, isPastor, profile } = useAuth();
 
-  const items: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [{ view: "dashboard", label: "Dashboard", icon: LayoutDashboard }];
+  const items: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [
+    { view: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  ];
 
-  if (canOrder) {
+  if (isPastor) {
     items.push({ view: "orders", label: "Order", icon: Coffee });
-  } else if (canSeeQueue) {
-    items.push({ view: "orders", label: "Orders placed", icon: Coffee });
+  }
+
+  if (isAdmin || isOperator) {
+    items.push({ view: "orders", label: "Orders", icon: Coffee });
   }
 
   if (isAdmin) {
@@ -157,7 +185,7 @@ function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [requestedRole, setRequestedRole] = useState<AppRole>("volunteer");
+  const [requestedRole, setRequestedRole] = useState<AppRole>("pastor");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -227,7 +255,7 @@ function AuthScreen() {
               <label>
                 Requested role
                 <select value={requestedRole} onChange={(event) => setRequestedRole(event.target.value as AppRole)}>
-                  {roles.map((role) => (
+                  {signupRoles.map((role) => (
                     <option key={role} value={role}>
                       {titleCase(role)}
                     </option>
@@ -280,7 +308,7 @@ function PendingApproval() {
         <p className="eyebrow">Pending approval</p>
         <h1>Almost there</h1>
         <p className="app-subtitle">
-          Your account is waiting for admin approval. Requested role: {titleCase(profile?.requested_role ?? "volunteer")}.
+          Your account is waiting for admin approval. Requested role: {getRequestedRoleLabel(profile?.requested_role)}.
         </p>
         <div className="button-row">
           <button className="primary-button" type="button" onClick={refreshAccess}>
@@ -336,11 +364,14 @@ function NameSetup({ onSaved }: { onSaved: () => Promise<void> }) {
   );
 }
 
-function ProfilePage() {
-  const { profile, user, refreshAccess } = useAuth();
+function ProfilePage({ preference, onPreferenceSaved }: { preference: Preference | null; onPreferenceSaved: () => Promise<void> }) {
+  const { isPastor, profile, user, refreshAccess } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [profileNotes, setProfileNotes] = useState(profile?.profile_notes ?? "");
+  const [coffeeType, setCoffeeType] = useState<CoffeeType>(preference?.coffee_type ?? "Cappachino");
+  const [milkType, setMilkType] = useState<MilkType>(preference?.milk_type ?? "Fresh Milk");
+  const [sugarType, setSugarType] = useState<SugarType>(preference?.sugar_type ?? "1 Sugar");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -348,6 +379,12 @@ function ProfilePage() {
     setPhone(profile?.phone ?? "");
     setProfileNotes(profile?.profile_notes ?? "");
   }, [profile]);
+
+  useEffect(() => {
+    setCoffeeType(preference?.coffee_type ?? "Cappachino");
+    setMilkType(preference?.milk_type ?? "Fresh Milk");
+    setSugarType(preference?.sugar_type ?? "1 Sugar");
+  }, [preference]);
 
   const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -369,6 +406,26 @@ function ProfilePage() {
 
     await refreshAccess();
     setMessage("Profile updated.");
+  };
+
+  const savePreference = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user || !isPastor) return;
+
+    const { error } = await supabase.from("coffee_preferences").upsert({
+      user_id: user.id,
+      coffee_type: coffeeType,
+      milk_type: milkType,
+      sugar_type: sugarType,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    await onPreferenceSaved();
+    setMessage("Coffee preference updated.");
   };
 
   return (
@@ -394,44 +451,13 @@ function ProfilePage() {
           Save profile
         </button>
       </form>
-    </section>
-  );
-}
 
-function PreferenceSetup({ onSaved }: { onSaved: () => void }) {
-  const { user } = useAuth();
-  const [coffeeType, setCoffeeType] = useState<CoffeeType>("Cappachino");
-  const [milkType, setMilkType] = useState<MilkType>("Fresh Milk");
-  const [sugarType, setSugarType] = useState<SugarType>("1 Sugar");
-  const [message, setMessage] = useState<string | null>(null);
-
-  const savePreference = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user) return;
-
-    const { error } = await supabase.from("coffee_preferences").upsert({
-      user_id: user.id,
-      coffee_type: coffeeType,
-      milk_type: milkType,
-      sugar_type: sugarType,
-    });
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setMessage("Preference saved.");
-    onSaved();
-  };
-
-  return (
-    <main className="center-shell">
-      <section className="login-bubble">
-        <p className="eyebrow">Coffee preference</p>
-        <h1>Your usual</h1>
-        <p className="app-subtitle">Choose your default coffee before opening the dashboard.</p>
-        <form className="auth-form" onSubmit={savePreference}>
+      {isPastor ? (
+        <form className="auth-form form-panel" onSubmit={savePreference}>
+          <div>
+            <p className="eyebrow">Preference</p>
+            <h2 className="section-title">Coffee preference</h2>
+          </div>
           <CoffeeSelects
             coffeeType={coffeeType}
             milkType={milkType}
@@ -440,20 +466,17 @@ function PreferenceSetup({ onSaved }: { onSaved: () => void }) {
             onMilkType={setMilkType}
             onSugarType={setSugarType}
           />
-          {message ? <p className="form-message">{message}</p> : null}
           <button className="primary-button" type="submit">
             Save preference
           </button>
         </form>
-      </section>
-    </main>
+      ) : null}
+    </section>
   );
 }
 
 function Dashboard({ setView }: { setView: (view: View) => void }) {
-  const { isAdmin, isOperator, isPastor, isVolunteer, roles: currentRoles } = useAuth();
-  const canSeeQueue = isAdmin || isOperator;
-  const canOrder = isAdmin || isPastor || isVolunteer;
+  const { isAdmin, isOperator, isPastor, roles: currentRoles } = useAuth();
 
   return (
     <section className="page-panel">
@@ -468,16 +491,16 @@ function Dashboard({ setView }: { setView: (view: View) => void }) {
         ))}
       </div>
       <div className="dashboard-actions">
-        {canOrder ? (
+        {isPastor ? (
           <button className="action-card" type="button" onClick={() => setView("orders")}>
             <Coffee aria-hidden="true" />
             <span>Order</span>
           </button>
         ) : null}
-        {canSeeQueue ? (
+        {isAdmin || isOperator ? (
           <button className="action-card" type="button" onClick={() => setView("orders")}>
             <Coffee aria-hidden="true" />
-            <span>Orders placed</span>
+            <span>Orders</span>
           </button>
         ) : null}
         {isAdmin ? (
@@ -494,6 +517,7 @@ function Dashboard({ setView }: { setView: (view: View) => void }) {
 function AdminPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [roleSelections, setRoleSelections] = useState<Record<string, AppRole>>({});
   const [message, setMessage] = useState<string | null>(null);
 
   const loadUsers = async () => {
@@ -512,25 +536,40 @@ function AdminPage() {
       return;
     }
 
-    const rolesByUserId = new Map((rolesData ?? []).map((row) => [row.user_id, row.role as AppRole]));
+    const rolesByUserId = new Map(
+      (rolesData ?? [])
+        .filter((row) => ["admin", "pastor", "operator"].includes(row.role))
+        .map((row) => [row.user_id, row.role as AppRole]),
+    );
+
     const nextUsers = ((profilesData ?? []) as Profile[]).map((profile) => ({
       ...profile,
       assignedRole: rolesByUserId.get(profile.id) ?? null,
     }));
 
     setUsers(nextUsers);
+    setRoleSelections(
+      Object.fromEntries(
+        nextUsers.map((managedUser) => [
+          managedUser.id,
+          managedUser.assignedRole ?? (managedUser.requested_role === "operator" ? "operator" : "pastor"),
+        ]),
+      ),
+    );
   };
 
   useEffect(() => {
     void loadUsers();
   }, []);
 
-  const updateUser = async (managedUser: ManagedUser, role: AppRole, approved: boolean) => {
+  const updateUser = async (managedUser: ManagedUser, approved: boolean) => {
+    const selectedRole = roleSelections[managedUser.id] ?? "pastor";
+
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
         approved,
-        requested_role: role,
+        requested_role: selectedRole,
         approved_at: approved ? new Date().toISOString() : null,
         approved_by: approved ? user?.id : null,
       })
@@ -547,10 +586,12 @@ function AdminPage() {
       return;
     }
 
-    const { error: roleError } = await supabase.from("user_roles").insert({ user_id: managedUser.id, role });
-    if (roleError) {
-      setMessage(roleError.message);
-      return;
+    if (approved) {
+      const { error: roleError } = await supabase.from("user_roles").insert({ user_id: managedUser.id, role: selectedRole });
+      if (roleError) {
+        setMessage(roleError.message);
+        return;
+      }
     }
 
     setMessage("User updated.");
@@ -561,21 +602,27 @@ function AdminPage() {
     <section className="page-panel">
       <p className="eyebrow">Admin</p>
       <h1>Users</h1>
+      <p className="app-subtitle">Approve accounts and assign active roles.</p>
       {message ? <p className="form-message">{message}</p> : null}
       <div className="list-stack">
         {users.map((managedUser) => {
-          const activeRole = managedUser.assignedRole ?? managedUser.requested_role ?? "volunteer";
+          const selectedRole = roleSelections[managedUser.id] ?? "pastor";
           return (
             <article className="list-item" key={managedUser.id}>
               <div>
                 <strong>{managedUser.full_name || managedUser.email}</strong>
                 <p>{managedUser.email}</p>
-                <p>Requested: {titleCase(managedUser.requested_role)}</p>
+                <p>Requested: {getRequestedRoleLabel(managedUser.requested_role)}</p>
               </div>
               <div className="admin-controls">
                 <select
-                  defaultValue={activeRole}
-                  onChange={(event) => updateUser(managedUser, event.target.value as AppRole, managedUser.approved)}
+                  value={selectedRole}
+                  onChange={(event) =>
+                    setRoleSelections((current) => ({
+                      ...current,
+                      [managedUser.id]: event.target.value as AppRole,
+                    }))
+                  }
                 >
                   {adminRoles.map((role) => (
                     <option key={role} value={role}>
@@ -586,7 +633,7 @@ function AdminPage() {
                 <button
                   className={managedUser.approved ? "text-button" : "primary-button"}
                   type="button"
-                  onClick={() => updateUser(managedUser, activeRole, !managedUser.approved)}
+                  onClick={() => updateUser(managedUser, !managedUser.approved)}
                 >
                   {managedUser.approved ? "Unapprove" : "Approve"}
                 </button>
@@ -600,8 +647,10 @@ function AdminPage() {
 }
 
 function OrdersPage({ preference, reloadPreference }: { preference: Preference | null; reloadPreference: () => Promise<void> }) {
-  const { isAdmin, isOperator, isPastor, isVolunteer, user, profile } = useAuth();
+  const { isAdmin, isOperator, isPastor, user, profile } = useAuth();
   const [orders, setOrders] = useState<CoffeeOrder[]>([]);
+  const [pastors, setPastors] = useState<PastorOption[]>([]);
+  const [selectedPastorId, setSelectedPastorId] = useState("");
   const [recipientName, setRecipientName] = useState(profile?.full_name || profile?.email || "");
   const [coffeeType, setCoffeeType] = useState<CoffeeType>(preference?.coffee_type ?? "Cappachino");
   const [milkType, setMilkType] = useState<MilkType>(preference?.milk_type ?? "Fresh Milk");
@@ -609,22 +658,53 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
-  const canCreateCustomOrder = isAdmin || isPastor;
-  const canSubmitPreference = isAdmin || isOperator || isPastor || isVolunteer;
   const canSeeQueue = isAdmin || isOperator;
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     const { data, error } = await supabase.from("coffee_orders").select("*").order("created_at", { ascending: false });
     if (error) {
       setMessage(error.message);
       return;
     }
     setOrders((data ?? []) as CoffeeOrder[]);
-  };
+  }, []);
+
+  const loadPastors = useCallback(async () => {
+    if (!isOperator) {
+      setPastors([]);
+      return;
+    }
+
+    const [{ data: profilesData, error: profilesError }, { data: rolesData, error: rolesError }] = await Promise.all([
+      supabase.from("profiles").select("id,full_name,email,approved").eq("approved", true),
+      supabase.from("user_roles").select("user_id,role").eq("role", "pastor"),
+    ]);
+
+    if (profilesError) {
+      setMessage(profilesError.message);
+      return;
+    }
+
+    if (rolesError) {
+      setMessage(rolesError.message);
+      return;
+    }
+
+    const pastorIds = new Set((rolesData ?? []).map((row) => row.user_id));
+    const nextPastors = ((profilesData ?? []) as Array<PastorOption & { approved?: boolean }>).filter((entry) => pastorIds.has(entry.id));
+    setPastors(nextPastors);
+    if (!selectedPastorId && nextPastors[0]) {
+      setSelectedPastorId(nextPastors[0].id);
+    }
+  }, [isOperator, selectedPastorId]);
 
   useEffect(() => {
     if (canSeeQueue) void loadOrders();
-  }, [canSeeQueue]);
+  }, [canSeeQueue, loadOrders]);
+
+  useEffect(() => {
+    void loadPastors();
+  }, [loadPastors]);
 
   useEffect(() => {
     if (preference) {
@@ -634,14 +714,21 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     }
   }, [preference]);
 
-  const createOrder = async (event?: React.FormEvent<HTMLFormElement>, usePreference = false) => {
+  useEffect(() => {
+    if (isPastor) {
+      setRecipientName(profile?.full_name || profile?.email || "");
+    }
+  }, [isPastor, profile?.email, profile?.full_name]);
+
+  const createPastorOrder = async (event?: React.FormEvent<HTMLFormElement>, usePreference = false) => {
     event?.preventDefault();
-    if (!user) return;
+    if (!user || !isPastor) return;
 
     const source = usePreference && preference ? preference : { coffee_type: coffeeType, milk_type: milkType, sugar_type: sugarType };
     const { error } = await supabase.from("coffee_orders").insert({
       created_by: user.id,
-      recipient_name: recipientName || profile?.full_name || profile?.email || "Guest",
+      pastor_id: user.id,
+      recipient_name: profile?.full_name || profile?.email || "Pastor",
       coffee_type: source.coffee_type,
       milk_type: source.milk_type,
       sugar_type: source.sugar_type,
@@ -655,7 +742,37 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
 
     setMessage("Order submitted.");
     setNotes("");
-    if (canSeeQueue) await loadOrders();
+    await loadOrders();
+  };
+
+  const createOperatorOrder = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user || !isOperator) return;
+
+    const targetPastor = pastors.find((pastor) => pastor.id === selectedPastorId);
+    if (!targetPastor) {
+      setMessage("Choose a pastor first.");
+      return;
+    }
+
+    const { error } = await supabase.from("coffee_orders").insert({
+      created_by: user.id,
+      pastor_id: targetPastor.id,
+      recipient_name: getPastorName(targetPastor),
+      coffee_type: coffeeType,
+      milk_type: milkType,
+      sugar_type: sugarType,
+      notes: notes || null,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Order submitted for pastor.");
+    setNotes("");
+    await loadOrders();
   };
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
@@ -667,6 +784,26 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
     await loadOrders();
   };
 
+  const updateOrderDetails = async (order: CoffeeOrder, values: Partial<CoffeeOrder>) => {
+    const payload = {
+      pastor_id: values.pastor_id ?? order.pastor_id,
+      recipient_name: values.recipient_name ?? order.recipient_name,
+      coffee_type: values.coffee_type ?? order.coffee_type,
+      milk_type: values.milk_type ?? order.milk_type,
+      sugar_type: values.sugar_type ?? order.sugar_type,
+      notes: values.notes ?? order.notes,
+    };
+
+    const { error } = await supabase.from("coffee_orders").update(payload).eq("id", order.id);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Order updated.");
+    await loadOrders();
+  };
+
   const preferenceLabel = useMemo(() => {
     if (!preference) return "No preference saved";
     return `${preference.coffee_type}, ${preference.milk_type}, ${preference.sugar_type}`;
@@ -675,31 +812,68 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
   return (
     <section className="page-panel">
       <p className="eyebrow">Orders</p>
-      <h1>{canSeeQueue && !canCreateCustomOrder && !canSubmitPreference ? "Orders placed" : "Order coffee"}</h1>
+      <h1>{isPastor ? "Order coffee" : "Orders placed"}</h1>
       {message ? <p className="form-message">{message}</p> : null}
 
-      {canSubmitPreference ? (
-        <div className="preference-strip">
-          <div>
-            <strong>Preference coffee</strong>
-            <p>{preferenceLabel}</p>
+      {isPastor ? (
+        <>
+          <div className="preference-strip">
+            <div>
+              <strong>Preference coffee</strong>
+              <p>{preferenceLabel}</p>
+            </div>
+            <div className="button-row">
+              <button className="primary-button" type="button" disabled={!preference} onClick={() => createPastorOrder(undefined, true)}>
+                Submit preference
+              </button>
+              <button className="text-button" type="button" onClick={reloadPreference}>
+                Refresh
+              </button>
+            </div>
           </div>
-          <div className="button-row">
-            <button className="primary-button" type="button" disabled={!preference} onClick={() => createOrder(undefined, true)}>
-              Submit preference
+
+          <form className="auth-form form-panel" onSubmit={(event) => createPastorOrder(event)}>
+            <label>
+              Name on order
+              <input value={recipientName} onChange={(event) => setRecipientName(event.target.value)} required />
+            </label>
+            <CoffeeSelects
+              coffeeType={coffeeType}
+              milkType={milkType}
+              sugarType={sugarType}
+              onCoffeeType={setCoffeeType}
+              onMilkType={setMilkType}
+              onSugarType={setSugarType}
+            />
+            <label>
+              Notes
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
+            </label>
+            <button className="primary-button" type="submit">
+              Submit order
             </button>
-            <button className="text-button" type="button" onClick={reloadPreference}>
-              Refresh
-            </button>
-          </div>
-        </div>
+          </form>
+        </>
       ) : null}
 
-      {canCreateCustomOrder ? (
-        <form className="auth-form form-panel" onSubmit={(event) => createOrder(event)}>
+      {isOperator ? (
+        <form className="auth-form form-panel" onSubmit={createOperatorOrder}>
+          <div>
+            <p className="eyebrow">Pastoral order</p>
+            <h2 className="section-title">Create for a pastor</h2>
+          </div>
           <label>
-            Name on order
-            <input value={recipientName} onChange={(event) => setRecipientName(event.target.value)} required />
+            Pastor
+            <select value={selectedPastorId} onChange={(event) => setSelectedPastorId(event.target.value)} required>
+              <option value="" disabled>
+                Select pastor
+              </option>
+              {pastors.map((pastor) => (
+                <option key={pastor.id} value={pastor.id}>
+                  {getPastorName(pastor)}
+                </option>
+              ))}
+            </select>
           </label>
           <CoffeeSelects
             coffeeType={coffeeType}
@@ -714,7 +888,7 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
           </label>
           <button className="primary-button" type="submit">
-            Submit order
+            Submit for pastor
           </button>
         </form>
       ) : null}
@@ -723,20 +897,67 @@ function OrdersPage({ preference, reloadPreference }: { preference: Preference |
         <div className="list-stack">
           {orders.map((order) => (
             <article className="list-item" key={order.id}>
-              <div>
+              <div className="order-item-details">
                 <strong>{order.recipient_name}</strong>
-                <p>
-                  {order.coffee_type}, {order.milk_type}, {order.sugar_type}
-                </p>
-                {order.notes ? <p>{order.notes}</p> : null}
+                {isAdmin ? (
+                  <div className="auth-form compact-form">
+                    <CoffeeSelects
+                      coffeeType={order.coffee_type}
+                      milkType={order.milk_type}
+                      sugarType={order.sugar_type}
+                      onCoffeeType={(value) => void updateOrderDetails(order, { coffee_type: value })}
+                      onMilkType={(value) => void updateOrderDetails(order, { milk_type: value })}
+                      onSugarType={(value) => void updateOrderDetails(order, { sugar_type: value })}
+                    />
+                    <label>
+                      Name on order
+                      <input
+                        value={order.recipient_name}
+                        onChange={(event) =>
+                          setOrders((current) =>
+                            current.map((entry) =>
+                              entry.id === order.id ? { ...entry, recipient_name: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                        onBlur={(event) => void updateOrderDetails(order, { recipient_name: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Notes
+                      <textarea
+                        value={order.notes ?? ""}
+                        rows={2}
+                        onChange={(event) =>
+                          setOrders((current) =>
+                            current.map((entry) => (entry.id === order.id ? { ...entry, notes: event.target.value } : entry)),
+                          )
+                        }
+                        onBlur={(event) => void updateOrderDetails(order, { notes: event.target.value || null })}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <p>
+                      {order.coffee_type}, {order.milk_type}, {order.sugar_type}
+                    </p>
+                    {order.notes ? <p>{order.notes}</p> : null}
+                  </>
+                )}
               </div>
-              <select value={order.status} onChange={(event) => updateStatus(order.id, event.target.value as OrderStatus)}>
-                {orderStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {titleCase(status)}
-                  </option>
-                ))}
-              </select>
+              <div className="admin-controls">
+                <span className="role-pill">{titleCase(order.status)}</span>
+                {isOperator ? (
+                  <select value={order.status} onChange={(event) => updateStatus(order.id, event.target.value as OrderStatus)}>
+                    {orderStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {titleCase(status)}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>
@@ -754,12 +975,16 @@ function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const loadPreference = useCallback(async () => {
-    if (!auth.user) return;
+    if (!auth.user || !auth.isPastor) {
+      setPreference(null);
+      return;
+    }
+
     setPreferenceLoading(true);
     const { data } = await supabase.from("coffee_preferences").select("*").eq("user_id", auth.user.id).maybeSingle();
     setPreference((data as Preference | null) ?? null);
     setPreferenceLoading(false);
-  }, [auth.user]);
+  }, [auth.isPastor, auth.user]);
 
   useEffect(() => {
     if (auth.isApproved) void loadPreference();
@@ -787,7 +1012,6 @@ function AppShell() {
       </main>
     );
   }
-  if (!preference) return <PreferenceSetup onSaved={loadPreference} />;
 
   return (
     <main className="workspace-shell">
@@ -806,20 +1030,22 @@ function AppShell() {
             </button>
             {menuOpen ? (
               <div className="menu-popover">
-              <button type="button" onClick={() => setView("dashboard")}>
-                Dashboard
-              </button>
-              <button type="button" onClick={() => setView("profile")}>
-                Profile
-              </button>
-              {auth.isAdmin ? (
-                <button type="button" onClick={() => setView("admin")}>
-                  Admin
+                <button type="button" onClick={() => setView("dashboard")}>
+                  Dashboard
+                </button>
+                <button type="button" onClick={() => setView("profile")}>
+                  Profile
+                </button>
+                {auth.isAdmin ? (
+                  <button type="button" onClick={() => setView("admin")}>
+                    Admin
                   </button>
                 ) : null}
-                <button type="button" onClick={() => setView("orders")}>
-                  Orders
-                </button>
+                {(auth.isAdmin || auth.isOperator || auth.isPastor) ? (
+                  <button type="button" onClick={() => setView("orders")}>
+                    Orders
+                  </button>
+                ) : null}
                 <button type="button" onClick={auth.signOut}>
                   <LogOut size={14} aria-hidden="true" />
                   Sign out
@@ -832,7 +1058,7 @@ function AppShell() {
         {view === "dashboard" ? <Dashboard setView={setView} /> : null}
         {view === "admin" && auth.isAdmin ? <AdminPage /> : null}
         {view === "orders" ? <OrdersPage preference={preference} reloadPreference={loadPreference} /> : null}
-        {view === "profile" ? <ProfilePage /> : null}
+        {view === "profile" ? <ProfilePage preference={preference} onPreferenceSaved={loadPreference} /> : null}
       </section>
     </main>
   );

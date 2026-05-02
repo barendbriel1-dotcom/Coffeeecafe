@@ -7,14 +7,19 @@
 - New app foundation replaced the old inventory app.
 - Login supports signup, requested role selection, forgot password, and admin approval flow.
 - Roles in use:
-  `Admin`, `Pastor`, `Operator`, `Volunteer`
+  `Admin`, `Pastor`, `Operator`
 - Admin can approve users and assign roles manually.
 - Dashboard now has a collapsible left sidebar.
 - Admin can see all pages.
-- Orders workflow is in place.
+- Orders workflow is in place with role-specific behavior.
 - Users can save one coffee preference and submit it quickly.
 - Users now have a profile page from the top-right name button.
 - Dashboard shows the user name, not the email address.
+- Volunteer has been removed from active app flows and signup.
+- Operators are now the only role allowed to change order status.
+- Operators can create coffee orders for approved pastors from a pastor list.
+- Admin can edit order content but cannot change order status.
+- Only pastors can manage coffee preference on the profile page.
 
 ## Pages
 
@@ -38,11 +43,12 @@
 - `supabase/migrations/20260502005000_add_ecafe_role_values.sql`
 - `supabase/migrations/20260502010000_add_ecafe_roles_approvals_orders.sql`
 - `supabase/migrations/20260502020000_add_profile_fields.sql`
+- `supabase/migrations/20260502030000_refine_ecafe_role_workflow.sql`
 
 ## Important Note
 
-- The new profile fields migration still needs to be run in Supabase:
-  `20260502020000_add_profile_fields.sql`
+- The latest workflow migration still needs to be run in Supabase:
+  `20260502030000_refine_ecafe_role_workflow.sql`
 
 ## Local Git State
 

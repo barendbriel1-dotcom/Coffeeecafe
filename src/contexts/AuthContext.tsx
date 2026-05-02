@@ -2,7 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from "react
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "pastor" | "operator" | "volunteer";
+export type AppRole = "admin" | "pastor" | "operator";
 
 export interface Profile {
   id: string;
@@ -24,7 +24,6 @@ interface AuthContextValue {
   isAdmin: boolean;
   isPastor: boolean;
   isOperator: boolean;
-  isVolunteer: boolean;
   signOut: () => Promise<void>;
   refreshAccess: () => Promise<void>;
 }
@@ -49,10 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const nextRoles = (roleData ?? [])
       .map((row) => row.role as AppRole)
-      .filter((role): role is AppRole => ["admin", "pastor", "operator", "volunteer"].includes(role));
+      .filter((role): role is AppRole => ["admin", "pastor", "operator"].includes(role));
 
     setProfile((profileData as Profile | null) ?? null);
-    setRoles(nextRoles.length ? nextRoles : ["volunteer"]);
+    setRoles(nextRoles);
   };
 
   const refreshAccess = async () => {
@@ -76,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadAccess(nextSession.user.id);
       } catch {
         setProfile(null);
-        setRoles(["volunteer"]);
+        setRoles([]);
       } finally {
         setLoading(false);
       }
@@ -112,7 +111,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: roles.includes("admin"),
         isPastor: roles.includes("pastor"),
         isOperator: roles.includes("operator"),
-        isVolunteer: roles.includes("volunteer"),
         signOut,
         refreshAccess,
       }}

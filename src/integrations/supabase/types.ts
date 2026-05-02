@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type AppRole = "admin" | "pastor" | "operator" | "volunteer";
+export type AppRole = "admin" | "pastor" | "operator";
 
 export type CoffeeType = "Cappachino" | "Flat White" | "Cortado" | "Latte";
 export type MilkType = "Fresh Milk" | "Lactose Free" | "Oat Milk" | "Almond Milk";
@@ -107,6 +107,7 @@ export type Database = {
         Row: {
           id: string;
           created_by: string;
+          pastor_id: string | null;
           recipient_name: string;
           coffee_type: CoffeeType;
           milk_type: MilkType;
@@ -119,6 +120,7 @@ export type Database = {
         Insert: {
           id?: string;
           created_by: string;
+          pastor_id?: string | null;
           recipient_name: string;
           coffee_type: CoffeeType;
           milk_type: MilkType;
@@ -131,6 +133,7 @@ export type Database = {
         Update: {
           id?: string;
           created_by?: string;
+          pastor_id?: string | null;
           recipient_name?: string;
           coffee_type?: CoffeeType;
           milk_type?: MilkType;
