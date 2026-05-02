@@ -36,7 +36,7 @@ interface CoffeeOrder {
 }
 
 interface ManagedUser extends Profile {
-  user_roles: { role: AppRole }[];
+  assignedRole: AppRole | null;
 }
 
 function titleCase(value: string) {
@@ -329,17 +329,28 @@ function AdminPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   const loadUsers = async () => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id,email,full_name,approved,requested_role,user_roles(role)")
-      .order("created_at", { ascending: false });
+    const [{ data: profilesData, error: profilesError }, { data: rolesData, error: rolesError }] = await Promise.all([
+      supabase.from("profiles").select("id,email,full_name,approved,requested_role").order("created_at", { ascending: false }),
+      supabase.from("user_roles").select("user_id,role"),
+    ]);
 
-    if (error) {
-      setMessage(error.message);
+    if (profilesError) {
+      setMessage(profilesError.message);
       return;
     }
 
-    setUsers((data ?? []) as ManagedUser[]);
+    if (rolesError) {
+      setMessage(rolesError.message);
+      return;
+    }
+
+    const rolesByUserId = new Map((rolesData ?? []).map((row) => [row.user_id, row.role as AppRole]));
+    const nextUsers = ((profilesData ?? []) as Profile[]).map((profile) => ({
+      ...profile,
+      assignedRole: rolesByUserId.get(profile.id) ?? null,
+    }));
+
+    setUsers(nextUsers);
   };
 
   useEffect(() => {
@@ -385,7 +396,7 @@ function AdminPage() {
       {message ? <p className="form-message">{message}</p> : null}
       <div className="list-stack">
         {users.map((managedUser) => {
-          const activeRole = managedUser.user_roles[0]?.role ?? managedUser.requested_role ?? "volunteer";
+          const activeRole = managedUser.assignedRole ?? managedUser.requested_role ?? "volunteer";
           return (
             <article className="list-item" key={managedUser.id}>
               <div>
